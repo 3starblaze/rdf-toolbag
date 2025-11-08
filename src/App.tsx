@@ -8,12 +8,86 @@ import {
     getCoreRowModel,
     useReactTable,
 } from "@tanstack/react-table"
+import {
+    Bar,
+    BarChart,
+    LineChart,
+    Line,
+    YAxis,
+    XAxis,
+    Label,
+    Tooltip,
+} from "recharts";
 
+function ArchetypeInfoList({
+    archetype,
+}: {
+    archetype: TopArchetype,
+}) {
+    const components = archetype.archetype;
 
-function TopArchetypeInfo({
+    return (
+        <div className="flex flex-col">
+            <p className="font-bold">Size = {components.length}</p>
+            <ul className="text-sm">
+                {components.map((val) => (<li>{val}</li>))}
+            </ul>
+        </div>
+    );
+}
+
+function TopArchetypeChart({
     topArchetypes,
 }: {
-    topArchetypes: TopArchetype[]
+    topArchetypes: TopArchetype[],
+}) {
+    const CustomTooltip = (obj) => {
+        const maybeArchetype: undefined | TopArchetype = obj.payload[0]?.payload;
+
+        const isVisible = maybeArchetype !== undefined;
+
+        return (
+            <div
+                className="custom-tooltip bg-gray-100 p-4"
+                style={{ visibility: isVisible ? 'visible' : 'hidden' }}
+            >
+                {isVisible && (
+                    <>
+                        <p className="font-bold">Count: {maybeArchetype.cnt}</p>
+                        <ArchetypeInfoList archetype={maybeArchetype} />
+                    </>
+                )}
+            </div>
+        );
+    };
+
+    return (
+        <div className="flex flex-col my-4 gap-2">
+            <p className="text-gray-800">Count</p>
+            <BarChart
+                className="max-w-160 min-h-80"
+                width={"100%"}
+                height={"100%"}
+                responsive
+                data={topArchetypes}
+                margin={{
+                    left: 0,
+                    bottom: 0,
+                }}
+            >
+                <Bar dataKey="cnt" className="fill-green-600" />
+                <YAxis width="auto" />
+                <XAxis tick={false} />
+                <Tooltip content={CustomTooltip} />
+            </BarChart>
+        </div>
+    );
+}
+
+function TopArchetypeTable({
+    topArchetypes,
+}: {
+    topArchetypes: TopArchetype[],
 }) {
     type TData = TopArchetype;
 
@@ -50,49 +124,62 @@ function TopArchetypeInfo({
         getCoreRowModel: getCoreRowModel(),
     });
 
-    const cellClassName= "px-4 py-2";
+    const cellClassName = "px-4 py-2";
+
+    return (
+        <table>
+            <thead className="bg-gray-300">
+                {table.getHeaderGroups().map(headerGroup => (
+                    <tr
+                        key={headerGroup.id}
+                    >
+                        {headerGroup.headers.map(header => (
+                            <th
+                                key={header.id}
+                                className={cellClassName}
+                            >
+                                {header.isPlaceholder
+                                    ? null
+                                    : flexRender(
+                                        header.column.columnDef.header,
+                                        header.getContext()
+                                    )}
+                            </th>
+                        ))}
+                    </tr>
+                ))}
+            </thead>
+            <tbody>
+                {table.getRowModel().rows.map(row => (
+                    <tr key={row.id} className="even:bg-gray-100">
+                        {row.getVisibleCells().map(cell => (
+                            <td
+                                key={cell.id}
+                                className={`${cellClassName}`}
+                            >
+                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                            </td>
+                        ))}
+                    </tr>
+                ))}
+            </tbody>
+        </table>
+    );
+}
+
+function TopArchetypeInfo({
+    topArchetypes,
+}: {
+    topArchetypes: TopArchetype[]
+}) {
 
     return (
         <div>
             <p>Showing info for {topArchetypes.length} archetypes.</p>
 
-            <table>
-                <thead className="bg-gray-300">
-                    {table.getHeaderGroups().map(headerGroup => (
-                        <tr
-                            key={headerGroup.id}
-                        >
-                            {headerGroup.headers.map(header => (
-                                <th
-                                    key={header.id}
-                                    className={cellClassName}
-                                >
-                                    {header.isPlaceholder
-                                        ? null
-                                        : flexRender(
-                                            header.column.columnDef.header,
-                                            header.getContext()
-                                        )}
-                                </th>
-                            ))}
-                        </tr>
-                    ))}
-                </thead>
-                <tbody>
-                    {table.getRowModel().rows.map(row => (
-                        <tr key={row.id} className="even:bg-gray-100">
-                            {row.getVisibleCells().map(cell => (
-                                <td
-                                    key={cell.id}
-                                    className={`${cellClassName}`}
-                                >
-                                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                                </td>
-                            ))}
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
+            <TopArchetypeChart topArchetypes={topArchetypes} />
+
+            <TopArchetypeTable topArchetypes={topArchetypes} />
         </div>
     );
 }
@@ -109,7 +196,7 @@ function App() {
         const limit = 50;
 
         setTopArchetypes(getTopArchetypes(db, limit));
-    });
+    }, []);
 
     return (
         <>
