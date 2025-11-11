@@ -31,8 +31,13 @@ function resToObjectArray(
 export function getUniqueArchetypeCount(
     db: Database,
 ): number {
-    const tableName = defaultSerializationConfig.entityToArchetypeIdTable;
-    const queryRes = db.exec(`select count(distinct archetype_id) from ${tableName};`);
+    const tableName = defaultSerializationConfig.idToArchetypeTable;
+    const queryRes = db.exec(`
+select count(*)
+from ${tableName}
+WHERE cached_entity_count > 0
+;`
+    );
     const res = queryRes[0].values[0][0];
     if (typeof res !== "number") {
         throw new Error(`Unexpected type for value ${res} (${typeof res}) !`);
@@ -51,14 +56,11 @@ export function getTopArchetypes(
     db: Database,
     limit: number,
 ): TopArchetype[] {
-    const table0 = defaultSerializationConfig.entityToArchetypeIdTable;
-    const table1 = defaultSerializationConfig.idToArchetypeTable;
+    const table0 = defaultSerializationConfig.idToArchetypeTable;
 
     const stmtString = `
-select archetype_id, count(*) as cnt, archetype
+select id as archetype_id, cached_entity_count as cnt, archetype
 from ${table0}
-left join ${table1} on archetype_id=${table1}.id
-group by archetype_id
 order by cnt desc
 limit ?;`
 
