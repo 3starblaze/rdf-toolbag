@@ -62,8 +62,11 @@ function TopArchetypeChart({
     };
 
     return (
-        <div className="flex flex-col my-4 gap-2">
-            <p className="text-gray-800">Count</p>
+        <div className="flex flex-col gap-1">
+            <div className="w-full flex justify-between max-w-160">
+                <p className="text-gray-800">Archetype occurence count</p>
+                <p className="text-gray-500">Archetype size</p>
+            </div>
             <BarChart
                 className="max-w-160 min-h-80"
                 width={"100%"}
@@ -74,11 +77,21 @@ function TopArchetypeChart({
                     left: 0,
                     bottom: 0,
                 }}
+                barGap={0}
             >
                 <Bar dataKey="cnt" className="fill-green-600" />
                 <YAxis width="auto" />
-                <XAxis tick={false} />
                 <Tooltip content={CustomTooltip} />
+                <Bar
+                    yAxisId="lengthAxis"
+                    dataKey={(x: TopArchetype) => x.archetype.length}
+                    className="fill-gray-500 opacity-60"
+                />
+                <YAxis
+                    className="opacity-70"
+                    orientation="right"
+                    yAxisId="lengthAxis"
+                />
             </BarChart>
         </div>
     );
@@ -174,12 +187,76 @@ function TopArchetypeInfo({
 }) {
 
     return (
-        <div>
-            <p>Showing info for {topArchetypes.length} archetypes.</p>
+        <div className="flex flex-col gap-2">
+            <div className="flex gap-2 items-end">
+                <h2 className="text-xl font-bold">
+                    Archetype occurrence distribution
+                </h2>
 
-            <TopArchetypeChart topArchetypes={topArchetypes} />
+                <p className="text-sm">{topArchetypes.length} archetypes</p>
+            </div>
 
-            <TopArchetypeTable topArchetypes={topArchetypes} />
+            <div className="flex flex-col gap-4 w-fit">
+                <TopArchetypeChart topArchetypes={topArchetypes} />
+
+                <TopArchetypeTable topArchetypes={topArchetypes} />
+            </div>
+        </div>
+    );
+}
+
+function countHistogramData(topArchetypes: TopArchetype[]): number[] {
+    const maxCount = topArchetypes.reduce(
+        (acc, currentArchetype) => Math.max(acc, currentArchetype.archetype.length),
+        0,
+    );
+
+    const res: number[] = Array(maxCount + 1).fill(0);
+
+    for (const item of topArchetypes) {
+        const key = item.archetype.length;
+        res[key] += 1;
+    }
+
+    return res;
+}
+
+function ArchetypeDistributionStatistics({
+    topArchetypes,
+}: {
+    topArchetypes: TopArchetype[],
+}) {
+    const histogramData = countHistogramData(topArchetypes);
+
+    useEffect(() => {
+        console.log({ histogramData });
+    }, [topArchetypes]);
+
+
+    return (
+        <div className="flex flex-col gap-0">
+            <div className="flex gap-2 items-end">
+                <p className="text-lg font-bold">Archetype size distribution</p>
+                <p className="text-sm">{topArchetypes.length} archetypes</p>
+            </div>
+            <div className="flex flex-col gap-2">
+                <p className="text-gray-800">Count</p>
+                <BarChart
+                    className="max-w-160 min-h-80"
+                    width={"100%"}
+                    height={"100%"}
+                    responsive
+                    data={histogramData}
+                    margin={{
+                        left: 0,
+                        bottom: 0,
+                    }}
+                >
+                    <XAxis />
+                    <YAxis />
+                    <Bar dataKey={(x) => x} className="fill-green-600" />
+                </BarChart>
+            </div>
         </div>
     );
 }
@@ -204,20 +281,23 @@ function App() {
                 <div className="p-4 bg-blue-100">
                     <h1>Archetype information</h1>
                 </div>
-                <div className="p-4">
+                <div className="p-4 flex flex-col gap-8">
                     {(uniqueArchetypeCount === null) ? (
                         <p>Count is being retrieved...</p>
                     ) : (
-                        <p>Unique archtype count: {uniqueArchetypeCount}</p>
+                        <p>Unique archetype count: {uniqueArchetypeCount}</p>
                     )}
 
                     {(topArchetypes === null) ? (
                         <p>Top archetypes are being retrieved</p>
                     ) : (
-                        <TopArchetypeInfo topArchetypes={topArchetypes} />
+                        <>
+                            <ArchetypeDistributionStatistics topArchetypes={topArchetypes} />
+                            <TopArchetypeInfo topArchetypes={topArchetypes} />
+                        </>
                     )}
-                </div>
-            </div>
+                </div >
+            </div >
         </>
     )
 }
