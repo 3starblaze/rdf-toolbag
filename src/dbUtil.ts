@@ -61,6 +61,7 @@ export function getTopArchetypes(
     const stmtString = `
 select id as archetype_id, cached_entity_count as cnt, archetype
 from ${table0}
+where cached_entity_count > 0
 order by cnt desc
 limit ?;`
 

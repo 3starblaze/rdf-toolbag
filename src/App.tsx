@@ -18,6 +18,7 @@ import {
     Label,
     Tooltip,
 } from "recharts";
+import { ArchetypeDistributionStatistics } from "./sections/archetype_size_distribution";
 
 function ArchetypeInfoList({
     archetype,
@@ -205,72 +206,19 @@ function TopArchetypeInfo({
     );
 }
 
-function countHistogramData(topArchetypes: TopArchetype[]): number[] {
-    const maxCount = topArchetypes.reduce(
-        (acc, currentArchetype) => Math.max(acc, currentArchetype.archetype.length),
-        0,
-    );
-
-    const res: number[] = Array(maxCount + 1).fill(0);
-
-    for (const item of topArchetypes) {
-        const key = item.archetype.length;
-        res[key] += 1;
-    }
-
-    return res;
-}
-
-function ArchetypeDistributionStatistics({
-    topArchetypes,
-}: {
-    topArchetypes: TopArchetype[],
-}) {
-    const histogramData = countHistogramData(topArchetypes);
-
-    useEffect(() => {
-        console.log({ histogramData });
-    }, [topArchetypes]);
-
-
-    return (
-        <div className="flex flex-col gap-0">
-            <div className="flex gap-2 items-end">
-                <p className="text-lg font-bold">Archetype size distribution</p>
-                <p className="text-sm">{topArchetypes.length} archetypes</p>
-            </div>
-            <div className="flex flex-col gap-2">
-                <p className="text-gray-800">Count</p>
-                <BarChart
-                    className="max-w-160 min-h-80"
-                    width={"100%"}
-                    height={"100%"}
-                    responsive
-                    data={histogramData}
-                    margin={{
-                        left: 0,
-                        bottom: 0,
-                    }}
-                >
-                    <XAxis />
-                    <YAxis />
-                    <Bar dataKey={(x) => x} className="fill-green-600" />
-                </BarChart>
-            </div>
-        </div>
-    );
-}
-
 function App() {
+    const limit = 100000;
+    const graphLimit = 50;
+
     const [uniqueArchetypeCount, setUniqueArchetypeCount] = useState<null | number>(null);
     const [topArchetypes, setTopArchetypes] = useState<null | TopArchetype[]>(null);
+
+    const graphTopArchetypes = topArchetypes?.slice(0, graphLimit);
 
     // NOTE: Archetype info retrieval effect
     useEffect(() => {
         const count = getUniqueArchetypeCount(db);
         setUniqueArchetypeCount(count);
-
-        const limit = 50;
 
         setTopArchetypes(getTopArchetypes(db, limit));
     }, []);
@@ -293,7 +241,7 @@ function App() {
                     ) : (
                         <>
                             <ArchetypeDistributionStatistics topArchetypes={topArchetypes} />
-                            <TopArchetypeInfo topArchetypes={topArchetypes} />
+                            <TopArchetypeInfo topArchetypes={graphTopArchetypes} />
                         </>
                     )}
                 </div >
