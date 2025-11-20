@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import { db } from "./db";
-import { getTopArchetypes, getUniqueArchetypeCount, type TopArchetype } from "./dbUtil";
+import {
+    getTopArchetypes,
+    getUniqueArchetypeCount,
+    type TopArchetype,
+    getAvailableTypes,
+} from "./dbUtil";
 import {
     type ColumnDef,
     createColumnHelper,
@@ -19,6 +24,7 @@ import {
     Tooltip,
 } from "recharts";
 import { ArchetypeDistributionStatistics } from "./sections/archetype_size_distribution";
+import ClassTypeInformation from "./sections/class_type_information";
 
 function ArchetypeInfoList({
     archetype,
@@ -230,6 +236,9 @@ function App() {
                     <h1>Archetype information</h1>
                 </div>
                 <div className="p-4 flex flex-col gap-8">
+                    <ClassTypeInformation />
+
+                    <h2 className="text-2xl font-bold">Misc. information</h2>
                     {(uniqueArchetypeCount === null) ? (
                         <p>Count is being retrieved...</p>
                     ) : (

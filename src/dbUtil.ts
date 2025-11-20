@@ -79,3 +79,20 @@ limit ?;`
 
     return parsedRes as unknown as TopArchetype[];
 }
+
+export function getAvailableTypes(
+    db: Database,
+    limit: number,
+): {type: string}[] {
+    const tableName = "entity_type_cache";
+
+    const stmtString = `SELECT DISTINCT type
+FROM ${tableName}
+LIMIT ?`;
+
+    const stmt = db.prepare(stmtString);
+    stmt.bind([limit]);
+    const res = resToObjectArray(stmt) as {type: string}[];
+
+    return res;
+}
