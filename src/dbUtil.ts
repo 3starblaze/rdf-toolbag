@@ -52,6 +52,13 @@ export interface TopArchetype {
     archetype: string[],
 }
 
+function parseArchetype(
+    archetypeString: string,
+): string[] {
+    // HACK: archetype should have been a proper JSON array but it's not because it lacks quotes
+    return archetypeString.slice(1, -1).split(",");
+}
+
 export function getTopArchetypes(
     db: Database,
     limit: number,
@@ -70,10 +77,9 @@ limit ?;`
     stmt.bind([limit]);
     const res = resToObjectArray(stmt);
     const parsedRes = res.map(({ archetype, ...rest}) => {
-        // HACK: archetype should have been a proper JSON array but it's not because it lacks quotes
         return {
             ...rest,
-            archetype: (archetype as string).slice(1, -1).split(","),
+            archetype: parseArchetype(archetype as string),
         };
     });
 
@@ -93,6 +99,44 @@ LIMIT ?`;
     const stmt = db.prepare(stmtString);
     stmt.bind([limit]);
     const res = resToObjectArray(stmt) as {type: string}[];
+
+    return res;
+}
+
+export type TypeArchetypeCountRow = {
+    archetype_id: number,
+    type: string,
+    count: number,
+};
+
+export function getTypeArchetypeCounts(
+    db: Database,
+): TypeArchetypeCountRow[] {
+    const typeCacheTableName = "entity_type_cache";
+    const entityToArchetypeTableName = defaultSerializationConfig.entityToArchetypeIdTable;
+
+    const stmtString = `
+SELECT
+  archetype_id,
+  type,
+  COUNT(*) as count
+FROM
+  ${typeCacheTableName}
+JOIN
+  ${entityToArchetypeTableName}
+  ON ${typeCacheTableName}.entity=${entityToArchetypeTableName}.entity
+GROUP BY
+  archetype_id, type
+ORDER BY
+  type,
+  archetype_id,
+  count DESC
+`;
+
+    const stmt = db.prepare(stmtString);
+    stmt.bind();
+
+    const res = resToObjectArray(stmt) as TypeArchetypeCountRow[];
 
     return res;
 }

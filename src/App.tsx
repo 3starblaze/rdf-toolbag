@@ -5,6 +5,7 @@ import {
     getUniqueArchetypeCount,
     type TopArchetype,
     getAvailableTypes,
+    getTypeArchetypeCounts,
 } from "./dbUtil";
 import {
     type ColumnDef,
@@ -25,6 +26,7 @@ import {
 } from "recharts";
 import { ArchetypeDistributionStatistics } from "./sections/archetype_size_distribution";
 import ClassTypeInformation from "./sections/class_type_information";
+import TypeToArchetypeInformation from "./sections/type_to_archetype_information";
 
 function ArchetypeInfoList({
     archetype,
@@ -237,6 +239,7 @@ function App() {
                 </div>
                 <div className="p-4 flex flex-col gap-8">
                     <ClassTypeInformation />
+                    <TypeToArchetypeInformation />
 
                     <h2 className="text-2xl font-bold">Misc. information</h2>
                     {(uniqueArchetypeCount === null) ? (
