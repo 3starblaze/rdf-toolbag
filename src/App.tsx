@@ -7,7 +7,7 @@ function App() {
                 <h1 className="text-lg font-bold">RDF Toolbag</h1>
             </div>
 
-            <div className="p-4 max-w-prose">
+            <div className="p-4">
                 <SparqlEndpoint />
             </div>
         </div>
