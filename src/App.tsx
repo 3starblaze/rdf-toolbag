@@ -1,6 +1,18 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import SparqlEndpoint from "./sections/sparql_endpoint";
 
+const queryClient = new QueryClient();
+
+
 function App() {
+    return (
+        <QueryClientProvider client={queryClient}>
+            <Main />
+        </QueryClientProvider>
+    );
+}
+
+function Main() {
     return (
         <div className="">
             <div className="p-4 border-b border-gray-500">

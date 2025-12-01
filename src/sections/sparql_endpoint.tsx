@@ -1,19 +1,7 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Input } from "@/components/ui/input"
-
-interface SparqlTableResult {
-    head: {
-        vars: string[],
-    },
-    results: {
-        bindings: {
-            [key: string]: {
-                type: string,
-                value: string,
-            }
-        }[],
-    },
-}
+import { createDefaultQuery, createTypeCountQuery, type SparqlTableResult } from "@/sparql_queries";
+import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 
 function SparqlTableResultTable({
     data
@@ -52,6 +40,78 @@ function tryMakingUrl(urlName: string): URL | null {
     }
 }
 
+function GuardedTableView<T, E extends Error>({
+    queryRes,
+}: {
+    queryRes: UseQueryResult<T, E>,
+}) {
+    const { isPending, isError, data, error } = queryRes;
+
+    if (isPending) {
+        return (
+            <p>Pending...</p>
+        );
+    }
+
+    if (isError) {
+        return <p>Error: {error.message}</p>
+    }
+
+    return (
+        <SparqlTableResultTable
+            data={data}
+        />
+    );
+}
+
+function DefaultSampleData({
+    url,
+}: {
+    url: URL,
+}) {
+    const queryRes = useQuery({
+        queryKey: ["defaultQuery"],
+        queryFn: createDefaultQuery({ sparqlURL: url }),
+    });
+
+    return (
+        <GuardedTableView queryRes={queryRes} />
+    );
+}
+
+function TypeCountInfo({
+    url,
+}: {
+    url: URL,
+}) {
+    const queryRes = useQuery({
+        queryKey: ["typeCount"],
+        queryFn: createTypeCountQuery({ sparqlURL: url }),
+    });
+
+    return (
+        <GuardedTableView queryRes={queryRes} />
+    );
+}
+
+/**
+ * Show potentially interesting information when URL is established.
+ */
+function TemporaryStatistics({
+    url,
+}: {
+    url: URL,
+}) {
+    return (
+        <div className="flex flex-col gap-2">
+            <h2 className="text-lg font-bold">Sample data</h2>
+            <DefaultSampleData url={url} />
+            <h2 className="text-lg font-bold">Type-count data</h2>
+            <TypeCountInfo url={url} />
+        </div>
+    );
+}
+
 export default function SparqlEndpoint() {
     const endpointInputId = "app-sparql-endpoint";
 
@@ -59,24 +119,7 @@ export default function SparqlEndpoint() {
 
     const maybeUrl = tryMakingUrl(endpointUrlString);
 
-    const [queryRes, setQueryRes] = useState<null | SparqlTableResult>(null);
-
-    const defaultQuery = `SELECT *
-WHERE {
-  ?s ?p ?o .
-} LIMIT 10`;
-
-    const tryQueryingEndpoint = async () => {
-        if (!maybeUrl) return;
-
-        maybeUrl.searchParams.set("query", defaultQuery);
-
-        const req = new Request(maybeUrl);
-
-        // FIXME: Validate data shape
-        const data = await fetch(req).then((res) => res.json()) as SparqlTableResult;
-        setQueryRes(data);
-    };
+    const [pinnedUrl, setPinnedUrl] = useState<URL | null>(null);
 
     return (
         <div className="flex flex-col gap-4">
@@ -104,25 +147,23 @@ WHERE {
 
                 <button
                     className="bg-gray-200 px-2 py-1 rounded-md border-gray-500 border cursor-pointer"
-                    onClick={tryQueryingEndpoint}
+                    onClick={() => {
+                        if (maybeUrl) {
+                            setPinnedUrl(maybeUrl);
+                        }
+                    }}
                 >
                     Query
                 </button>
             </div>
 
-            {(queryRes === null) ? (
+            {(pinnedUrl === null) ? (
                 <p className="text-gray-500 max-w-prose">
                     No data to show. Find a SparQL endpoint and press "Query" to get sample results!
                 </p>
             ) : (
-                <div className="flex flex-col gap-1">
-                    <h2 className="text-md font-bold">Query result</h2>
-                    <SparqlTableResultTable data={queryRes} />
-                </div>
+                <TemporaryStatistics url={pinnedUrl} />
             )}
-            <div>
-
-            </div>
         </div>
     );
 }
