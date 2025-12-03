@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Input } from "@/components/ui/input"
-import { createDefaultQuery, createTypeCountQuery, type SparqlTableResult } from "@/sparql_queries";
+import { createDefaultQuery, createTypeCountQuery, createTypePropertiesQuery, type SparqlTableResult } from "@/sparql_queries";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 
 function SparqlTableResultTable({
@@ -40,10 +40,12 @@ function tryMakingUrl(urlName: string): URL | null {
     }
 }
 
-function GuardedTableView<T, E extends Error>({
+function StateGuard<T, E extends Error>({
     queryRes,
+    successComponent,
 }: {
     queryRes: UseQueryResult<T, E>,
+    successComponent: (val: T) => React.ReactNode,
 }) {
     const { isPending, isError, data, error } = queryRes;
 
@@ -57,9 +59,18 @@ function GuardedTableView<T, E extends Error>({
         return <p>Error: {error.message}</p>
     }
 
+    return successComponent(data);
+}
+
+function GuardedTableView<E extends Error>({
+    queryRes,
+}: {
+    queryRes: UseQueryResult<SparqlTableResult, E>,
+}) {
     return (
-        <SparqlTableResultTable
-            data={data}
+        <StateGuard
+            queryRes={queryRes}
+            successComponent={(data) => (<SparqlTableResultTable data={data} />)}
         />
     );
 }
@@ -94,6 +105,38 @@ function TypeCountInfo({
     );
 }
 
+function DistinctPropInfo({
+    url,
+}: {
+    url: URL,
+}) {
+    const rdfType = "<http://ldf.fi/schema/yoma/Person>";
+
+    const queryRes = useQuery({
+        queryKey: ["typeCount", rdfType],
+        queryFn: createTypePropertiesQuery({ sparqlURL: url}),
+    });
+
+    return (
+        <div className="flex flex-col gap-2">
+            <p>For property <span className="text-gray-500">{rdfType}</span></p>
+            <StateGuard
+                queryRes={queryRes}
+                successComponent={(data) => (
+                    <ul>
+                        {data.map((val) => (
+                            <li
+                                key={val}
+                                className="text-sm"
+                            >{val}</li>
+                        ))}
+                    </ul>
+                )}
+            />
+        </div>
+    );
+}
+
 /**
  * Show potentially interesting information when URL is established.
  */
@@ -104,6 +147,8 @@ function TemporaryStatistics({
 }) {
     return (
         <div className="flex flex-col gap-2">
+            <h2 className="text-lg font-bold">Prop info</h2>
+            <DistinctPropInfo url={url} />
             <h2 className="text-lg font-bold">Sample data</h2>
             <DefaultSampleData url={url} />
             <h2 className="text-lg font-bold">Type-count data</h2>

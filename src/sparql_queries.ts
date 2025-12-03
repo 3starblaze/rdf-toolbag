@@ -70,3 +70,25 @@ ORDER BY DESC(?count)
         return requestAsSparqlTableResult(sparqlURL, queryString);
     };
 }
+
+export function createTypePropertiesQuery(
+    { sparqlURL }: QueryConfig,
+) {
+    return async function ({ queryKey }: { queryKey: string[]}): Promise<string[]> {
+        const [_, rdfType] = queryKey;
+
+        const queryString = `
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+SELECT
+  DISTINCT ?prop
+WHERE {
+  ?sub ?prop ?obj .
+  ?sub rdf:type ${rdfType} .
+}
+`;
+        const columnName = "prop";
+
+        const tableResult = await requestAsSparqlTableResult(sparqlURL, queryString);
+        return tableResult.results.bindings.map((item) => item[columnName].value);
+    };
+}
