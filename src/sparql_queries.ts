@@ -133,3 +133,39 @@ ORDER BY DESC(?count)
         return requestAsSparqlTableResult(sparqlURL, queryString);
     };
 }
+
+export function createFindByArchetypeQuery(
+    { sparqlURL }: QueryConfig,
+) {
+    return async function ({ queryKey }: {
+      queryKey: [string, string, string[], number],
+  }): Promise<SparqlTableResult> {
+      const [_, rdfType, properties, limit] = queryKey;
+
+      const iToTmpObjVar = (i: number) => `?tmpObj${i}`;
+
+      const queryString = `
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+SELECT
+  ?sub
+  ${properties.map((_, i) => iToTmpObjVar(i)).join(" ")}
+WHERE {
+  ?sub ?pred ?obj .
+  ?sub rdf:type ${rdfType} .
+
+  ${properties.map((p, i) => `?sub <${p}> ${iToTmpObjVar(i)} .`).join("\n")}
+
+  FILTER NOT EXISTS {
+    ?sub ?predFilter ?objFilter .
+    FILTER (?predFilter NOT IN (
+      ${properties.map((p) => `<${p}>`).join(",\n")}
+    ))
+  }
+}
+LIMIT ${limit}
+`;
+
+        console.log({queryString});
+        return requestAsSparqlTableResult(sparqlURL, queryString);
+  }
+}

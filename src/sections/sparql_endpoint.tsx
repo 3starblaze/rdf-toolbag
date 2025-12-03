@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Input } from "@/components/ui/input"
-import { createArchetypesForTypeQuery, createDefaultQuery, createTypeCountQuery, createTypePropertiesQuery, type SparqlTableResult } from "@/sparql_queries";
+import { createArchetypesForTypeQuery, createDefaultQuery, createFindByArchetypeQuery, createTypeCountQuery, createTypePropertiesQuery, type SparqlTableResult } from "@/sparql_queries";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 
 function SparqlTableResultTable({
@@ -117,10 +117,22 @@ function DistinctPropInfo({
         queryFn: createTypePropertiesQuery({ sparqlURL: url}),
     });
 
+    const exampleArchetype = [
+        "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+        "http://ldf.fi/schema/yoma/event_no",
+        "http://www.w3.org/1999/02/22-rdf-syntax-ns#object",
+        "http://www.w3.org/1999/02/22-rdf-syntax-ns#predicate",
+        "http://www.w3.org/1999/02/22-rdf-syntax-ns#subject",
+    ];
+
     return (
         <div className="flex flex-col gap-2">
             <p>For property <span className="text-gray-500">{rdfType}</span></p>
             <ArchetypeInfo url={url} rdfType={rdfType} properties={queryRes.data} />
+
+            <p className="font-bold">Data for archetype:</p>
+            <pre className="text-sm">{JSON.stringify(exampleArchetype, undefined, 4)}</pre>
+            <DataByArchetype url={url} properties={exampleArchetype} rdfType={rdfType} />
 
             <StateGuard
                 queryRes={queryRes}
@@ -154,6 +166,30 @@ function ArchetypeInfo({
         // NOTE: we cast away undefined because undefined is not going to appear on enabled: true
         queryKey: ["typeCount", rdfType as string, properties as string[]],
         queryFn: createArchetypesForTypeQuery({ sparqlURL: url }),
+        enabled,
+    });
+
+    return (
+        <GuardedTableView queryRes={queryRes} />
+    );
+}
+
+function DataByArchetype({
+    url,
+    rdfType,
+    properties,
+}: {
+    url: URL,
+    rdfType: string | undefined,
+    properties: string[] | undefined,
+}) {
+    const limit = 10;
+
+    const enabled = (rdfType !== undefined) && (properties !== undefined);
+
+    const queryRes = useQuery({
+        queryKey: ["findByArchetypeQuery", rdfType as string, properties as string[], limit],
+        queryFn: createFindByArchetypeQuery({ sparqlURL: url}),
         enabled,
     });
 
