@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Input } from "@/components/ui/input"
-import { createDefaultQuery, createTypeCountQuery, createTypePropertiesQuery, type SparqlTableResult } from "@/sparql_queries";
+import { createArchetypesForTypeQuery, createDefaultQuery, createTypeCountQuery, createTypePropertiesQuery, type SparqlTableResult } from "@/sparql_queries";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 
 function SparqlTableResultTable({
@@ -110,7 +110,7 @@ function DistinctPropInfo({
 }: {
     url: URL,
 }) {
-    const rdfType = "<http://ldf.fi/schema/yoma/Person>";
+    const rdfType = "<http://www.w3.org/1999/02/22-rdf-syntax-ns#Statement>";
 
     const queryRes = useQuery({
         queryKey: ["typeCount", rdfType],
@@ -120,6 +120,8 @@ function DistinctPropInfo({
     return (
         <div className="flex flex-col gap-2">
             <p>For property <span className="text-gray-500">{rdfType}</span></p>
+            <ArchetypeInfo url={url} rdfType={rdfType} properties={queryRes.data} />
+
             <StateGuard
                 queryRes={queryRes}
                 successComponent={(data) => (
@@ -134,6 +136,29 @@ function DistinctPropInfo({
                 )}
             />
         </div>
+    );
+}
+
+function ArchetypeInfo({
+    url,
+    rdfType,
+    properties,
+}: {
+    url: URL,
+    rdfType: string | undefined,
+    properties: string[] | undefined,
+}) {
+    const enabled = (rdfType !== undefined) && (properties !== undefined);
+
+    const queryRes = useQuery({
+        // NOTE: we cast away undefined because undefined is not going to appear on enabled: true
+        queryKey: ["typeCount", rdfType as string, properties as string[]],
+        queryFn: createArchetypesForTypeQuery({ sparqlURL: url }),
+        enabled,
+    });
+
+    return (
+        <GuardedTableView queryRes={queryRes} />
     );
 }
 

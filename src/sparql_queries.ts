@@ -20,10 +20,17 @@ async function requestAsSparqlTableResult(
     url: URL,
     queryString: string,
 ): Promise<SparqlTableResult> {
-    const newUrl = new URL(url);
-    newUrl.searchParams.set("query", queryString);
+    // NOTE: It's possible to run queries via GET but it doesn't work when queries are long. I
+    // managed to obtain 5xx error because Varnish couldn't handle the GET request.
+    // NOTE: `createArchetypesForTypeQuery` is one example which can generate a query large enough
+    // to cause the previously mentioned GET problems.
 
-    const req = new Request(newUrl);
+    const req = new Request(url, {
+        method: "POST",
+        body: new URLSearchParams({
+            query: queryString,
+        })
+    });
 
     const res = await fetch(req);
 
@@ -90,5 +97,39 @@ WHERE {
 
         const tableResult = await requestAsSparqlTableResult(sparqlURL, queryString);
         return tableResult.results.bindings.map((item) => item[columnName].value);
+    };
+}
+
+export function createArchetypesForTypeQuery(
+    { sparqlURL }: QueryConfig,
+) {
+    return async function(
+        { queryKey }: { queryKey: [string, string, string[]]}
+    ): Promise<SparqlTableResult> {
+        const [_, rdfType, properties] = queryKey;
+
+        const iToVar = (i: number) => `?propExists${i}`;
+        const iToTmpObJVar = (i: number) => `?tmpObj${i}`;
+
+        const iToBindBlock = (i: number) => `
+BIND(EXISTS {
+   ?sub <${properties[i]}> ${iToTmpObJVar(i)} .
+} AS ${iToVar(i)})`;
+
+        const queryString = `
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+SELECT
+  ${properties.map((_ , i) => iToVar(i)).join("\n")}
+  (COUNT(*) AS ?count)
+WHERE {
+  ?sub ?pred ?obj .
+  ?sub rdf:type ${rdfType} .
+  ${properties.map((_, i) => iToBindBlock(i)).join("\n")}
+}
+GROUP BY ${properties.map((_, i) => iToVar(i)).join(" ")}
+ORDER BY DESC(?count)
+`;
+
+        return requestAsSparqlTableResult(sparqlURL, queryString);
     };
 }
