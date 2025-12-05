@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Input } from "@/components/ui/input"
 import { createArchetypesForTypeQuery, createDefaultQuery, createFindByArchetypeQuery, createTypeCountQuery, createTypePropertiesQuery, type SparqlTableResult } from "@/sparql_queries";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 function SparqlTableResultTable({
     data
@@ -218,6 +219,52 @@ function TemporaryStatistics({
     );
 }
 
+interface SectionInfo {
+    title: string,
+    value: string,
+    content: React.ReactNode,
+}
+
+function ContentSection({
+    url,
+}:{
+    url: URL,
+}) {
+    const sectionInfos: SectionInfo[] = [
+        {
+            title: "Type-count data",
+            value: "typeCountData",
+            content: (<TypeCountInfo url={url} />),
+        },
+        {
+            title: "Sample data",
+            value: "sample-data",
+            content: (<DefaultSampleData url={url} />),
+        },
+        {
+            title: "Prop info",
+            value: "prop-info",
+            content: (<DistinctPropInfo url={url} />),
+        }
+    ];
+
+
+    return (
+        <div>
+            <Tabs defaultValue={sectionInfos[0].value}>
+                <TabsList>
+                    {sectionInfos.map(({ value, title }) => (
+                        <TabsTrigger key="value" value={value}>{title}</TabsTrigger>
+                    ))}
+                </TabsList>
+                {sectionInfos.map(({ value, content}) => (
+                    <TabsContent key={value} value={value}>{content}</TabsContent>
+                ))}
+            </Tabs>
+        </div>
+    );
+}
+
 export default function SparqlEndpoint() {
     const endpointInputId = "app-sparql-endpoint";
 
@@ -268,8 +315,8 @@ export default function SparqlEndpoint() {
                     No data to show. Find a SparQL endpoint and press "Query" to get sample results!
                 </p>
             ) : (
-                <TemporaryStatistics url={pinnedUrl} />
-            )}
+                <ContentSection url={pinnedUrl} />
+            ) }
         </div>
     );
 }
