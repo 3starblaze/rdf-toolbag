@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Input } from "@/components/ui/input"
 import { createArchetypesForTypeQuery, createDefaultQuery, createFindByArchetypeQuery, createTypeCountQuery, createTypePropertiesQuery, type SparqlTableResult } from "@/sparql_queries";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
@@ -111,11 +111,28 @@ function DistinctPropInfo({
 }: {
     url: URL,
 }) {
-    const rdfType = "<http://www.w3.org/1999/02/22-rdf-syntax-ns#Statement>";
+    const [rdfType, setRdfType] = useState<string | null>(null);
+
+    const typeCountqueryRes = useQuery({
+        queryKey: ["typeCount"],
+        queryFn: createTypeCountQuery({ sparqlURL: url }),
+    });
+
+    // NOTE: Set initial rdfType effect
+    useEffect(() => {
+        const {data} = typeCountqueryRes;
+        if (!data) return;
+        if (rdfType !== null) return; // NOTE: If the value is set, don't override it
+
+        // FIXME: You are assuming the data shape. Fix the query to give results properly.
+        const firstType = data.results.bindings[0]["obj"].value;
+        setRdfType(firstType);
+    }, [typeCountqueryRes.data]);
 
     const queryRes = useQuery({
-        queryKey: ["typeCount", rdfType],
-        queryFn: createTypePropertiesQuery({ sparqlURL: url}),
+        queryKey: ["typeCount", `<${rdfType}>`],
+        queryFn: createTypePropertiesQuery({ sparqlURL: url }),
+        enabled: rdfType !== null,
     });
 
     const exampleArchetype = [
@@ -128,12 +145,25 @@ function DistinctPropInfo({
 
     return (
         <div className="flex flex-col gap-2">
-            <p>For property <span className="text-gray-500">{rdfType}</span></p>
-            <ArchetypeInfo url={url} rdfType={rdfType} properties={queryRes.data} />
+            <p className="font-bold">RDF type</p>
+            <select
+                className="border-2 p-2 w-fit"
+                defaultValue={rdfType || ""}
+                onChange={(e) => setRdfType(e.target.value)}
+            >
+                {(typeCountqueryRes.data && typeCountqueryRes.data.results.bindings.map((item) => {
+                    const typeOption = item["obj"].value;
+                    return (
+                        <option
+                            value={typeOption}
+                        >
+                            {typeOption}
+                        </option>
+                    );
+                }))}
+            </select>
 
-            <p className="font-bold">Data for archetype:</p>
-            <pre className="text-sm">{JSON.stringify(exampleArchetype, undefined, 4)}</pre>
-            <DataByArchetype url={url} properties={exampleArchetype} rdfType={rdfType} />
+            <p className="font-bold">Available properties</p>
 
             <StateGuard
                 queryRes={queryRes}
@@ -148,6 +178,18 @@ function DistinctPropInfo({
                     </ul>
                 )}
             />
+
+            {(rdfType !== null) && (
+                <>
+                    <p className="font-bold">Available archetypes</p>
+                    {/* HACK: adding angled brackets to type */}
+                    <ArchetypeInfo url={url} rdfType={`<${rdfType}>`} properties={queryRes.data} />
+                    <p className="font-bold">Data for archetype:</p>
+                    <pre className="text-sm">{JSON.stringify(exampleArchetype, undefined, 4)}</pre>
+                    {/* HACK: adding angled brackets to type */}
+                    <DataByArchetype url={url} properties={exampleArchetype} rdfType={`<${rdfType}>`} />
+                </>
+            )}
         </div>
     );
 }
