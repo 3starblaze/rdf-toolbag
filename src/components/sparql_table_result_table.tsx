@@ -7,9 +7,10 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { flexRender, getCoreRowModel, getPaginationRowModel, useReactTable, type ColumnDef } from "@tanstack/react-table";
 import { Button } from "./ui/button";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 
 function TableButton({
     children,
@@ -37,12 +38,28 @@ export default function SparqlTableResultTable({
     const cols = data.head.vars;
     const rows = data.results.bindings;
 
-    const pageSize = 10;
+    const pageSizeOptions = [
+        10,
+        20,
+        50,
+        100,
+        200,
+    ];
+
+    const [pageSize, setPageSize] = useState(10);
 
     const [pagination, setPagination] = useState({
         pageIndex: 0,
         pageSize,
     });
+
+    // NOTE: Pagination synchornization effect that listens to pageSize
+    useEffect(() => {
+        setPagination({
+            pageIndex: pagination.pageIndex,
+            pageSize,
+        });
+    }, [pageSize]);
 
     type TData = (typeof rows)[number];
 
@@ -139,9 +156,23 @@ export default function SparqlTableResultTable({
                         {">>"}
                     </TableButton>
                 </div>
-                <div className="flex gap-1 text-gray-500">
+                <div className="flex gap-2 items-center text-gray-600">
                     <p className="">Page size</p>
-                    <p>{pageSize}</p>
+                    <Select
+                        value={pageSize.toString()}
+                        onValueChange={(value) => setPageSize(Number(value))}
+                    >
+                        <SelectTrigger className="">
+                            <SelectValue placeholder="Select page size" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectGroup>
+                                {pageSizeOptions.map((pageSize) => (
+                                    <SelectItem value={pageSize.toString()}>{pageSize}</SelectItem>
+                                ))}
+                            </SelectGroup>
+                        </SelectContent>
+                    </Select>
                 </div>
             </div>
         </div>
