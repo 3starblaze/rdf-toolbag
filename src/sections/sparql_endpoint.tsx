@@ -1,37 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input"
 import { createArchetypesForTypeQuery, createDefaultQuery, createFindByArchetypeQuery, createTypeCountQuery, createTypePropertiesQuery, type SparqlTableResult } from "@/sparql_queries";
-import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-
-function SparqlTableResultTable({
-    data
-}: {
-    data: SparqlTableResult
-}) {
-    const cols = data.head.vars;
-    const rows = data.results.bindings;
-
-    return (
-        <table>
-            <tr className="bg-gray-200">
-                {cols.map((col) => (<th key={col}>{col}</th>))}
-            </tr>
-            {rows.map((row, i) => (
-                <tr
-                    key={i}
-                    className="even:bg-gray-100"
-                >
-                    {cols.map((col) => (
-                        <td key={col} className="px-4 py-2">
-                            {row[col].value}
-                        </td>
-                    ))}
-                </tr>
-            ))}
-        </table>
-    );
-}
+import StateGuard from "@/components/state_guard";
+import GuardedTableView from "@/components/guarded_table_view";
+import TypeCountInfo from "./type_count_data";
 
 function tryMakingUrl(urlName: string): URL | null {
     try {
@@ -39,41 +13,6 @@ function tryMakingUrl(urlName: string): URL | null {
     } catch (e) {
         return null;
     }
-}
-
-function StateGuard<T, E extends Error>({
-    queryRes,
-    successComponent,
-}: {
-    queryRes: UseQueryResult<T, E>,
-    successComponent: (val: T) => React.ReactNode,
-}) {
-    const { isPending, isError, data, error } = queryRes;
-
-    if (isPending) {
-        return (
-            <p>Pending...</p>
-        );
-    }
-
-    if (isError) {
-        return <p>Error: {error.message}</p>
-    }
-
-    return successComponent(data);
-}
-
-function GuardedTableView<E extends Error>({
-    queryRes,
-}: {
-    queryRes: UseQueryResult<SparqlTableResult, E>,
-}) {
-    return (
-        <StateGuard
-            queryRes={queryRes}
-            successComponent={(data) => (<SparqlTableResultTable data={data} />)}
-        />
-    );
 }
 
 function DefaultSampleData({
@@ -84,21 +23,6 @@ function DefaultSampleData({
     const queryRes = useQuery({
         queryKey: ["defaultQuery"],
         queryFn: createDefaultQuery({ sparqlURL: url }),
-    });
-
-    return (
-        <GuardedTableView queryRes={queryRes} />
-    );
-}
-
-function TypeCountInfo({
-    url,
-}: {
-    url: URL,
-}) {
-    const queryRes = useQuery({
-        queryKey: ["typeCount"],
-        queryFn: createTypeCountQuery({ sparqlURL: url }),
     });
 
     return (
@@ -238,26 +162,6 @@ function DataByArchetype({
 
     return (
         <GuardedTableView queryRes={queryRes} />
-    );
-}
-
-/**
- * Show potentially interesting information when URL is established.
- */
-function TemporaryStatistics({
-    url,
-}: {
-    url: URL,
-}) {
-    return (
-        <div className="flex flex-col gap-2">
-            <h2 className="text-lg font-bold">Prop info</h2>
-            <DistinctPropInfo url={url} />
-            <h2 className="text-lg font-bold">Sample data</h2>
-            <DefaultSampleData url={url} />
-            <h2 className="text-lg font-bold">Type-count data</h2>
-            <TypeCountInfo url={url} />
-        </div>
     );
 }
 
