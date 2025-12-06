@@ -1,4 +1,12 @@
 import type { SparqlTableResult } from "@/sparql_queries";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
 
 export default function SparqlTableResultTable({
     data
@@ -9,22 +17,30 @@ export default function SparqlTableResultTable({
     const rows = data.results.bindings;
 
     return (
-        <table>
-            <tr className="bg-gray-200">
-                {cols.map((col) => (<th key={col}>{col}</th>))}
-            </tr>
-            {rows.map((row, i) => (
-                <tr
-                    key={i}
-                    className="even:bg-gray-100"
-                >
-                    {cols.map((col) => (
-                        <td key={col} className="px-4 py-2">
-                            {row[col].value}
-                        </td>
-                    ))}
-                </tr>
-            ))}
-        </table>
+        <Table>
+            <TableHeader>
+                {cols.map((col) => (
+                    <TableHead
+                        key={col}
+                        className="font-bold"
+                    >
+                        {col}
+                    </TableHead>
+                ))}
+            </TableHeader>
+            <TableBody>
+                {rows.map((row, i) => (
+                    <TableRow
+                        key={i}
+                    >
+                        {cols.map((col) => (
+                            <TableCell key={col}>
+                                {row[col].value}
+                            </TableCell>
+                        ))}
+                    </TableRow>
+                ))}
+            </TableBody>
+        </Table>
     );
 }
