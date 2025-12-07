@@ -6,6 +6,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import StateGuard from "@/components/state_guard";
 import GuardedTableView from "@/components/guarded_table_view";
 import TypeCountInfo from "./type_count_data";
+import PaginatedChart from "@/components/paginated_chart";
+import type { PaginationState } from "@tanstack/react-table";
+import { defaultPagination } from "@/components/sparql_table_result_table";
 
 function tryMakingUrl(urlName: string): URL | null {
     try {
@@ -136,8 +139,23 @@ function ArchetypeInfo({
         enabled,
     });
 
+    const [pagination, setPagination] = useState<PaginationState>(defaultPagination);
+
     return (
-        <GuardedTableView queryRes={queryRes} />
+        <div>
+            {(queryRes.data && (
+                <PaginatedChart
+                    data={queryRes.data}
+                    pagination={pagination}
+                    valueDataKey="count"
+                />
+            ))}
+            <GuardedTableView
+                queryRes={queryRes}
+                pagination={pagination}
+                onPaginationChange={setPagination}
+            />
+        </div>
     );
 }
 

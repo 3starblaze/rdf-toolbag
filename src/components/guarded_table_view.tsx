@@ -5,13 +5,19 @@ import SparqlTableResultTable from "./sparql_table_result_table";
 
 export default function GuardedTableView<E extends Error>({
     queryRes,
+    ...props
 }: {
     queryRes: UseQueryResult<SparqlTableResult, E>,
-}) {
+} & Omit<React.ComponentProps<typeof SparqlTableResultTable>, "data">) {
     return (
         <StateGuard
             queryRes={queryRes}
-            successComponent={(data) => (<SparqlTableResultTable data={data} />)}
+            successComponent={(data) => (
+                <SparqlTableResultTable
+                    data={data}
+                    {...props}
+                />)
+            }
         />
     );
 }

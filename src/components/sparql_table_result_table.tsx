@@ -8,7 +8,7 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { useEffect, useState } from "react";
-import { flexRender, getCoreRowModel, getPaginationRowModel, useReactTable, type ColumnDef } from "@tanstack/react-table";
+import { flexRender, getCoreRowModel, getPaginationRowModel, useReactTable, type ColumnDef, type PaginationState } from "@tanstack/react-table";
 import { Button } from "./ui/button";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 
@@ -30,10 +30,19 @@ function TableButton({
     );
 }
 
+export const defaultPagination: PaginationState = {
+    pageIndex: 0,
+    pageSize: 10,
+};
+
 export default function SparqlTableResultTable({
     data,
+    pagination: providedPagination,
+    onPaginationChange,
 }: {
-    data: SparqlTableResult
+    data: SparqlTableResult,
+    pagination?: PaginationState,
+    onPaginationChange?: (state: PaginationState) => void,
 }) {
     const cols = data.head.vars;
     const rows = data.results.bindings;
@@ -46,20 +55,10 @@ export default function SparqlTableResultTable({
         200,
     ];
 
-    const [pageSize, setPageSize] = useState(10);
+    const [internalPagination, setInternalPagination] = useState(defaultPagination);
 
-    const [pagination, setPagination] = useState({
-        pageIndex: 0,
-        pageSize,
-    });
-
-    // NOTE: Pagination synchornization effect that listens to pageSize
-    useEffect(() => {
-        setPagination({
-            pageIndex: pagination.pageIndex,
-            pageSize,
-        });
-    }, [pageSize]);
+    const pagination = providedPagination ?? internalPagination;
+    const setPagination = onPaginationChange ?? setInternalPagination;
 
     type TData = (typeof rows)[number];
 
@@ -159,8 +158,11 @@ export default function SparqlTableResultTable({
                 <div className="flex gap-2 items-center text-gray-600">
                     <p className="">Page size</p>
                     <Select
-                        value={pageSize.toString()}
-                        onValueChange={(value) => setPageSize(Number(value))}
+                        value={pagination.pageSize.toString()}
+                        onValueChange={(value) => setPagination({
+                            ...pagination,
+                            pageSize: Number(value),
+                        })}
                     >
                         <SelectTrigger className="">
                             <SelectValue placeholder="Select page size" />
