@@ -7,8 +7,9 @@ import StateGuard from "@/components/state_guard";
 import GuardedTableView from "@/components/guarded_table_view";
 import TypeCountInfo from "./type_count_data";
 import PaginatedChart from "@/components/paginated_chart";
-import type { PaginationState } from "@tanstack/react-table";
-import { defaultPagination } from "@/components/sparql_table_result_table";
+import { createColumnHelper, type PaginationState } from "@tanstack/react-table";
+import { defaultPagination } from "@/components/paginated_table";
+import PaginatedTable from "@/components/paginated_table";
 
 function tryMakingUrl(urlName: string): URL | null {
     try {
@@ -141,19 +142,44 @@ function ArchetypeInfo({
 
     const [pagination, setPagination] = useState<PaginationState>(defaultPagination);
 
+    type TData = Exclude<(typeof queryRes.data), undefined>[number];
+
+    const columnHelper = createColumnHelper<TData>();
+
     return (
         <div>
-            {(queryRes.data && (
-                <PaginatedChart
-                    data={queryRes.data}
-                    pagination={pagination}
-                    valueDataKey="count"
-                />
-            ))}
-            <GuardedTableView
+            <StateGuard
                 queryRes={queryRes}
-                pagination={pagination}
-                onPaginationChange={setPagination}
+                successComponent={(data) => (
+                    <>
+                        <PaginatedChart
+                            data={data}
+                            pagination={pagination}
+                            valueDataKey="count"
+                        />
+                        <PaginatedTable
+                            data={data}
+                            pagination={pagination}
+                            onPaginationChange={setPagination}
+                            columns={[
+                                columnHelper.accessor("archetype", {
+                                    header: "Archetype",
+                                    cell: ({ getValue }) => (
+                                        <pre>
+                                            {JSON.stringify([...getValue().values()], undefined, 4)}
+                                        </pre>
+                                    ),
+                                }),
+                                columnHelper.accessor("count", {
+                                    header: "Count",
+                                    cell: ({ getValue }) => (
+                                        <div>{getValue()}</div>
+                                    ),
+                                }),
+                            ]}
+                        />
+                    </>
+                )}
             />
         </div>
     );
@@ -174,7 +200,7 @@ function DataByArchetype({
 
     const queryRes = useQuery({
         queryKey: ["findByArchetypeQuery", rdfType as string, properties as string[], limit],
-        queryFn: createFindByArchetypeQuery({ sparqlURL: url}),
+        queryFn: createFindByArchetypeQuery({ sparqlURL: url }),
         enabled,
     });
 
@@ -191,7 +217,7 @@ interface SectionInfo {
 
 function ContentSection({
     url,
-}:{
+}: {
     url: URL,
 }) {
     const sectionInfos: SectionInfo[] = [

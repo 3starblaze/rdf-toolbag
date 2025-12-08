@@ -105,7 +105,7 @@ export function createArchetypesForTypeQuery(
 ) {
     return async function(
         { queryKey }: { queryKey: [string, string, string[]]}
-    ): Promise<SparqlTableResult> {
+    ): Promise<{ archetype: Set<string>, count: number }[]> {
         const [_, rdfType, properties] = queryKey;
 
         const iToVar = (i: number) => `?propExists${i}`;
@@ -130,7 +130,20 @@ GROUP BY ${properties.map((_, i) => iToVar(i)).join(" ")}
 ORDER BY DESC(?count)
 `;
 
-        return requestAsSparqlTableResult(sparqlURL, queryString);
+        const tableRes = await requestAsSparqlTableResult(sparqlURL, queryString);
+        const res: { archetype: Set<string>, count: number }[] = tableRes.results.bindings.map((item) => {
+            const archetypeArray = properties.filter((_, i) => {
+                const varName = iToVar(i).slice(1); // NOTE: remove the leading "?"
+                return item[varName].value === "true";
+            });
+
+            return {
+                archetype: new Set(archetypeArray),
+                count: Number(item.count.value),
+              };
+        });
+
+        return res;
     };
 }
 

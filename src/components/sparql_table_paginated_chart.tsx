@@ -1,20 +1,24 @@
+import type { SparqlTableResult } from "@/sparql_queries";
 import type { PaginationState } from "@tanstack/react-table";
 import { Bar, BarChart, XAxis, YAxis } from "recharts";
 
-export default function PaginatedChart<TData>({
+export default function PaginatedChart({
     data,
     labelDataKey,
     valueDataKey,
     pagination,
 }: {
-    data: TData[],
+    data: SparqlTableResult,
     labelDataKey?: string,
     valueDataKey: string,
     pagination: PaginationState,
 }) {
     const { pageSize, pageIndex } = pagination;
 
-    const rows = data.slice(pageSize * pageIndex, pageSize * (pageIndex + 1));
+    const rows = data.results.bindings.map((obj) => ({
+        ...(labelDataKey ? { [labelDataKey]: obj[labelDataKey]?.value } : {}),
+        [valueDataKey]: Number(obj[valueDataKey].value),
+    })).slice(pageSize * pageIndex, pageSize * (pageIndex + 1));
 
     return (
         <BarChart
