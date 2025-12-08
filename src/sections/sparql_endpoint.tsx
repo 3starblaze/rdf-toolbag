@@ -10,6 +10,8 @@ import PaginatedChart from "@/components/paginated_chart";
 import { createColumnHelper, type PaginationState } from "@tanstack/react-table";
 import { defaultPagination } from "@/components/paginated_table";
 import PaginatedTable from "@/components/paginated_table";
+import ArchetypeMatrix from "./archetype_matrix";
+import { Button } from "@/components/ui/button";
 
 function tryMakingUrl(urlName: string): URL | null {
     try {
@@ -146,8 +148,43 @@ function ArchetypeInfo({
 
     const columnHelper = createColumnHelper<TData>();
 
+    const matrixView = (data: TData[]) => properties ? (
+        <ArchetypeMatrix
+            data={data}
+            allProperties={properties}
+            pagination={pagination}
+            onPaginationChange={setPagination}
+        />
+    ): (<></>);
+
+    const sparseView = (data: TData[]) => (
+        <PaginatedTable
+            data={data}
+            pagination={pagination}
+            onPaginationChange={setPagination}
+            columns={[
+                columnHelper.accessor("archetype", {
+                    header: "Archetype",
+                    cell: ({ getValue }) => (
+                        <pre>
+                            {JSON.stringify([...getValue().values()], undefined, 4)}
+                        </pre>
+                    ),
+                }),
+                columnHelper.accessor("count", {
+                    header: "Count",
+                    cell: ({ getValue }) => (
+                        <div>{getValue()}</div>
+                    ),
+                }),
+            ]}
+        />
+    );
+
+    const [isMatrixView, setIsMatrixView] = useState(true);
+
     return (
-        <div>
+        <div className="flex flex-col gap-2">
             <StateGuard
                 queryRes={queryRes}
                 successComponent={(data) => (
@@ -157,27 +194,22 @@ function ArchetypeInfo({
                             pagination={pagination}
                             valueDataKey="count"
                         />
-                        <PaginatedTable
-                            data={data}
-                            pagination={pagination}
-                            onPaginationChange={setPagination}
-                            columns={[
-                                columnHelper.accessor("archetype", {
-                                    header: "Archetype",
-                                    cell: ({ getValue }) => (
-                                        <pre>
-                                            {JSON.stringify([...getValue().values()], undefined, 4)}
-                                        </pre>
-                                    ),
-                                }),
-                                columnHelper.accessor("count", {
-                                    header: "Count",
-                                    cell: ({ getValue }) => (
-                                        <div>{getValue()}</div>
-                                    ),
-                                }),
-                            ]}
-                        />
+                        {/* NOTE: This probably should have been a tab but this will do */}
+                        <div className="flex gap-2">
+                            <Button
+                                variant={isMatrixView ? "default" : "outline"}
+                                onClick={(() => setIsMatrixView(true))}
+                            >
+                                Matrix view
+                            </Button>
+                            <Button
+                                variant={!isMatrixView ? "default" : "outline"}
+                                onClick={() => setIsMatrixView(false)}
+                            >
+                                Sparse view
+                            </Button>
+                        </div>
+                        {isMatrixView ? matrixView(data) : sparseView(data)}
                     </>
                 )}
             />
