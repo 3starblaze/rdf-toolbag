@@ -1,11 +1,9 @@
 import PaginatedTable from "@/components/paginated_table";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { type PaginationState, type ColumnDef } from "@tanstack/react-table";
-
-interface ArchetypeCountPayload {
-    archetype: Set<string>,
-    count: number,
-}
+import { useStore } from "@/store";
+import { type PaginationState, type ColumnDef, createColumnHelper } from "@tanstack/react-table";
+import { useArchetypeActionColumn, type ArchetypeCountPayload } from "./archetype_util";
 
 export default function ArchetypeMatrix({
     allProperties, data, pagination, onPaginationChange,
@@ -43,10 +41,13 @@ export default function ArchetypeMatrix({
         ),
     };
 
+    const actionCol = useArchetypeActionColumn();
+
     return (
         <PaginatedTable
             data={data}
             columns={[
+                actionCol,
                 ...generatedCols,
                 countCol,
             ]}
