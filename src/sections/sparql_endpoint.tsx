@@ -12,6 +12,7 @@ import { defaultPagination } from "@/components/paginated_table";
 import PaginatedTable from "@/components/paginated_table";
 import ArchetypeMatrix from "./archetype_matrix";
 import { Button } from "@/components/ui/button";
+import { useStore } from "@/store";
 
 function tryMakingUrl(urlName: string): URL | null {
     try {
@@ -294,7 +295,8 @@ export default function SparqlEndpoint() {
 
     const maybeUrl = tryMakingUrl(endpointUrlString);
 
-    const [pinnedUrl, setPinnedUrl] = useState<URL | null>(null);
+    const pinnedUrl = useStore((store) => store.pinnedUrl);
+    const setPinnedUrl = useStore((store) => store.setPinnedUrl);
 
     return (
         <div className="flex flex-col gap-4">
@@ -328,7 +330,7 @@ export default function SparqlEndpoint() {
                         }
                     }}
                 >
-                    Query
+                    Pin
                 </button>
             </div>
 
