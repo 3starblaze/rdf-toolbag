@@ -120,7 +120,7 @@ BIND(EXISTS {
 PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 SELECT
   ${properties.map((_ , i) => iToVar(i)).join("\n")}
-  (COUNT(*) AS ?count)
+  (COUNT(DISTINCT ?sub) AS ?count)
 WHERE {
   ?sub ?pred ?obj .
   ?sub rdf:type ${rdfType} .
