@@ -27,6 +27,10 @@ async function requestAsSparqlTableResult(
 
     const req = new Request(url, {
         method: "POST",
+        headers: {
+          // NOTE: Some endpoints return xml by default, so we have to be explicit
+          "Accept": "application/json",
+        },
         body: new URLSearchParams({
             query: queryString,
         })
