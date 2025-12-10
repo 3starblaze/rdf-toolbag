@@ -166,6 +166,7 @@ export function createFindByArchetypeQuery(
       const queryString = `
 PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 SELECT
+  DISTINCT
   ?sub
   ${properties.map((_, i) => iToTmpObjVar(i)).join(" ")}
 WHERE {
