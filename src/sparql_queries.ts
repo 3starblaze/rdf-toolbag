@@ -147,12 +147,18 @@ ORDER BY DESC(?count)
     };
 }
 
+
+interface ByArchetypeData {
+    subject: string,
+    [key: string]: string,
+};
+
 export function createFindByArchetypeQuery(
     { sparqlURL }: QueryConfig,
 ) {
     return async function ({ queryKey }: {
       queryKey: [string, string, string[], number],
-  }): Promise<SparqlTableResult> {
+  }): Promise<ByArchetypeData[]> {
       const [_, rdfType, properties, limit] = queryKey;
 
       const iToTmpObjVar = (i: number) => `?tmpObj${i}`;
@@ -177,8 +183,19 @@ WHERE {
 }
 LIMIT ${limit}
 `;
+        const tableResult = await requestAsSparqlTableResult(sparqlURL, queryString);
 
-        console.log({queryString});
-        return requestAsSparqlTableResult(sparqlURL, queryString);
+        return tableResult.results.bindings.map((row) => {
+            const subject = row.sub.value;
+            const restEntries: [string, string][] = properties.map((prop, i) => {
+                const varName = iToTmpObjVar(i).slice(1); // NOTE: remove the leading "?"
+                return [prop, row[varName].value];
+            });
+
+            return {
+                subject,
+                ...Object.fromEntries(restEntries),
+            };
+        });
   }
 }
