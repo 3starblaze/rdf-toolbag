@@ -62,6 +62,11 @@ WHERE {
     };
 }
 
+interface TypeCountPayload {
+  type: string,
+  count: number,
+}
+
 export function createTypeCountQuery(
     { sparqlURL }: QueryConfig,
 ) {
@@ -77,8 +82,12 @@ GROUP BY ?obj
 ORDER BY DESC(?count)
 `;
 
-    return async function (): Promise<SparqlTableResult> {
-        return requestAsSparqlTableResult(sparqlURL, queryString);
+    return async function (): Promise<TypeCountPayload[]> {
+        const table = await requestAsSparqlTableResult(sparqlURL, queryString);
+        return table.results.bindings.map((row) => ({
+          type: row.obj.value,
+          count: Number(row.count.value),
+        }));
     };
 }
 

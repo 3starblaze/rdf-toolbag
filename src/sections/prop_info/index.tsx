@@ -19,8 +19,8 @@ function PinnedRdfTypeCombobox({ url }: {
     });
 
     const options = (typeCountQueryRes.data) ? (
-        typeCountQueryRes.data.results.bindings.map((item) => {
-            const typeOption = item["obj"].value;
+        typeCountQueryRes.data.map((item) => {
+            const typeOption = item.type
             return {
                 label: typeOption,
                 value: typeOption,
@@ -62,8 +62,8 @@ export default function PropInfo({
         if (!data) return;
         if (rdfType !== null) return; // NOTE: If the value is set, don't override it
 
-        // FIXME: You are assuming the data shape. Fix the query to give results properly.
-        const firstType = data.results.bindings[0]["obj"].value;
+        const firstType = data[0].type;
+
         setRdfType(firstType);
     }, [typeCountqueryRes.data]);
 
