@@ -8,13 +8,48 @@ import { useStore } from "@/store";
 import StateGuard from "@/components/state_guard";
 import ArchetypeInfo from "./archetype_info";
 import DataByArchetype from "./data_by_archetype";
+import { Combobox } from "@/components/ui/combobox";
+
+function PinnedRdfTypeCombobox({ url }: {
+    url: URL,
+}) {
+    const typeCountQueryRes = useQuery({
+        queryKey: ["typeCount"],
+        queryFn: createTypeCountQuery({ sparqlURL: url }),
+    });
+
+    const options = (typeCountQueryRes.data) ? (
+        typeCountQueryRes.data.results.bindings.map((item) => {
+            const typeOption = item["obj"].value;
+            return {
+                label: typeOption,
+                value: typeOption,
+            };
+        })
+    ) : [];
+
+    const value = useStore((store) => store.pinnedRdfType) ?? "";
+    const setValue = useStore((store) => store.setPinnedRdfType);
+
+    return (
+        <Combobox
+            options={options}
+            unselectedLabel="Select type..."
+            emptyLabel="No type found..."
+            searchPlaceholder="Search type..."
+            value={value}
+            onValueChange={setValue}
+        />
+    );
+}
 
 export default function PropInfo({
     url,
 }: {
     url: URL,
 }) {
-    const [rdfType, setRdfType] = useState<string | null>(null);
+    const rdfType = useStore((store) => store.pinnedRdfType);
+    const setRdfType = useStore((store) => store.setPinnedRdfType);
 
     const typeCountqueryRes = useQuery({
         queryKey: ["typeCount"],
@@ -43,22 +78,7 @@ export default function PropInfo({
     return (
         <div className="flex flex-col gap-2">
             <p className="font-bold">RDF type</p>
-            <select
-                className="border-2 p-2 w-fit"
-                defaultValue={rdfType || ""}
-                onChange={(e) => setRdfType(e.target.value)}
-            >
-                {(typeCountqueryRes.data && typeCountqueryRes.data.results.bindings.map((item) => {
-                    const typeOption = item["obj"].value;
-                    return (
-                        <option
-                            value={typeOption}
-                        >
-                            {typeOption}
-                        </option>
-                    );
-                }))}
-            </select>
+            <PinnedRdfTypeCombobox url={url} />
 
             <p className="font-bold">Available properties</p>
 
