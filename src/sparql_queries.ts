@@ -154,7 +154,11 @@ ORDER BY DESC(?count)
     const res: { archetype: Set<string>, count: number }[] = tableRes.results.bindings.map((item) => {
       const archetypeArray = properties.filter((_, i) => {
         const varName = iToVar(i).slice(1); // NOTE: remove the leading "?"
-        return item[varName].value === "true";
+        const val = item[varName].value;
+        // NOTE: The query can return things as boolean or as integer. I believe that formally it
+        // ought to return a boolean ( https://www.w3.org/TR/sparql11-query/#func-filter-exists )
+        // but it is what it is and we ought to adapt.
+        return (val === "true") || (val === "1");
       });
 
       return {
