@@ -1,14 +1,12 @@
 import { useState } from "react";
 import { Input } from "@/components/ui/input"
-import {
-    createDefaultQuery,
-} from "@/sparql_queries";
 import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import GuardedTableView from "@/components/guarded_table_view";
 import TypeCountInfo from "./type_count_data";
 import { useStore } from "@/store";
 import PropInfo from "./prop_info/index";
+import { defaultQuery } from "@/sparql_queries";
 
 function tryMakingUrl(urlName: string): URL | null {
     try {
@@ -23,10 +21,7 @@ function DefaultSampleData({
 }: {
     url: URL,
 }) {
-    const queryRes = useQuery({
-        queryKey: ["defaultQuery"],
-        queryFn: createDefaultQuery({ sparqlURL: url }),
-    });
+    const queryRes = useQuery(defaultQuery(url));
 
     return (
         <GuardedTableView queryRes={queryRes} />

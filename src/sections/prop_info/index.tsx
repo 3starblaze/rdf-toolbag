@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-    createTypeCountQuery,
-    createTypePropertiesQuery,
+    typeCountQuery,
+    typePropertiesQuery,
 } from "@/sparql_queries";
 import { useStore } from "@/store";
 import StateGuard from "@/components/state_guard";
@@ -13,10 +13,7 @@ import { Combobox } from "@/components/ui/combobox";
 function PinnedRdfTypeCombobox({ url }: {
     url: URL,
 }) {
-    const typeCountQueryRes = useQuery({
-        queryKey: ["typeCount"],
-        queryFn: createTypeCountQuery({ sparqlURL: url }),
-    });
+    const typeCountQueryRes = useQuery(typeCountQuery(url));
 
     const options = (typeCountQueryRes.data) ? (
         typeCountQueryRes.data.map((item) => {
@@ -51,10 +48,7 @@ export default function PropInfo({
     const rdfType = useStore((store) => store.pinnedRdfType);
     const setRdfType = useStore((store) => store.setPinnedRdfType);
 
-    const typeCountqueryRes = useQuery({
-        queryKey: ["typeCount"],
-        queryFn: createTypeCountQuery({ sparqlURL: url }),
-    });
+    const typeCountqueryRes = useQuery(typeCountQuery(url));
 
     // NOTE: Set initial rdfType effect
     useEffect(() => {
@@ -68,8 +62,7 @@ export default function PropInfo({
     }, [typeCountqueryRes.data]);
 
     const queryRes = useQuery({
-        queryKey: ["typeCount", `<${rdfType}>`],
-        queryFn: createTypePropertiesQuery({ sparqlURL: url }),
+        ...typePropertiesQuery(url, `<${rdfType}>`),
         enabled: rdfType !== null,
     });
 

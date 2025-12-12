@@ -2,7 +2,7 @@ import PaginatedChart from "@/components/paginated_chart";
 import PaginatedTable, { defaultPagination } from "@/components/paginated_table";
 import StateGuard from "@/components/state_guard";
 import { Button } from "@/components/ui/button";
-import { createTypeCountQuery } from "@/sparql_queries";
+import { typeCountQuery } from "@/sparql_queries";
 import { useStore } from "@/store";
 import { useQuery } from "@tanstack/react-query";
 import { createColumnHelper, type ColumnDef, type PaginationState } from "@tanstack/react-table";
@@ -13,10 +13,7 @@ export default function TypeCountInfo({
 }: {
     url: URL,
 }) {
-    const queryRes = useQuery({
-        queryKey: ["typeCount"],
-        queryFn: createTypeCountQuery({ sparqlURL: url }),
-    });
+    const queryRes = useQuery(typeCountQuery(url));
 
     const pinnedRdfType = useStore((store) => store.pinnedRdfType);
     const setPinnedRdfType = useStore((store) => store.setPinnedRdfType);

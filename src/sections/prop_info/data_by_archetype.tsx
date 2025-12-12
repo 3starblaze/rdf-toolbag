@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import {
-    createFindByArchetypeQuery,
+    findByArchetypeQuery,
 } from "@/sparql_queries";
 import StateGuard from "@/components/state_guard";
 import { createColumnHelper, type ColumnDef } from "@tanstack/react-table";
@@ -20,8 +20,7 @@ export default function DataByArchetype({
     const enabled = (rdfType !== undefined) && (properties !== undefined);
 
     const queryRes = useQuery({
-        queryKey: ["findByArchetypeQuery", rdfType as string, properties as string[], limit],
-        queryFn: createFindByArchetypeQuery({ sparqlURL: url }),
+        ...findByArchetypeQuery(url, rdfType as string, properties as string[], limit),
         enabled,
     });
 

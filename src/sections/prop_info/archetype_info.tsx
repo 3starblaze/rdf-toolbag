@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import {
-    createArchetypesForTypeQuery,
+    archetypesForTypeQuery,
 } from "@/sparql_queries";
 import ArchetypeMatrix from "./archetype_matrix";
 import PaginatedTable, { defaultPagination } from "@/components/paginated_table";
@@ -25,8 +25,7 @@ export default function ArchetypeInfo({
 
     const queryRes = useQuery({
         // NOTE: we cast away undefined because undefined is not going to appear on enabled: true
-        queryKey: ["typeCount", rdfType as string, properties as string[]],
-        queryFn: createArchetypesForTypeQuery({ sparqlURL: url }),
+        ...archetypesForTypeQuery(url, rdfType as string, properties as string[]),
         enabled,
     });
 
