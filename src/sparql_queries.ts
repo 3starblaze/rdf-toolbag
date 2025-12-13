@@ -136,29 +136,55 @@ BIND(EXISTS {
    ?sub <${properties[i]}> ${iToTmpObJVar(i)} .
 } AS ${iToVar(i)})`;
 
+  // NOTE: Initially grouping was done by all the `iToVar` variables but this fails in some
+  // endpoints like DBPedia which set the max grouping/distinct limit to 100 variables. To
+  // circumvent that, a string is built instead and grouping is then done by just that string.
   const queryFn: () => Promise<{ archetype: Set<string>, count: number }[]> = async () => {
+      // NOTE: archetypeString is a string of 1's and 0's where for each i if archetypeString[i] is
+      // "1" then properties[i] is in the archetype.
+      // NOTE: IF(x, 1, 0) is used to convert a boolean to int.
+
       const queryString = `
 PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 SELECT
-  ${properties.map((_, i) => iToVar(i)).join("\n")}
+  ?archetypeString
   (COUNT(DISTINCT ?sub) AS ?count)
 WHERE {
   ?sub ?pred ?obj .
   ?sub rdf:type ${rdfType} .
   ${properties.map((_, i) => iToBindBlock(i)).join("\n")}
+  BIND(CONCAT(
+    ${properties.map((_, i) => `STR(IF(${iToVar(i)}, 1, 0))`).join(",\n")}
+  ) AS ?archetypeString)
 }
-GROUP BY ${properties.map((_, i) => iToVar(i)).join(" ")}
+GROUP BY ?archetypeString
 ORDER BY DESC(?count)
 `;
+
     const tableRes = await requestAsSparqlTableResult(url, queryString);
+
     const res: { archetype: Set<string>, count: number }[] = tableRes.results.bindings.map((item) => {
-      const archetypeArray = properties.filter((_, i) => {
-        const varName = iToVar(i).slice(1); // NOTE: remove the leading "?"
-        const val = item[varName].value;
-        // NOTE: The query can return things as boolean or as integer. I believe that formally it
-        // ought to return a boolean ( https://www.w3.org/TR/sparql11-query/#func-filter-exists )
-        // but it is what it is and we ought to adapt.
-        return (val === "true") || (val === "1");
+      const archetypeString = item.archetypeString.value;
+
+      // NOTE: Validate string length
+      if (archetypeString.length !== properties.length) {
+        throw new Error(
+          "Query returned string with unexpected size, expected size"
+            +`${properties.length}, got ${archetypeString.length}`
+        );
+      }
+
+
+      const archetypeArray: string[] = [];
+
+      [...archetypeString].forEach((val, i) => {
+        if (val === "1") {
+          archetypeArray.push(properties[i]);
+        } else if (val === "0"){
+          return;
+        } else {
+          throw new Error(`Unexpected char in archetypeString "${val}"`)
+        }
       });
 
       return {
