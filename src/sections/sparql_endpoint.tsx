@@ -7,6 +7,7 @@ import TypeCountInfo from "./type_count_data";
 import { useStore } from "@/store";
 import PropInfo from "./prop_info/index";
 import { defaultQuery } from "@/sparql_queries";
+import { Button } from "@/components/ui/button";
 
 function tryMakingUrl(urlName: string): URL | null {
     try {
@@ -74,7 +75,10 @@ function ContentSection({
     );
 }
 
-export default function SparqlEndpoint() {
+/**
+ * Section responsible for SparQL endpoint URL pinning.
+ */
+function EndpointInputSection() {
     const endpointInputId = "app-sparql-endpoint";
 
     const [endpointUrlString, setEndpointUrlString] = useState("");
@@ -84,49 +88,79 @@ export default function SparqlEndpoint() {
     const pinnedUrl = useStore((store) => store.pinnedUrl);
     const setPinnedUrl = useStore((store) => store.setPinnedUrl);
 
-    return (
-        <div className="flex flex-col gap-4">
-            <div className="max-w-prose flex flex-col gap-2">
-                <div className="grid grid-cols-[auto_1fr] gap-4 items-center">
-                    <label
-                        className="w-max text-gray-800"
-                        htmlFor={endpointInputId}
-                    >
-                        SparQL endpoint
-                    </label>
-                    <Input
-                        className="border-2"
-                        name={endpointInputId}
-                        value={endpointUrlString}
-                        onChange={(e) => setEndpointUrlString(e.target.value)}
-                    />
-                </div>
+    const urlMatches = pinnedUrl?.toString() === endpointUrlString;
 
+    return (
+        <div className="max-w-prose flex flex-col gap-2">
+            <div className="grid grid-cols-[auto_1fr] gap-4 items-center">
+                <label
+                    className="w-max text-gray-800"
+                    htmlFor={endpointInputId}
+                >
+                    SparQL endpoint
+                </label>
+                <Input
+                    className="border-2"
+                    name={endpointInputId}
+                    value={endpointUrlString}
+                    onChange={(e) => setEndpointUrlString(e.target.value)}
+                />
+            </div>
+
+            <Button
+                variant="outline"
+                onClick={() => {
+                    if (maybeUrl) {
+                        setPinnedUrl(maybeUrl);
+                    }
+                }}
+            >
+                Pin
+            </Button>
+
+            <div className="flex flex-col gap-1 text-sm">
                 {(maybeUrl === null) && (
-                    <p className="text-red-500 text-sm">
+                    <p className="text-red-500">
                         Entered URL is not valid!
                     </p>
                 )}
 
-                <button
-                    className="bg-gray-200 px-2 py-1 rounded-md border-gray-500 border cursor-pointer"
-                    onClick={() => {
-                        if (maybeUrl) {
-                            setPinnedUrl(maybeUrl);
-                        }
-                    }}
-                >
-                    Pin
-                </button>
-            </div>
+                {!urlMatches && (
+                    <div className="flex gap-2 items-center">
+                        <p className="text-yellow-500">
+                            Entered URL is not pinned!
+                        </p>
+                        <Button
+                            variant="outline"
+                            onClick={() => setEndpointUrlString(
+                                pinnedUrl ? pinnedUrl.toString() : ""
+                            )}
+                        >
+                            Revert URL
+                        </Button>
+                    </div>
+                )}
 
-            {(pinnedUrl === null) ? (
-                <p className="text-gray-500 max-w-prose">
-                    No data to show. Find a SparQL endpoint and press "Query" to get sample results!
-                </p>
-            ) : (
+                {!pinnedUrl && (
+                    <p className="text-gray-500">
+                        Pin a URL in order to get more information about the endpoint!
+                    </p>
+                )}
+            </div>
+        </div>
+    );
+}
+
+export default function SparqlEndpoint() {
+    const pinnedUrl = useStore((store) => store.pinnedUrl);
+
+    return (
+        <div className="flex flex-col gap-4">
+            <EndpointInputSection />
+
+            {pinnedUrl && (
                 <ContentSection url={pinnedUrl} />
-            ) }
+            )}
         </div>
     );
 }
