@@ -9,6 +9,7 @@ import StateGuard from "@/components/state_guard";
 import ArchetypeInfo from "./archetype_info";
 import DataByArchetype from "./data_by_archetype";
 import { Combobox } from "@/components/ui/combobox";
+import PaginatedTable from "@/components/paginated_table";
 
 function PinnedRdfTypeCombobox({ url }: {
     url: URL,
@@ -78,14 +79,15 @@ export default function PropInfo({
             <StateGuard
                 queryRes={queryRes}
                 successComponent={(data) => (
-                    <ul>
-                        {data.map((val) => (
-                            <li
-                                key={val}
-                                className="text-sm"
-                            >{val}</li>
-                        ))}
-                    </ul>
+                    <PaginatedTable
+                        data={data}
+                        columns={[
+                            {
+                                id: "prop",
+                                accessorFn: (val) => val,
+                            },
+                        ]}
+                    />
                 )}
             />
 
