@@ -27,7 +27,9 @@ async function requestAsSparqlTableResult(
         method: "POST",
         headers: {
           // NOTE: Some endpoints return xml by default, so we have to be explicit
-          "Accept": "application/json",
+          // NOTE: And it also has to be "sparql-results" because in some rare occasions (e.g.
+          // Muziekweb SparQL endpoint) you can get json directly as an array.
+          "Accept": "application/sparql-results+json",
         },
         body: new URLSearchParams({
             query: queryString,
