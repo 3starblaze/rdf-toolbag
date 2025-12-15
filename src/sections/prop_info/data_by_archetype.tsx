@@ -5,6 +5,40 @@ import {
 import StateGuard from "@/components/state_guard";
 import { createColumnHelper, type ColumnDef } from "@tanstack/react-table";
 import PaginatedTable from "@/components/paginated_table";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useState } from "react";
+
+const defaultLimit = 50;
+const limitOptions = [10, 20, 50, 100, 200, 500, 1000];
+
+function LimitSelector({
+    limit,
+    setLimit
+}: {
+    limit: number,
+    setLimit: (val: number) => void,
+}) {
+    return (
+        <div className="flex flex-row items-center gap-2">
+            <p>Limit</p>
+            <Select
+                value={limit.toString()}
+                onValueChange={(value) => setLimit(Number(value))}
+            >
+                <SelectTrigger className="">
+                    <SelectValue placeholder="Select limit size" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectGroup>
+                        {limitOptions.map((opt) => (
+                            <SelectItem value={opt.toString()}>{opt}</SelectItem>
+                        ))}
+                    </SelectGroup>
+                </SelectContent>
+            </Select>
+        </div>
+    );
+}
 
 export default function DataByArchetype({
     url,
@@ -15,9 +49,9 @@ export default function DataByArchetype({
     rdfType: string | undefined,
     properties: string[] | undefined,
 }) {
-    const limit = 10;
-
     const enabled = (rdfType !== undefined) && (properties !== undefined);
+
+    const [limit, setLimit] = useState(defaultLimit);
 
     const queryRes = useQuery({
         ...findByArchetypeQuery(url, rdfType as string, properties as string[], limit),
@@ -25,38 +59,44 @@ export default function DataByArchetype({
     });
 
     return (
-        <StateGuard
-            queryRes={queryRes}
-            successComponent={(data) => {
-                if (!enabled || data.length === 0) return (<p>No results</p>);
+        <div>
+            <LimitSelector
+                limit={limit}
+                setLimit={setLimit}
+            />
+            <StateGuard
+                queryRes={queryRes}
+                successComponent={(data) => {
+                    if (!enabled || data.length === 0) return (<p>No results</p>);
 
-                type TData = (typeof data)[number];
-                const columnHelper = createColumnHelper<TData>();
+                    type TData = (typeof data)[number];
+                    const columnHelper = createColumnHelper<TData>();
 
-                const generatedColumns: ColumnDef<TData>[] = properties.map((propName) => ({
-                    id: propName,
-                    cell: ({ getValue }) => (
-                        <p>{getValue<string>()}</p>
-                    ),
-                    accessorFn: (row) => row[propName],
-                }));
-
-                const columns: ColumnDef<TData>[] = [
-                    columnHelper.accessor("subject", {
-                        cell: ({ getValue}) => (
-                            <p>{getValue()}</p>
+                    const generatedColumns: ColumnDef<TData>[] = properties.map((propName) => ({
+                        id: propName,
+                        cell: ({ getValue }) => (
+                            <p>{getValue<string>()}</p>
                         ),
-                    }),
-                    ...generatedColumns,
-                ];
+                        accessorFn: (row) => row[propName],
+                    }));
 
-                return (
-                    <PaginatedTable
-                        columns={columns}
-                        data={data}
-                    />
-                )
-            }}
-        />
+                    const columns: ColumnDef<TData>[] = [
+                        columnHelper.accessor("subject", {
+                            cell: ({ getValue }) => (
+                                <p>{getValue()}</p>
+                            ),
+                        }),
+                        ...generatedColumns,
+                    ];
+
+                    return (
+                        <PaginatedTable
+                            columns={columns}
+                            data={data}
+                        />
+                    )
+                }}
+            />
+        </div>
     );
 }
