@@ -1,12 +1,4 @@
 import type { SparqlTableResult } from "@/sparql_queries";
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table";
 import PaginatedTable from "./paginated_table";
 import type { ColumnDef, PaginationState } from "@tanstack/react-table";
 

@@ -1,8 +1,9 @@
 import PaginatedTable from "@/components/paginated_table";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useStore } from "@/store";
-import { type PaginationState, type ColumnDef, createColumnHelper } from "@tanstack/react-table";
+import {
+    type PaginationState,
+    type ColumnDef,
+} from "@tanstack/react-table";
 import { useArchetypeActionColumn, type ArchetypeCountPayload } from "./archetype_util";
 
 export default function ArchetypeMatrix({
@@ -15,7 +16,7 @@ export default function ArchetypeMatrix({
 }) {
     const generatedCols: ColumnDef<ArchetypeCountPayload>[] = allProperties.map((propName) => ({
         id: propName,
-        header: ({}) => (
+        header: () => (
             <div className="flex py-2">
                 <p
                     className="rotate-180 font-normal flex justify-start"
