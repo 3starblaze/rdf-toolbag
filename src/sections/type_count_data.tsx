@@ -1,3 +1,4 @@
+import ExamineSparql from "@/components/examine_sparql";
 import PaginatedChart from "@/components/paginated_chart";
 import PaginatedTable, { defaultPagination } from "@/components/paginated_table";
 import StateGuard from "@/components/state_guard";
@@ -13,7 +14,9 @@ export default function TypeCountInfo({
 }: {
     url: URL,
 }) {
-    const queryRes = useQuery(typeCountQuery(url));
+    const { queryString, tanstackQueryOptions } = typeCountQuery(url);
+
+    const queryRes = useQuery(tanstackQueryOptions);
 
     const pinnedRdfType = useStore((store) => store.pinnedRdfType);
     const setPinnedRdfType = useStore((store) => store.setPinnedRdfType);
@@ -47,6 +50,10 @@ export default function TypeCountInfo({
 
     return (
         <div>
+            <div className="flex flex-row gap-2 items-center mt-2 mb-4">
+                <h1 className="text-lg font-bold">Type count</h1>
+                <ExamineSparql query={queryString} />
+            </div>
             <StateGuard
                 queryRes={queryRes}
                 successComponent={(data) => (

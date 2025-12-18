@@ -8,6 +8,7 @@ import { useStore } from "@/store";
 import PropInfo from "./prop_info/index";
 import { defaultQuery } from "@/sparql_queries";
 import { Button } from "@/components/ui/button";
+import ExamineSparql from "@/components/examine_sparql";
 
 function tryMakingUrl(urlName: string): URL | null {
     try {
@@ -22,10 +23,17 @@ function DefaultSampleData({
 }: {
     url: URL,
 }) {
-    const queryRes = useQuery(defaultQuery(url));
+    const { tanstackQueryOptions, queryString } = defaultQuery(url);
+    const queryRes = useQuery(tanstackQueryOptions);
 
     return (
-        <GuardedTableView queryRes={queryRes} />
+        <div>
+            <div className="flex flex-row gap-2 items-center">
+                <h1 className="text-lg mt-2 mb-4 font-bold">Sample data</h1>
+                <ExamineSparql query={queryString} />
+            </div>
+            <GuardedTableView queryRes={queryRes} />
+        </div>
     );
 }
 

@@ -7,6 +7,7 @@ import { createColumnHelper, type ColumnDef } from "@tanstack/react-table";
 import PaginatedTable from "@/components/paginated_table";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState } from "react";
+import ExamineSparql from "@/components/examine_sparql";
 
 const defaultLimit = 50;
 const limitOptions = [10, 20, 50, 100, 200, 500, 1000];
@@ -53,13 +54,24 @@ export default function DataByArchetype({
 
     const [limit, setLimit] = useState(defaultLimit);
 
+    const maybeRes = enabled ? findByArchetypeQuery(url, rdfType, properties, limit) : null;
+
     const queryRes = useQuery({
-        ...findByArchetypeQuery(url, rdfType as string, properties as string[], limit),
+        ...(maybeRes?.tanstackQueryOptions ?? {queryKey: [] }),
         enabled,
     });
 
     return (
         <div>
+            <div className="flex gap-2 items-center">
+                <p className="font-bold">Data for archetype</p>
+                <ExamineSparql
+                    query={maybeRes?.queryString ?? ""}
+                />
+            </div>
+            <pre className="text-sm">
+                {JSON.stringify(properties, undefined, 4)}
+            </pre>
             <LimitSelector
                 limit={limit}
                 setLimit={setLimit}

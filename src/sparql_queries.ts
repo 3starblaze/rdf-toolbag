@@ -59,15 +59,25 @@ WHERE {
     return requestAsSparqlTableResult(url, queryString)
   };
 
-  return queryOptions({
-    queryKey: ["defaultQuery", url],
-    queryFn,
-  });
+  const res = {
+    queryString,
+    tanstackQueryOptions: queryOptions({
+      queryKey: ["defaultQuery", url],
+      queryFn,
+    }),
+  } satisfies QueryInfo<unknown>;
+
+  return res;
 }
 
 interface TypeCountPayload {
   type: string,
   count: number,
+}
+
+interface QueryInfo<T> {
+  queryString: string,
+  tanstackQueryOptions: T,
 }
 
 export function typeCountQuery(
@@ -93,10 +103,15 @@ ORDER BY DESC(?count)
     }));
   };
 
-  return queryOptions({
-    queryKey: ["typeCountQuery", url],
-    queryFn,
-  });
+  const res = {
+    queryString,
+    tanstackQueryOptions: queryOptions({
+      queryKey: ["typeCountQuery", url],
+      queryFn,
+    })
+  } satisfies QueryInfo<unknown>;
+
+  return res;
 }
 
 export function typePropertiesQuery(
@@ -119,10 +134,15 @@ WHERE {
     return tableResult.results.bindings.map((item) => item[columnName].value);
   };
 
-  return queryOptions({
-    queryKey: ["typePropertiesQuery", url, rdfType],
-    queryFn,
-  });
+  const res = {
+    queryString,
+    tanstackQueryOptions: queryOptions({
+      queryKey: ["typePropertiesQuery", url, rdfType],
+      queryFn,
+    }),
+  } satisfies QueryInfo<unknown>;
+
+  return res;
 }
 
 export function archetypesForTypeQuery(
@@ -138,13 +158,9 @@ BIND(EXISTS {
    ?sub <${properties[i]}> ${iToTmpObJVar(i)} .
 } AS ${iToVar(i)})`;
 
-  // NOTE: Initially grouping was done by all the `iToVar` variables but this fails in some
-  // endpoints like DBPedia which set the max grouping/distinct limit to 100 variables. To
-  // circumvent that, a string is built instead and grouping is then done by just that string.
-  const queryFn: () => Promise<{ archetype: Set<string>, count: number }[]> = async () => {
-      // NOTE: archetypeString is a string of 1's and 0's where for each i if archetypeString[i] is
-      // "1" then properties[i] is in the archetype.
-      // NOTE: IF(x, 1, 0) is used to convert a boolean to int.
+  // NOTE: archetypeString is a string of 1's and 0's where for each i if archetypeString[i] is
+  // "1" then properties[i] is in the archetype.
+  // NOTE: IF(x, 1, 0) is used to convert a boolean to int.
 
       const queryString = `
 PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
@@ -163,6 +179,10 @@ GROUP BY ?archetypeString
 ORDER BY DESC(?count)
 `;
 
+  // NOTE: Initially grouping was done by all the `iToVar` variables but this fails in some
+  // endpoints like DBPedia which set the max grouping/distinct limit to 100 variables. To
+  // circumvent that, a string is built instead and grouping is then done by just that string.
+  const queryFn: () => Promise<{ archetype: Set<string>, count: number }[]> = async () => {
     const tableRes = await requestAsSparqlTableResult(url, queryString);
 
     const res: { archetype: Set<string>, count: number }[] = tableRes.results.bindings.map((item) => {
@@ -198,10 +218,15 @@ ORDER BY DESC(?count)
     return res;
   };
 
-  return queryOptions({
-    queryKey: ["archetypesForTypeQuery", url, rdfType, properties],
-    queryFn,
-  });
+  const res = {
+    queryString,
+    tanstackQueryOptions: queryOptions({
+      queryKey: ["archetypesForTypeQuery", url, rdfType, properties],
+      queryFn,
+    })
+  } satisfies QueryInfo<unknown>;
+
+  return res;
 }
 
 interface ByArchetypeData {
@@ -256,8 +281,13 @@ LIMIT ${limit}
     });
   };
 
-  return queryOptions({
-    queryKey: ["findByArchetypeQuery", url, rdfType, properties, limit],
-    queryFn,
-  });
+  const res = {
+    queryString,
+    tanstackQueryOptions: queryOptions({
+      queryKey: ["findByArchetypeQuery", url, rdfType, properties, limit],
+      queryFn,
+    }),
+  } satisfies QueryInfo<unknown>;
+
+  return res;
 }

@@ -11,6 +11,7 @@ import StateGuard from "@/components/state_guard";
 import PaginatedChart from "@/components/paginated_chart";
 import { Button } from "@/components/ui/button";
 import { useArchetypeActionColumn } from "./archetype_util";
+import ExamineSparql from "@/components/examine_sparql";
 
 export default function ArchetypeInfo({
     url,
@@ -23,9 +24,12 @@ export default function ArchetypeInfo({
 }) {
     const enabled = (rdfType !== undefined) && (properties !== undefined);
 
+    const maybeItems = enabled ? archetypesForTypeQuery(url, rdfType, properties) : null;
+
+    const queryString = maybeItems?.queryString;
+
     const queryRes = useQuery({
-        // NOTE: we cast away undefined because undefined is not going to appear on enabled: true
-        ...archetypesForTypeQuery(url, rdfType as string, properties as string[]),
+        ...(maybeItems?.tanstackQueryOptions ?? {queryKey: []}),
         enabled,
     });
 
@@ -75,6 +79,12 @@ export default function ArchetypeInfo({
 
     return (
         <div className="flex flex-col gap-2">
+            <div className="flex gap-2 items-center">
+                <p className="font-bold">Available archetypes</p>
+                <ExamineSparql
+                    query={queryString || ""}
+                />
+            </div>
             <StateGuard
                 queryRes={queryRes}
                 successComponent={(data) => (

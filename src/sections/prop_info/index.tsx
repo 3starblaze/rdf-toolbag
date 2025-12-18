@@ -12,11 +12,13 @@ import ArchetypeInfo from "./archetype_info";
 import DataByArchetype from "./data_by_archetype";
 import { Combobox } from "@/components/ui/combobox";
 import PaginatedTable from "@/components/paginated_table";
+import ExamineSparql from "@/components/examine_sparql";
 
 function PinnedRdfTypeCombobox({ url }: {
     url: URL,
 }) {
-    const typeCountQueryRes = useQuery(typeCountQuery(url));
+    const { tanstackQueryOptions } = typeCountQuery(url);
+    const typeCountQueryRes = useQuery(tanstackQueryOptions);
 
     const options = (typeCountQueryRes.data) ? (
         typeCountQueryRes.data.map((item) => {
@@ -51,7 +53,8 @@ export default function PropInfo({
     const rdfType = useStore((store) => store.pinnedRdfType);
     const setRdfType = useStore((store) => store.setPinnedRdfType);
 
-    const typeCountqueryRes = useQuery(typeCountQuery(url));
+    const { tanstackQueryOptions: typeCountQueryOptions } = typeCountQuery(url);
+    const typeCountqueryRes = useQuery(typeCountQueryOptions);
 
     // NOTE: Set initial rdfType effect
     useEffect(() => {
@@ -64,8 +67,10 @@ export default function PropInfo({
         setRdfType(firstType);
     }, [typeCountqueryRes.data]);
 
+    const { queryString, tanstackQueryOptions } = typePropertiesQuery(url, `<${rdfType}>`);
+
     const queryRes = useQuery({
-        ...typePropertiesQuery(url, `<${rdfType}>`),
+        ...tanstackQueryOptions,
         enabled: rdfType !== null,
     });
 
@@ -74,9 +79,13 @@ export default function PropInfo({
     return (
         <div className="flex flex-col gap-2">
             <p className="font-bold">RDF type</p>
+
             <PinnedRdfTypeCombobox url={url} />
 
-            <p className="font-bold">Available properties</p>
+            <div className="flex flex-row gap-2 items-center">
+                <p className="font-bold">Available properties</p>
+                <ExamineSparql query={queryString} />
+            </div>
 
             <StateGuard
                 queryRes={queryRes}
@@ -95,15 +104,10 @@ export default function PropInfo({
 
             {(rdfType !== null) && (
                 <>
-                    <p className="font-bold">Available archetypes</p>
                     {/* HACK: adding angled brackets to type */}
                     <ArchetypeInfo url={url} rdfType={`<${rdfType}>`} properties={queryRes.data} />
-                    <p className="font-bold">Data for archetype</p>
                     {pinnedArchetype ? (
                         <>
-                            <pre className="text-sm">
-                                {JSON.stringify([...pinnedArchetype], undefined, 4)}
-                            </pre>
                             {/* HACK: adding angled brackets to type */}
                             <DataByArchetype
                                 url={url}
