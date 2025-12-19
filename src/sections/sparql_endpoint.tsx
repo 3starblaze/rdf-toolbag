@@ -9,6 +9,7 @@ import PropInfo from "./prop_info/index";
 import { defaultQuery } from "@/sparql_queries";
 import { Button } from "@/components/ui/button";
 import ExamineSparql from "@/components/examine_sparql";
+import DefaultConstructQuery from "./default_construct_query";
 
 function tryMakingUrl(urlName: string): URL | null {
     try {
@@ -63,7 +64,12 @@ function ContentSection({
             title: "Prop info",
             value: "prop-info",
             content: (<PropInfo url={url} />),
-        }
+        },
+        {
+            title: "Sample construct query",
+            value: "sample-construct-query",
+            content: (<DefaultConstructQuery url={url} />),
+        },
     ];
 
 
@@ -75,7 +81,7 @@ function ContentSection({
                         <TabsTrigger key="value" value={value}>{title}</TabsTrigger>
                     ))}
                 </TabsList>
-                {sectionInfos.map(({ value, content}) => (
+                {sectionInfos.map(({ value, content }) => (
                     <TabsContent key={value} value={value}>{content}</TabsContent>
                 ))}
             </Tabs>

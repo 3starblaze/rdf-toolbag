@@ -1,4 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
+import N3 from "n3";
 
 export interface SparqlTableResult {
     head: {
@@ -46,6 +47,34 @@ async function requestAsSparqlTableResult(
     const data = await res.json() as SparqlTableResult;
 
     return data;
+}
+
+async function requestAsNTriples(
+  url: URL,
+  queryString: string,
+): Promise<N3.Quad[]> {
+  const req = new Request(url, {
+    method: "POST",
+    headers: {
+      "Accept": "application/n-triples",
+    },
+    body: new URLSearchParams({
+      query: queryString,
+    }),
+  });
+
+  const res = await fetch(req);
+
+  if (!res.ok) {
+    throw new Error("Network response was not ok");
+  }
+
+  const parser = new N3.Parser();
+  const text = await res.text();
+
+  const quads = parser.parse(text);
+
+  return quads;
 }
 
 export function defaultQuery(url: URL) {
@@ -285,6 +314,28 @@ LIMIT ${limit}
     queryString,
     tanstackQueryOptions: queryOptions({
       queryKey: ["findByArchetypeQuery", url, rdfType, properties, limit],
+      queryFn,
+    }),
+  } satisfies QueryInfo<unknown>;
+
+  return res;
+}
+
+export function defaultConstructQuery(url: URL) {
+  const queryString = `
+CONSTRUCT { ?s ?p ?o }
+WHERE {
+  ?s ?p ?o .
+} LIMIT 10`;
+
+  const queryFn: () => Promise<N3.Quad[]> = () => {
+    return requestAsNTriples(url, queryString);
+  };
+
+  const res = {
+    queryString,
+    tanstackQueryOptions: queryOptions({
+      queryKey: ["defaultConstructQuery", url],
       queryFn,
     }),
   } satisfies QueryInfo<unknown>;
