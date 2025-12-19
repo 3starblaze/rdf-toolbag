@@ -10,6 +10,7 @@ import { defaultQuery } from "@/sparql_queries";
 import { Button } from "@/components/ui/button";
 import ExamineSparql from "@/components/examine_sparql";
 import DefaultConstructQuery from "./default_construct_query";
+import SampleMulticardinalQuery from "./multicardinal_query_table/index";
 
 function tryMakingUrl(urlName: string): URL | null {
     try {
@@ -69,6 +70,11 @@ function ContentSection({
             title: "Sample construct query",
             value: "sample-construct-query",
             content: (<DefaultConstructQuery url={url} />),
+        },
+        {
+            title: "Sample multicardinal query",
+            value: "sample-multicardinal-query",
+            content: (<SampleMulticardinalQuery url={url} />),
         },
     ];
 

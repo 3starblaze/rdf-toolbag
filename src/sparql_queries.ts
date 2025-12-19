@@ -342,3 +342,45 @@ WHERE {
 
   return res;
 }
+
+export function multicardinalTableQuery(
+  url: URL,
+  rdfType: string,
+  properties: string[],
+  idLimit: number,
+) {
+  const queryString = `
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+
+CONSTRUCT { ?sub ?pred ?obj }
+WHERE {
+  ?sub ?pred ?obj .
+  FILTER(?pred IN (
+${properties.map((prop) => `    <${prop}>`).join(",\n")}
+  ))
+  {
+    SELECT DISTINCT ?sub
+    WHERE {
+      ?sub ?pred ?obj .
+      ?sub rdf:type ${rdfType} .
+${properties.map((prop, i) => `      ?sub <${prop}> ?tmpObj${i} .`).join("\n")}
+    }
+    LIMIT ${idLimit}
+  }
+}
+`;
+
+  const queryFn: () => Promise<N3.Quad[]> = () => {
+    return requestAsNTriples(url, queryString);
+  };
+
+  const res = {
+    queryString,
+    tanstackQueryOptions: queryOptions({
+      queryKey: ["multicardinalTableQuery", url, rdfType, properties, idLimit],
+      queryFn,
+    }),
+  } satisfies QueryInfo<unknown>;
+
+  return res;
+}
