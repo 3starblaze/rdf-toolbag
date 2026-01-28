@@ -1,4 +1,5 @@
 import { Button } from "./ui/button";
+import { Combobox } from "./ui/combobox";
 import { Input } from "./ui/input";
 import {
     useControllableState
@@ -11,7 +12,9 @@ export function PropertySelector({
     value: controlledValue,
     defaultValue,
     onValueChange,
+    suggestions,
 }: {
+    suggestions: { label: string, value: string }[],
     value?: string[],
     defaultValue?: string[],
     onValueChange?: (newValue: string[]) => void,
@@ -30,14 +33,19 @@ export function PropertySelector({
                         key={i}
                         className="flex gap-2"
                     >
-                        <Input
-                            className="border-2"
+                        <Combobox
+                            className="w-full"
+                            options={suggestions}
+                            unselectedLabel={(<span />)}
+                            emptyLabel="..."
+                            searchPlaceholder="..."
                             value={item}
-                            onChange={(ev) => setSelectedProperties([
+                            onValueChange={(val) => setSelectedProperties([
                                 ...selectedProperties.slice(0, i),
-                                ev.target.value,
+                                val,
                                 ...selectedProperties.slice(i + 1),
                             ])}
+                            allowCustomValues
                         />
                         <Button
                             className="cursor-pointer"

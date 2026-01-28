@@ -15,7 +15,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 
 interface ComboboxOption {
     value: string,
@@ -31,16 +31,21 @@ export function Combobox({
     onValueChange,
     open: providedOpen,
     onOpenChange,
+    allowCustomValues: providedAllowCustomValues,
+    className,
 }: {
     options: ComboboxOption[],
-    unselectedLabel: string,
-    emptyLabel: string,
-    searchPlaceholder: string,
+    unselectedLabel: ReactNode,
+    emptyLabel: ReactNode,
+    searchPlaceholder: ReactNode,
     value?: string,
     onValueChange?: (value: string) => void,
     open?: boolean,
     onOpenChange?: (value: boolean) => void,
+    allowCustomValues?: boolean,
+    className?: string,
 }) {
+  const allowCustomValues = providedAllowCustomValues ?? false;
   const [internalValue, setInternalValue] = useState("");
   const value = providedValue ?? internalValue;
   const setValue = onValueChange ?? setInternalValue;
@@ -49,6 +54,9 @@ export function Combobox({
   const open = providedOpen ?? internalOpen;
   const setOpen = onOpenChange ?? setInternalOpen;
 
+  const [inputValue, setInputValue] = useState(value);
+  const inputValueExists = !!options.find((item) => item.value === inputValue);
+
   return (
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
@@ -56,20 +64,41 @@ export function Combobox({
                     variant="outline"
                     role="combobox"
                     aria-expanded={open}
-                    className="justify-between w-fit"
+                    className={cn("justify-between w-fit", className)}
                 >
                     {value
-                        ? options.find((option) => option.value === value)?.label
+                        ? options.find((option) => option.value === value)?.label || value
                         : unselectedLabel}
                     <ChevronsUpDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
             </PopoverTrigger>
             <PopoverContent className="p-0">
                 <Command>
-                    <CommandInput placeholder={searchPlaceholder} />
+                    <CommandInput
+                        placeholder={searchPlaceholder}
+                        value={inputValue}
+                        onValueChange={setInputValue}
+                    />
                     <CommandList>
                         <CommandEmpty>{emptyLabel}</CommandEmpty>
                         <CommandGroup>
+                            {allowCustomValues && !inputValueExists && (
+                                <CommandItem
+                                    value={inputValue}
+                                    onSelect={(currentValue) => {
+                                        setValue(currentValue === value ? "" : currentValue)
+                                        setOpen(false)
+                                    }}
+                                >
+                                    <CheckIcon
+                                        className={cn(
+                                            "mr-2 h-4 w-4",
+                                            value === inputValue ? "opacity-100" : "opacity-0"
+                                        )}
+                                    />
+                                    Custom: {inputValue}
+                                </CommandItem>
+                            )}
                             {options.map((option) => (
                                 <CommandItem
                                     key={option.value}

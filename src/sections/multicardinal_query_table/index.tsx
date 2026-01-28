@@ -3,7 +3,7 @@ import PaginatedTable from "@/components/paginated_table";
 import { PropertySelector } from "@/components/property_selector";
 import StateGuard from "@/components/state_guard";
 import { Button } from "@/components/ui/button";
-import { multicardinalTableQuery } from "@/sparql_queries";
+import { multicardinalTableQuery, typePropertiesQuery } from "@/sparql_queries";
 import { useStore } from "@/store";
 import { useQuery } from "@tanstack/react-query";
 import { createColumnHelper, type ColumnDef } from "@tanstack/react-table";
@@ -118,6 +118,13 @@ export default function SampleMulticardinalQuery({
     } = multicardinalTableQuery(url, rdfType, properties, idLimit);
     const queryRes = useQuery(tanstackQueryOptions);
 
+    const {
+        tanstackQueryOptions: typePropertiesQueryOptions,
+    } = typePropertiesQuery(url, rdfType);
+
+    const typePropertiesQueryRes = useQuery(typePropertiesQueryOptions);
+    const suggestionData = typePropertiesQueryRes.data || [];
+
     return (
         <div>
             <div className="flex flex-row gap-2 items-center">
@@ -129,6 +136,10 @@ export default function SampleMulticardinalQuery({
                 <PropertySelector
                     value={uncommittedProperties}
                     onValueChange={setUncommittedProperties}
+                    suggestions={suggestionData.map((item) => ({
+                        label: item,
+                        value: item,
+                    }))}
                 />
                 <div className="flex gap-2">
                     <Button
