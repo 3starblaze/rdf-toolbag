@@ -1,10 +1,14 @@
 import ExamineSparql from "@/components/examine_sparql";
 import PaginatedTable from "@/components/paginated_table";
+import { PropertySelector } from "@/components/property_selector";
 import StateGuard from "@/components/state_guard";
+import { Button } from "@/components/ui/button";
 import { multicardinalTableQuery } from "@/sparql_queries";
+import { useStore } from "@/store";
 import { useQuery } from "@tanstack/react-query";
 import { createColumnHelper, type ColumnDef } from "@tanstack/react-table";
 import N3 from "n3";
+import { useState } from "react";
 
 interface MulticardinalRow {
     subject: string,
@@ -90,18 +94,23 @@ function AggregatedTable({
     );
 }
 
+function isArrayEqual(a: unknown[], b: unknown[]): boolean {
+    return JSON.stringify(a) === JSON.stringify(b);
+}
+
 export default function SampleMulticardinalQuery({
     url,
 }: {
     url: URL,
 }) {
-    const rdfType = "<http://ldf.fi/schema/yoma/ReferencedPerson>";
-    const properties = [
-        "http://ldf.fi/schema/yoma/in_bio",
-        "http://ldf.fi/schema/bioc/has_family_relation",
-        "http://www.w3.org/2004/02/skos/core#prefLabel",
-    ];
+    const pinnedRdfType = useStore((store) => store.pinnedRdfType);
+    const rdfType = `<${pinnedRdfType}>`;
     const idLimit = 10;
+
+    const [uncommittedProperties, setUncommittedProperties] = useState<string[]>([]);
+    const [properties, setProperties] = useState<string[]>([]);
+
+    const areUncomittedPropertiesDifferent = isArrayEqual(uncommittedProperties, properties);
 
     const {
         tanstackQueryOptions,
@@ -114,6 +123,30 @@ export default function SampleMulticardinalQuery({
             <div className="flex flex-row gap-2 items-center">
                 <h1 className="text-lg mt-2 mb-4 font-bold">Sample multicardinal query</h1>
                 <ExamineSparql query={queryString} />
+            </div>
+            <div className="flex flex-col gap-2">
+                <p>Select properties</p>
+                <PropertySelector
+                    value={uncommittedProperties}
+                    onValueChange={setUncommittedProperties}
+                />
+                <div className="flex gap-2">
+                    <Button
+                        className="w-fit"
+                        variant="outline"
+                        onClick={() => setProperties(uncommittedProperties)}
+                        disabled={areUncomittedPropertiesDifferent}
+                    >
+                        Save
+                    </Button>
+                    <Button
+                        variant="outline"
+                        onClick={() => setUncommittedProperties(properties)}
+                        disabled={areUncomittedPropertiesDifferent}
+                    >
+                        Revert
+                    </Button>
+                </div>
             </div>
             <StateGuard
                 queryRes={queryRes}
