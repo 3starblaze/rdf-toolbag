@@ -37,7 +37,7 @@ export function Combobox({
     options: ComboboxOption[],
     unselectedLabel: ReactNode,
     emptyLabel: ReactNode,
-    searchPlaceholder: ReactNode,
+    searchPlaceholder: string,
     value?: string,
     onValueChange?: (value: string) => void,
     open?: boolean,
