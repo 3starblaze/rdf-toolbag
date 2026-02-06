@@ -343,8 +343,7 @@ WHERE {
   return res;
 }
 
-export function multicardinalTableQuery(
-  url: URL,
+export function formatMultiCardinalTableQuery(
   rdfType: string,
   properties: string[],
   idLimit: number,
@@ -369,9 +368,74 @@ ${properties.map((prop, i) => `      ?sub <${prop}> ?tmpObj${i} .`).join("\n")}
   }
 }
 `;
+  return queryString;
+}
+
+export function multicardinalTableQuery(
+  url: URL,
+  rdfType: string,
+  properties: string[],
+  idLimit: number,
+) {
+  const queryString = formatMultiCardinalTableQuery(rdfType, properties, idLimit);
 
   const queryFn: () => Promise<N3.Quad[]> = () => {
     return requestAsNTriples(url, queryString);
+  };
+
+  const res = {
+    queryString,
+    tanstackQueryOptions: queryOptions({
+      queryKey: ["multicardinalTableQuery", url, rdfType, properties, idLimit],
+      queryFn,
+    }),
+  } satisfies QueryInfo<unknown>;
+
+  return res;
+}
+
+export function formatMultiCardinalTableAsSelectQuery(
+  rdfType: string,
+  properties: string[],
+  idLimit: number,
+) {
+  const queryString = `
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+
+SELECT ?sub ?pred ?obj
+WHERE {
+  ?sub ?pred ?obj .
+  FILTER(?pred IN (
+${properties.map((prop) => `    <${prop}>`).join(",\n")}
+  ))
+  {
+    SELECT DISTINCT ?sub
+    WHERE {
+      ?sub ?pred ?obj .
+      ?sub rdf:type ${rdfType} .
+${properties.map((prop, i) => `      ?sub <${prop}> ?tmpObj${i} .`).join("\n")}
+    }
+    LIMIT ${idLimit}
+  }
+}
+`;
+
+  return queryString;
+}
+
+/**
+ * Make multicardinal table query but use SELECT instead of CONSTRUCT.
+ */
+export function multiCardinalTableAsSelectQuery(
+  url: URL,
+  rdfType: string,
+  properties: string[],
+  idLimit: number,
+) {
+  const queryString = formatMultiCardinalTableAsSelectQuery(rdfType, properties, idLimit);
+
+  const queryFn: () => Promise<SparqlTableResult> = () => {
+    return requestAsSparqlTableResult(url, queryString);
   };
 
   const res = {

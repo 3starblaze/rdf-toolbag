@@ -3,7 +3,7 @@ import PaginatedTable from "@/components/paginated_table";
 import { PropertySelector } from "@/components/property_selector";
 import StateGuard from "@/components/state_guard";
 import { Button } from "@/components/ui/button";
-import { multicardinalTableQuery, typePropertiesQuery } from "@/sparql_queries";
+import { multiCardinalTableAsSelectQuery, typePropertiesQuery, type SparqlTableResult } from "@/sparql_queries";
 import { useStore } from "@/store";
 import { useQuery } from "@tanstack/react-query";
 import { createColumnHelper, type ColumnDef } from "@tanstack/react-table";
@@ -15,7 +15,12 @@ interface MulticardinalRow {
     props: {[key: string]: string[]},
 }
 
-function quadsToRows(data: N3.Quad[]): MulticardinalRow[] {
+function tableToRows(table: SparqlTableResult) {
+    const cols = table.head.vars;
+    if (cols.length !== 3) {
+        throw new Error(`Expected 3 columns for table, got ${cols.length}`);
+    }
+
     const collectingMap = new Map<string, MulticardinalRow>();
 
     const getOrCreate = (subject: string): MulticardinalRow => {
@@ -44,10 +49,10 @@ function quadsToRows(data: N3.Quad[]): MulticardinalRow[] {
         arr.push(value);
     };
 
-    for (const quad of data) {
-        const subject = quad.subject.value;
-        const predicate = quad.predicate.value;
-        const object = quad.object.value;
+    for (const item of table.results.bindings) {
+        const subject = item[cols[0]].value;
+        const predicate = item[cols[1]].value;
+        const object = item[cols[2]].value;
 
         const entry = getOrCreate(subject);
         pushProp(entry, predicate, object);
@@ -115,7 +120,7 @@ export default function SampleMulticardinalQuery({
     const {
         tanstackQueryOptions,
         queryString,
-    } = multicardinalTableQuery(url, rdfType, properties, idLimit);
+    } = multiCardinalTableAsSelectQuery(url, rdfType, properties, idLimit);
     const queryRes = useQuery(tanstackQueryOptions);
 
     const {
@@ -164,7 +169,7 @@ export default function SampleMulticardinalQuery({
                 successComponent={(data) => (
                     <AggregatedTable
                         properties={properties}
-                        rows={quadsToRows(data)}
+                        rows={tableToRows(data)}
                     />
                 )}
             />
