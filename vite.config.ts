@@ -6,6 +6,7 @@ import dts from 'vite-plugin-dts'
 import { peerDependencies } from "./package.json"
 
 const libMode = true;
+const devMode = true;
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -34,6 +35,8 @@ export default defineConfig({
       rollupOptions: {
         external: [...Object.keys(peerDependencies)],
       },
+      // NOTE: If dev mode enabled, don't minify, otherwise keep the default setting
+      minify: devMode ? false : "esbuild",
     },
   } : {}),
 })
