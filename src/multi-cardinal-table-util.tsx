@@ -71,7 +71,7 @@ export function AggregatedTable({
         id: prop,
         accessorFn: (row) => row.props[prop],
         cell: ({ getValue }) => {
-            const val = getValue<string[]>();
+            const val = getValue<string[] | undefined>() ?? [];
 
             if (val.length === 1) {
                 return <p>{val[0]}</p>
