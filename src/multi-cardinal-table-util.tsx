@@ -12,6 +12,69 @@ export interface MulticardinalRow {
     props: { [key: string]: string[] },
 }
 
+/**
+ * Remove duplicates that could happen when results have cartesian product.
+ */
+export function deduplicateTable(table: SparqlTableResult): MulticardinalRow[] {
+    // NOTE: prop values are temporarily stored in a set, so that duplicate values are eliminated.
+    interface TmpRow {
+        subject: string,
+        props: { [key: string]: Set<string> }
+    }
+
+    const cols = table.head.vars;
+    if (cols.length === 0) return [];
+
+    const idCol = cols[0];
+
+    const collectingMap = new Map<string, TmpRow>();
+
+    const getOrCreate = (subject: string): TmpRow => {
+        const maybeEntry = collectingMap.get(subject);
+        if (maybeEntry) return maybeEntry;
+
+        const entry: TmpRow = {
+            subject,
+            props: {},
+        };
+
+        collectingMap.set(subject, entry);
+        return entry;
+    }
+
+    const pushProp = (row: TmpRow, prop: string, value: string) => {
+        let valueToModify: Set<string>;
+
+        if (prop in row.props) {
+            valueToModify = row.props[prop];
+        } else {
+            valueToModify = new Set();
+            row.props[prop] = valueToModify;
+        }
+
+        valueToModify.add(value);
+    };
+
+    for (const tableRow of table.results.bindings) {
+        const row = getOrCreate(tableRow[idCol].value);
+
+        Object.entries(tableRow).forEach(([k, { value }]) => {
+            if (k === idCol) return;
+            pushProp(row, k, value);
+        });
+    }
+
+    return [...collectingMap.values()].map(({ props: oldProps, ...rest }) => {
+        const propsEntries = Object.entries(oldProps)
+                                   .map(([k, v]) => [k, [...v.values()]] satisfies [unknown, unknown]);
+        const props = Object.fromEntries(propsEntries);
+        return {
+            props,
+            ...rest,
+        };
+    });
+}
+
 export function tableToRows(table: SparqlTableResult) {
     const cols = table.head.vars;
     if (cols.length !== 3) {
