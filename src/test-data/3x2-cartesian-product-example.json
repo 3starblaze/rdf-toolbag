@@ -1,0 +1,330 @@
+{
+  "head": {
+    "link": [],
+    "vars": [
+      "id",
+      "label",
+      "motivation",
+      "year",
+      "share"
+    ]
+  },
+  "results": {
+    "distinct": false,
+    "ordered": true,
+    "bindings": [
+      {
+        "id": {
+          "type": "uri",
+          "value": "http://data.nobelprize.org/resource/laureateaward/Chemistry/1901/160"
+        },
+        "label": {
+          "type": "literal",
+          "xml:lang": "no",
+          "value": "Nobelprisen i kjemi 1901, Jacobus H. van 't Hoff"
+        },
+        "motivation": {
+          "type": "literal",
+          "xml:lang": "sv",
+          "value": "såsom ett erkännande av den utomordentliga förtjänst han inlagt genom upptäckten av lagarna för den kemiska dynamiken och för det osmotiska trycket i lösningar"
+        },
+        "year": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "value": "1901"
+        },
+        "share": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "value": "1"
+        }
+      },
+      {
+        "id": {
+          "type": "uri",
+          "value": "http://data.nobelprize.org/resource/laureateaward/Chemistry/1901/160"
+        },
+        "label": {
+          "type": "literal",
+          "xml:lang": "sv",
+          "value": "Nobelpriset i kemi 1901, Jacobus H. van 't Hoff"
+        },
+        "motivation": {
+          "type": "literal",
+          "xml:lang": "sv",
+          "value": "såsom ett erkännande av den utomordentliga förtjänst han inlagt genom upptäckten av lagarna för den kemiska dynamiken och för det osmotiska trycket i lösningar"
+        },
+        "year": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "value": "1901"
+        },
+        "share": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "value": "1"
+        }
+      },
+      {
+        "id": {
+          "type": "uri",
+          "value": "http://data.nobelprize.org/resource/laureateaward/Chemistry/1901/160"
+        },
+        "label": {
+          "type": "literal",
+          "xml:lang": "en",
+          "value": "The Nobel Prize in Chemistry 1901, Jacobus H. van 't Hoff"
+        },
+        "motivation": {
+          "type": "literal",
+          "xml:lang": "sv",
+          "value": "såsom ett erkännande av den utomordentliga förtjänst han inlagt genom upptäckten av lagarna för den kemiska dynamiken och för det osmotiska trycket i lösningar"
+        },
+        "year": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "value": "1901"
+        },
+        "share": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "value": "1"
+        }
+      },
+      {
+        "id": {
+          "type": "uri",
+          "value": "http://data.nobelprize.org/resource/laureateaward/Chemistry/1901/160"
+        },
+        "label": {
+          "type": "literal",
+          "xml:lang": "no",
+          "value": "Nobelprisen i kjemi 1901, Jacobus H. van 't Hoff"
+        },
+        "motivation": {
+          "type": "literal",
+          "xml:lang": "en",
+          "value": "in recognition of the extraordinary services he has rendered by the discovery of the laws of chemical dynamics and osmotic pressure in solutions"
+        },
+        "year": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "value": "1901"
+        },
+        "share": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "value": "1"
+        }
+      },
+      {
+        "id": {
+          "type": "uri",
+          "value": "http://data.nobelprize.org/resource/laureateaward/Chemistry/1901/160"
+        },
+        "label": {
+          "type": "literal",
+          "xml:lang": "sv",
+          "value": "Nobelpriset i kemi 1901, Jacobus H. van 't Hoff"
+        },
+        "motivation": {
+          "type": "literal",
+          "xml:lang": "en",
+          "value": "in recognition of the extraordinary services he has rendered by the discovery of the laws of chemical dynamics and osmotic pressure in solutions"
+        },
+        "year": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "value": "1901"
+        },
+        "share": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "value": "1"
+        }
+      },
+      {
+        "id": {
+          "type": "uri",
+          "value": "http://data.nobelprize.org/resource/laureateaward/Chemistry/1901/160"
+        },
+        "label": {
+          "type": "literal",
+          "xml:lang": "en",
+          "value": "The Nobel Prize in Chemistry 1901, Jacobus H. van 't Hoff"
+        },
+        "motivation": {
+          "type": "literal",
+          "xml:lang": "en",
+          "value": "in recognition of the extraordinary services he has rendered by the discovery of the laws of chemical dynamics and osmotic pressure in solutions"
+        },
+        "year": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "value": "1901"
+        },
+        "share": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "value": "1"
+        }
+      },
+      {
+        "id": {
+          "type": "uri",
+          "value": "http://data.nobelprize.org/resource/laureateaward/Chemistry/1902/161"
+        },
+        "label": {
+          "type": "literal",
+          "xml:lang": "no",
+          "value": "Nobelprisen i kjemi 1902, Emil Fischer"
+        },
+        "motivation": {
+          "type": "literal",
+          "xml:lang": "en",
+          "value": "in recognition of the extraordinary services he has rendered by his work on sugar and purine syntheses"
+        },
+        "year": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "value": "1902"
+        },
+        "share": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "value": "1"
+        }
+      },
+      {
+        "id": {
+          "type": "uri",
+          "value": "http://data.nobelprize.org/resource/laureateaward/Chemistry/1902/161"
+        },
+        "label": {
+          "type": "literal",
+          "xml:lang": "sv",
+          "value": "Nobelpriset i kemi 1902, Emil Fischer"
+        },
+        "motivation": {
+          "type": "literal",
+          "xml:lang": "en",
+          "value": "in recognition of the extraordinary services he has rendered by his work on sugar and purine syntheses"
+        },
+        "year": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "value": "1902"
+        },
+        "share": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "value": "1"
+        }
+      },
+      {
+        "id": {
+          "type": "uri",
+          "value": "http://data.nobelprize.org/resource/laureateaward/Chemistry/1902/161"
+        },
+        "label": {
+          "type": "literal",
+          "xml:lang": "en",
+          "value": "The Nobel Prize in Chemistry 1902, Emil Fischer"
+        },
+        "motivation": {
+          "type": "literal",
+          "xml:lang": "en",
+          "value": "in recognition of the extraordinary services he has rendered by his work on sugar and purine syntheses"
+        },
+        "year": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "value": "1902"
+        },
+        "share": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "value": "1"
+        }
+      },
+      {
+        "id": {
+          "type": "uri",
+          "value": "http://data.nobelprize.org/resource/laureateaward/Chemistry/1902/161"
+        },
+        "label": {
+          "type": "literal",
+          "xml:lang": "no",
+          "value": "Nobelprisen i kjemi 1902, Emil Fischer"
+        },
+        "motivation": {
+          "type": "literal",
+          "xml:lang": "sv",
+          "value": "såsom ett erkännande av den utomordentliga förtjänst han inlagt genom sina syntetiska arbeten inom socker - och purin-grupperna"
+        },
+        "year": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "value": "1902"
+        },
+        "share": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "value": "1"
+        }
+      },
+      {
+        "id": {
+          "type": "uri",
+          "value": "http://data.nobelprize.org/resource/laureateaward/Chemistry/1902/161"
+        },
+        "label": {
+          "type": "literal",
+          "xml:lang": "sv",
+          "value": "Nobelpriset i kemi 1902, Emil Fischer"
+        },
+        "motivation": {
+          "type": "literal",
+          "xml:lang": "sv",
+          "value": "såsom ett erkännande av den utomordentliga förtjänst han inlagt genom sina syntetiska arbeten inom socker - och purin-grupperna"
+        },
+        "year": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "value": "1902"
+        },
+        "share": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "value": "1"
+        }
+      },
+      {
+        "id": {
+          "type": "uri",
+          "value": "http://data.nobelprize.org/resource/laureateaward/Chemistry/1902/161"
+        },
+        "label": {
+          "type": "literal",
+          "xml:lang": "en",
+          "value": "The Nobel Prize in Chemistry 1902, Emil Fischer"
+        },
+        "motivation": {
+          "type": "literal",
+          "xml:lang": "sv",
+          "value": "såsom ett erkännande av den utomordentliga förtjänst han inlagt genom sina syntetiska arbeten inom socker - och purin-grupperna"
+        },
+        "year": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "value": "1902"
+        },
+        "share": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "value": "1"
+        }
+      }
+    ]
+  }
+}
