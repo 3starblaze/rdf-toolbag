@@ -33,7 +33,7 @@ export function PropertySelector({
                         className="flex gap-2"
                     >
                         <Combobox
-                            className="w-full"
+                            className="grow"
                             options={suggestions}
                             unselectedLabel={(<span />)}
                             emptyLabel="..."
