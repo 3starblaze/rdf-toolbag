@@ -6,4 +6,5 @@ export {
     type MulticardinalRow,
     AggregatedTable,
     tableToRows,
+    deduplicateTable,
 } from "@/multi-cardinal-table-util";
