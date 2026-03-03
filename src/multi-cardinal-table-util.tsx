@@ -15,7 +15,10 @@ export interface MulticardinalRow {
 /**
  * Remove duplicates that could happen when results have cartesian product.
  */
-export function deduplicateTable(table: SparqlTableResult): MulticardinalRow[] {
+export function deduplicateTable(
+    table: SparqlTableResult,
+    idColKey?: string | number,
+): MulticardinalRow[] {
     // NOTE: prop values are temporarily stored in a set, so that duplicate values are eliminated.
     interface TmpRow {
         subject: string,
@@ -25,7 +28,27 @@ export function deduplicateTable(table: SparqlTableResult): MulticardinalRow[] {
     const cols = table.head.vars;
     if (cols.length === 0) return [];
 
-    const idCol = cols[0];
+
+    const idCol = (() => {
+        if (idColKey === undefined) {
+            return cols[0];
+        }
+
+        switch (typeof idColKey) {
+            case "string":
+                if (!cols.includes(idColKey)) {
+                    throw new Error(`key '${idColKey}' does not exist`);
+                } else {
+                    return idColKey;
+                }
+            case "number":
+                const maybeRes = cols[idColKey];
+                if (maybeRes === undefined) {
+                    throw new Error(`key ${idColKey} out of bounds`);
+                }
+                return maybeRes;
+        }
+    })();
 
     const collectingMap = new Map<string, TmpRow>();
 
