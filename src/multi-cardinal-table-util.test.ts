@@ -9,7 +9,8 @@ describe("deduplicateTable", () => {
       const deduplicatedData = deduplicateTable(exampleData);
       const expectedResult: MulticardinalRow[] = [
         {
-          subject: "http://data.nobelprize.org/resource/laureateaward/Chemistry/1901/160",
+          idName: "id",
+          idValue: "http://data.nobelprize.org/resource/laureateaward/Chemistry/1901/160",
           props: {
             label: [
               "Nobelprisen i kjemi 1901, Jacobus H. van 't Hoff",
@@ -29,7 +30,8 @@ describe("deduplicateTable", () => {
           },
         },
         {
-          subject: "http://data.nobelprize.org/resource/laureateaward/Chemistry/1902/161",
+          idName: "id",
+          idValue: "http://data.nobelprize.org/resource/laureateaward/Chemistry/1902/161",
           props: {
             label: [
               "Nobelprisen i kjemi 1902, Emil Fischer",
@@ -57,7 +59,8 @@ describe("deduplicateTable", () => {
       const deduplicatedData = deduplicateTable(exampleData, "year");
       const expectedResult: MulticardinalRow[] = [
         {
-          subject: "1901",
+          idName: "year",
+          idValue: "1901",
           props: {
             id: [
               "http://data.nobelprize.org/resource/laureateaward/Chemistry/1901/160"
@@ -77,7 +80,8 @@ describe("deduplicateTable", () => {
           },
         },
         {
-          subject: "1902",
+          idName: "year",
+          idValue: "1902",
           props: {
             id: [
               "http://data.nobelprize.org/resource/laureateaward/Chemistry/1902/161",

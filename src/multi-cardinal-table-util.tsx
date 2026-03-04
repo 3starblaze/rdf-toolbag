@@ -8,7 +8,11 @@ import {
 import PaginatedTable from "@/components/paginated_table";
 
 export interface MulticardinalRow {
-    subject: string,
+    /** Name of the column that the id represents. */
+    idName: string,
+    /** Value of the id column.  */
+    idValue: string,
+    /** Remaining columns and their set of values. */
     props: { [key: string]: string[] },
 }
 
@@ -21,7 +25,8 @@ export function deduplicateTable(
 ): MulticardinalRow[] {
     // NOTE: prop values are temporarily stored in a set, so that duplicate values are eliminated.
     interface TmpRow {
-        subject: string,
+        idName: string,
+        idValue: string,
         props: { [key: string]: Set<string> }
     }
 
@@ -52,16 +57,17 @@ export function deduplicateTable(
 
     const collectingMap = new Map<string, TmpRow>();
 
-    const getOrCreate = (subject: string): TmpRow => {
-        const maybeEntry = collectingMap.get(subject);
+    const getOrCreate = (idValue: string): TmpRow => {
+        const maybeEntry = collectingMap.get(idValue);
         if (maybeEntry) return maybeEntry;
 
         const entry: TmpRow = {
-            subject,
+            idName: idCol,
+            idValue,
             props: {},
         };
 
-        collectingMap.set(subject, entry);
+        collectingMap.set(idValue, entry);
         return entry;
     }
 
@@ -111,7 +117,8 @@ export function tableToRows(table: SparqlTableResult) {
         if (maybeEntry) return maybeEntry;
 
         const entry: MulticardinalRow = {
-            subject,
+            idName: "id",
+            idValue: subject,
             props: {},
         };
 
@@ -169,8 +176,10 @@ export function AggregatedTable({
         },
     }));
 
+    const idColName = rows[0]?.idName ?? "id";
+
     const columns: ColumnDef<MulticardinalRow>[] = [
-        columnHelper.accessor("subject", {}) as ColumnDef<MulticardinalRow>,
+        columnHelper.accessor("idValue", { header: idColName }) as ColumnDef<MulticardinalRow>,
         ...generatedColumns,
     ];
 
