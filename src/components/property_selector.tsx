@@ -24,6 +24,11 @@ export function PropertySelector({
         onChange: onValueChange,
     });
 
+    // NOTE: Since properties are meant to be unique, there's no point in suggesting properties
+    // that are already selected.
+    const filteredSuggestions = suggestions
+        .filter(({ value }) => !selectedProperties.includes(value));
+
     return (
         <div className="max-w-prose flex flex-col gap-2">
             <div className="flex flex-col gap-1">
@@ -34,7 +39,7 @@ export function PropertySelector({
                     >
                         <Combobox
                             className="grow"
-                            options={suggestions}
+                            options={filteredSuggestions}
                             unselectedLabel={(<span />)}
                             emptyLabel="..."
                             searchPlaceholder="..."
