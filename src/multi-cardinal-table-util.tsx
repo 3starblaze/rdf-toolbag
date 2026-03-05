@@ -171,7 +171,16 @@ export function AggregatedTable({
             }
 
             return (
-                <pre>{JSON.stringify(val, undefined, 4)}</pre>
+                <ul className="flex flex-col gap-2">
+                    {val.map((item, i) => (
+                        <li
+                            key={i}
+                            className="list-disc ml-4"
+                        >
+                            {item}
+                        </li>
+                    ))}
+                </ul>
             )
         },
     }));
