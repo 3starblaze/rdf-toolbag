@@ -2,18 +2,28 @@ import {
     type SparqlTableResult,
 } from "@/sparql_queries";
 import {
-    createColumnHelper,
     type ColumnDef,
 } from "@tanstack/react-table";
 import PaginatedTable from "@/components/paginated_table";
+import { Data, Option, MutableHashMap, MutableHashSet } from "effect";
 
 export interface MulticardinalRow {
-    /** Name of the column that the id represents. */
-    idName: string,
-    /** Value of the id column.  */
-    idValue: string,
-    /** Remaining columns and their set of values. */
-    props: { [key: string]: string[] },
+    /**
+     * Column names that are marked as id.
+     */
+    idCols: string[],
+    /**
+     * Id column values.
+     */
+    idValues: { [idCol: string]: string },
+    /**
+     * Remaining column names.
+    */
+    restCols: string[],
+    /**
+     * Remaining column values.
+     */
+    restValues: { [restCol: string]: string[] },
 }
 
 /**
@@ -21,87 +31,97 @@ export interface MulticardinalRow {
  */
 export function deduplicateTable(
     table: SparqlTableResult,
-    idColKey?: string | number,
+    idCols: string[],
 ): MulticardinalRow[] {
-    // NOTE: prop values are temporarily stored in a set, so that duplicate values are eliminated.
+    // NOTE: restvalues are temporarily stored in a set, so that duplicate values are eliminated.
     interface TmpRow {
-        idName: string,
-        idValue: string,
-        props: { [key: string]: Set<string> }
+        idCols: string[],
+        idValues: MutableHashMap.MutableHashMap<string, string>,
+        restCols: string[],
+        restValues: MutableHashMap.MutableHashMap<string, MutableHashSet.MutableHashSet<string>>
     }
 
     const cols = table.head.vars;
     if (cols.length === 0) return [];
 
+    const restCols = table.head.vars.filter((col) => !idCols.includes(col));
 
-    const idCol = (() => {
-        if (idColKey === undefined) {
-            return cols[0];
-        }
+    const collectingMap = MutableHashMap.fromIterable<readonly string[], TmpRow>([]);
 
-        switch (typeof idColKey) {
-            case "string":
-                if (!cols.includes(idColKey)) {
-                    throw new Error(`key '${idColKey}' does not exist`);
-                } else {
-                    return idColKey;
-                }
-            case "number":
-                const maybeRes = cols[idColKey];
-                if (maybeRes === undefined) {
-                    throw new Error(`key ${idColKey} out of bounds`);
-                }
-                return maybeRes;
-        }
-    })();
+    const getOrCreate = (idValues: TmpRow["idValues"]): TmpRow => {
+        const key: readonly string[] = Data.array(idCols.map((col) => idValues.pipe(
+            MutableHashMap.get(col),
+            Option.getOrThrow,
+        )));
 
-    const collectingMap = new Map<string, TmpRow>();
-
-    const getOrCreate = (idValue: string): TmpRow => {
-        const maybeEntry = collectingMap.get(idValue);
-        if (maybeEntry) return maybeEntry;
-
-        const entry: TmpRow = {
-            idName: idCol,
-            idValue,
-            props: {},
-        };
-
-        collectingMap.set(idValue, entry);
-        return entry;
+        return Option.getOrElse(
+            collectingMap.pipe(MutableHashMap.get(key)),
+            () => {
+                const newValue: TmpRow = {
+                    idCols,
+                    idValues,
+                    restCols,
+                    restValues: MutableHashMap.fromIterable([]),
+                };
+                collectingMap.pipe(MutableHashMap.set(key, newValue));
+                return newValue;
+            }
+        );
     }
 
-    const pushProp = (row: TmpRow, prop: string, value: string) => {
-        let valueToModify: Set<string>;
+    const pushRestValue = (row: TmpRow, restCol: string, restValue: string) => {
+        let valueToModify: MutableHashSet.MutableHashSet<string>;
 
-        if (prop in row.props) {
-            valueToModify = row.props[prop];
+        if (row.restValues.pipe(MutableHashMap.has(restCol))) {
+            valueToModify = row.restValues.pipe(MutableHashMap.get(restCol), Option.getOrThrow);
         } else {
-            valueToModify = new Set();
-            row.props[prop] = valueToModify;
+            valueToModify = MutableHashSet.fromIterable([]);
+            row.restValues.pipe(MutableHashMap.set(restCol, valueToModify))
         }
 
-        valueToModify.add(value);
+        valueToModify.pipe(MutableHashSet.add(restValue));
     };
 
     for (const tableRow of table.results.bindings) {
-        const row = getOrCreate(tableRow[idCol].value);
+        const idValues = MutableHashMap.fromIterable(
+            idCols.map((col) => [col, tableRow[col].value])
+        );
+
+        const tmpRow = getOrCreate(idValues);
 
         Object.entries(tableRow).forEach(([k, { value }]) => {
-            if (k === idCol) return;
-            pushProp(row, k, value);
+            if (idCols.includes(k)) return;
+            pushRestValue(tmpRow, k, value);
         });
     }
 
-    return [...collectingMap.values()].map(({ props: oldProps, ...rest }) => {
-        const propsEntries = Object.entries(oldProps)
-                                   .map(([k, v]) => [k, [...v.values()]] satisfies [unknown, unknown]);
-        const props = Object.fromEntries(propsEntries);
-        return {
-            props,
-            ...rest,
-        };
-    });
+    const mutableHashMapToEntries = <K, V>(
+        map: MutableHashMap.MutableHashMap<K, V>,
+    ): [K, V][] => {
+        const keys = map.pipe(MutableHashMap.keys);
+        // NOTE: Using `Option.getOrThrow` because the keys must exist
+        return keys.map((k) => [k, map.pipe(MutableHashMap.get(k), Option.getOrThrow)]);
+    }
+
+    return collectingMap
+        .pipe(MutableHashMap.values)
+        .map(({
+            idValues: oldIdValues,
+            restValues: oldRestValues,
+            ...other
+        }) => {
+            const idValues = Object.fromEntries(mutableHashMapToEntries(oldIdValues));
+            const restValues = Object.fromEntries(
+                mutableHashMapToEntries(oldRestValues)
+                    .map(([k, v]) => [k, [...v]])
+            );
+
+            return {
+                idValues,
+                restValues,
+                ...other,
+            };
+        });
 }
 
 export function tableToRows(table: SparqlTableResult) {
@@ -117,26 +137,29 @@ export function tableToRows(table: SparqlTableResult) {
         if (maybeEntry) return maybeEntry;
 
         const entry: MulticardinalRow = {
-            idName: "id",
-            idValue: subject,
-            props: {},
+            idCols: ["id"],
+            idValues: { id: subject },
+            restCols: [],
+            restValues: {},
         };
 
         collectingMap.set(subject, entry);
         return entry;
     }
 
-    const pushProp = (row: MulticardinalRow, prop: string, value: string) => {
+    const pushRestValue = (row: MulticardinalRow, restCol: string, restValue: string) => {
         let arr: string[];
 
-        if (prop in row.props) {
-            arr = row.props[prop];
+        if (restCol in row.restValues) {
+            arr = row.restValues[restCol];
         } else {
             arr = [];
-            row.props[prop] = arr;
+            // NOTE: if restCol wasn't in map then it shouldn't be in array and we need to push it.
+            row.restCols.push(restCol);
+            row.restValues[restCol] = arr;
         }
 
-        arr.push(value);
+        arr.push(restValue);
     };
 
     for (const item of table.results.bindings) {
@@ -145,24 +168,35 @@ export function tableToRows(table: SparqlTableResult) {
         const object = item[cols[2]].value;
 
         const entry = getOrCreate(subject);
-        pushProp(entry, predicate, object);
+        pushRestValue(entry, predicate, object);
     }
 
     return [...collectingMap.values()];
 }
 
 export function AggregatedTable({
-    properties,
     rows,
 }: {
     properties: string[]
     rows: MulticardinalRow[],
 }) {
-    const columnHelper = createColumnHelper<MulticardinalRow>();
+    // FIXME: We need a more sophisticated way to handle 0 rows, perhaps we need a type for whole
+    // table, not just rows.
+    if (rows.length === 0) {
+        return (<PaginatedTable data={[]} columns={[]} />)
+    }
 
-    const generatedColumns: ColumnDef<MulticardinalRow>[] = properties.map((prop) => ({
-        id: prop,
-        accessorFn: (row) => row.props[prop],
+    const firstRow = rows[0];
+    const { idCols, restCols } = firstRow;
+
+    const idColumns: ColumnDef<MulticardinalRow>[] = idCols.map((idCol) => ({
+        id: idCol,
+        accessorFn: (row) => row.idValues[idCol],
+    }));
+
+    const valueColumns: ColumnDef<MulticardinalRow>[] = restCols.map((restCol) => ({
+        id: restCol,
+        accessorFn: (row) => row.restValues[restCol],
         cell: ({ getValue }) => {
             const val = getValue<string[] | undefined>() ?? [];
 
@@ -185,11 +219,9 @@ export function AggregatedTable({
         },
     }));
 
-    const idColName = rows[0]?.idName ?? "id";
-
     const columns: ColumnDef<MulticardinalRow>[] = [
-        columnHelper.accessor("idValue", { header: idColName }) as ColumnDef<MulticardinalRow>,
-        ...generatedColumns,
+        ...idColumns,
+        ...valueColumns,
     ];
 
     return (

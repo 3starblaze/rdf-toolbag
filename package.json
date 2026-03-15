@@ -23,6 +23,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "effect": "^3.19.19",
     "lucide-react": "^0.555.0",
     "n3": "^1.26.0",
     "recharts": "^3.3.0",
