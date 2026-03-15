@@ -15,7 +15,16 @@ export interface SparqlTableResult {
     },
 }
 
-async function requestAsSparqlTableResult(
+export class RequestError extends Error {
+  response: Response;
+
+  constructor(response: Response, message: string) {
+    super(message);
+    this.response = response;
+  }
+}
+
+export async function requestAsSparqlTableResult(
     url: URL,
     queryString: string,
 ): Promise<SparqlTableResult> {
@@ -40,7 +49,7 @@ async function requestAsSparqlTableResult(
     const res = await fetch(req);
 
     if (!res.ok) {
-        throw new Error("Network response was not ok");
+      throw new RequestError(res, "Unexpected response");
     }
 
     // FIXME: Validate data shape
@@ -442,6 +451,34 @@ export function multiCardinalTableAsSelectQuery(
     queryString,
     tanstackQueryOptions: queryOptions({
       queryKey: ["multicardinalTableQuery", url, rdfType, properties, idLimit],
+      queryFn,
+    }),
+  } satisfies QueryInfo<unknown>;
+
+  return res;
+}
+
+
+/**
+ * Run any sparql query and get the resulting table.
+ */
+export function arbitraryQuery(
+  url: URL,
+  queryString: string | null,
+) {
+  if (queryString === null) {
+    return {}
+  }
+
+
+  const queryFn: () => Promise<SparqlTableResult> = () => {
+    return requestAsSparqlTableResult(url, queryString);
+  }
+
+  const res = {
+    queryString,
+    tanstackQueryOptions: queryOptions({
+      queryKey: ["arbitraryQuery"],
       queryFn,
     }),
   } satisfies QueryInfo<unknown>;
