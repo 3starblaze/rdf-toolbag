@@ -26,6 +26,7 @@
     "effect": "^3.19.19",
     "lucide-react": "^0.555.0",
     "n3": "^1.26.0",
+    "radix-ui": "^1.4.3",
     "recharts": "^3.3.0",
     "sql.js": "^1.13.0",
     "tailwind-merge": "^3.4.0",

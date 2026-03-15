@@ -31,7 +31,7 @@ export interface MulticardinalRow {
  */
 export function deduplicateTable(
     table: SparqlTableResult,
-    idCols: string[],
+    specifiedIdCols: string[],
 ): MulticardinalRow[] {
     // NOTE: restvalues are temporarily stored in a set, so that duplicate values are eliminated.
     interface TmpRow {
@@ -40,6 +40,9 @@ export function deduplicateTable(
         restCols: string[],
         restValues: MutableHashMap.MutableHashMap<string, MutableHashSet.MutableHashSet<string>>
     }
+
+    // NOTE: Non-existent columns get ignored and should not affect the deduplication.
+    const idCols = specifiedIdCols.filter((col) => table.head.vars.includes(col));
 
     const cols = table.head.vars;
     if (cols.length === 0) return [];

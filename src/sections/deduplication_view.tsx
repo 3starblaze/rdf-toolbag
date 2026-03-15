@@ -1,7 +1,11 @@
+import { PropertySelector } from "@/components/property_selector";
 import SparqlTableResultTable from "@/components/sparql_table_result_table";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
+import { AggregatedTable, deduplicateTable } from "@/multi-cardinal-table-util";
 import { arbitraryQuery, requestAsSparqlTableResult, RequestError } from "@/sparql_queries";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { Match } from "effect";
@@ -60,6 +64,10 @@ export default function DeduplicationView({
     const [draftQueryString, setDraftQueryString] = useState("");
     const [queryString, setQueryString] = useState<string | null>(null);
 
+    const [deduplicationEnabled, setDeduplicationEnabled] = useState(false);
+    const [deduplicationIdCols, setDeduplicationIdCols] = useState<string[]>([]);
+
+
     const { data, isLoading, error } = useQuery({
         queryKey: ["DeduplicationView", queryString],
         queryFn: (queryString === null)
@@ -83,6 +91,10 @@ export default function DeduplicationView({
         }
     });
 
+    const deduplicatedData = deduplicationEnabled
+                          && data
+                          && deduplicateTable(data, deduplicationIdCols);
+
     return (
         <div>
             <div className="flex flex-row gap-2 items-center">
@@ -91,6 +103,25 @@ export default function DeduplicationView({
             <p className="mb-4">
                 Write your query and apply deduplication to the results.
             </p>
+
+            <Field orientation="horizontal" className="mb-4">
+                <Checkbox
+                    id="deduplication-enabled"
+                    checked={deduplicationEnabled}
+                    onCheckedChange={
+                        (checkedState) => setDeduplicationEnabled(checkedState === true)
+                    }
+                />
+                <FieldLabel htmlFor="deduplication-enabled">
+                    Enable deduplication
+                </FieldLabel>
+            </Field>
+
+            <PropertySelector
+                suggestions={data?.head.vars.map((s) => ({ label: s, value: s })) ?? []}
+                value={deduplicationIdCols}
+                onValueChange={setDeduplicationIdCols}
+            />
 
             <div className="">
                 <p className="mb-2 text-sm font-bold">Query</p>
@@ -102,7 +133,7 @@ export default function DeduplicationView({
                 />
             </div>
 
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2 mt-4">
                 <Button
                     className="mt-5 w-fit"
                     disabled={draftQueryString === queryString}
@@ -113,7 +144,10 @@ export default function DeduplicationView({
 
                 <ErrorResponse error={error} />
 
-                {data && (
+                {deduplicatedData && (
+                    <AggregatedTable rows={deduplicatedData} properties={[]} />
+                )}
+                {data && !deduplicatedData && (
                     <SparqlTableResultTable data={data} />
                 )}
             </div>

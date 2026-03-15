@@ -5,6 +5,45 @@ import exampleData from "@/test-data/3x2-cartesian-product-example.json";
 
 describe("deduplicateTable", () => {
   describe("3x2 cartesian product deduplication", () => {
+    test("by empty", () => {
+      const deduplicatedData = deduplicateTable(exampleData, []);
+      const expectedResult: MulticardinalRow[] = [
+        {
+          idCols: [],
+          idValues: {},
+          restCols: ["id", "label", "motivation", "year", "share"],
+          restValues: {
+            id: [
+              "http://data.nobelprize.org/resource/laureateaward/Chemistry/1901/160",
+              "http://data.nobelprize.org/resource/laureateaward/Chemistry/1902/161",
+            ],
+            label: [
+              "Nobelprisen i kjemi 1901, Jacobus H. van 't Hoff",
+              "Nobelpriset i kemi 1901, Jacobus H. van 't Hoff",
+              "The Nobel Prize in Chemistry 1901, Jacobus H. van 't Hoff",
+              "Nobelprisen i kjemi 1902, Emil Fischer",
+              "Nobelpriset i kemi 1902, Emil Fischer",
+              "The Nobel Prize in Chemistry 1902, Emil Fischer",
+            ],
+            motivation: [
+              "såsom ett erkännande av den utomordentliga förtjänst han inlagt genom upptäckten av lagarna för den kemiska dynamiken och för det osmotiska trycket i lösningar",
+              "in recognition of the extraordinary services he has rendered by the discovery of the laws of chemical dynamics and osmotic pressure in solutions",
+              "in recognition of the extraordinary services he has rendered by his work on sugar and purine syntheses",
+              "såsom ett erkännande av den utomordentliga förtjänst han inlagt genom sina syntetiska arbeten inom socker - och purin-grupperna",
+            ],
+            year: [
+              "1901",
+              "1902",
+            ],
+            share: [
+              "1",
+            ],
+          },
+        }
+      ];
+
+      expect(deduplicatedData).toStrictEqual(expectedResult);
+    });
     test("by year", () => {
       const deduplicatedData = deduplicateTable(exampleData, ["year"]);
       const expectedResult: MulticardinalRow[] = [
@@ -105,10 +144,10 @@ describe("deduplicateTable", () => {
       expect(deduplicatedData).toStrictEqual(expectedResult);
     });
 
-    test("missing key throws", () => {
+    test("missing key does not throw", () => {
       expect(() => {
         deduplicateTable(exampleData, ["iDontExist"]);
-      }).toThrow();
+      }).not.toThrow();
     });
   });
 });
