@@ -457,31 +457,3 @@ export function multiCardinalTableAsSelectQuery(
 
   return res;
 }
-
-
-/**
- * Run any sparql query and get the resulting table.
- */
-export function arbitraryQuery(
-  url: URL,
-  queryString: string | null,
-) {
-  if (queryString === null) {
-    return {}
-  }
-
-
-  const queryFn: () => Promise<SparqlTableResult> = () => {
-    return requestAsSparqlTableResult(url, queryString);
-  }
-
-  const res = {
-    queryString,
-    tanstackQueryOptions: queryOptions({
-      queryKey: ["arbitraryQuery"],
-      queryFn,
-    }),
-  } satisfies QueryInfo<unknown>;
-
-  return res;
-}
