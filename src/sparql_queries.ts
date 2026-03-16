@@ -457,3 +457,47 @@ export function multiCardinalTableAsSelectQuery(
 
   return res;
 }
+
+/**
+ * Get query that should correspond to `groupLimit` grouped rows.
+ *
+ * If this query returns a table with rowCount === globalLimit, the results should not be used
+ * because the result is incomplete and some target columns may be missing, depending on how the
+ * rows are ordered.
+ *
+ * @property queryToWrap The query that needs to be paginated
+ * @property idVars Set of variables that are used as id
+ * @property groupLimit Count of grouped rows to receive
+ * @property groupOffset OFFSET that is applied to grouped rows
+ * @property globalLimit Raw row count limit
+ */
+export function formatUniversalPaginatorQuery({
+  queryToWrap,
+  idVars,
+  groupLimit,
+  groupOffset,
+  globalLimit,
+}: {
+  queryToWrap: string,
+  idVars: string[],
+  groupLimit: number,
+  groupOffset: number,
+  globalLimit: number,
+}): string {
+  const selectedVars = idVars.map((varName) => `?${varName}`).join(" ");
+
+  const distinctQuery = `SELECT DISTINCT ${selectedVars}
+WHERE {${queryToWrap}}
+LIMIT ${groupLimit}
+OFFSET ${groupOffset}`;
+
+  // NOTE: The basic principle is to inject `distinctQuery` along with the regular query. The
+  // neighboring `distinctQuery` filters the result set and then it's just a matter of wrapping
+  // those two queries into same WHERE block which are returned as is, with group limit.
+  const fmt = `SELECT * WHERE {
+{ ${distinctQuery} }
+{ ${queryToWrap} }
+} LIMIT ${globalLimit}`
+
+  return fmt;
+}
