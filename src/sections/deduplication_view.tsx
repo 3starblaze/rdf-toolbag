@@ -1,3 +1,4 @@
+import MultiCardinalTable from "@/components/multi-cardinal-table";
 import { PropertySelector } from "@/components/property_selector";
 import SparqlTableResultTable from "@/components/sparql_table_result_table";
 import { Button } from "@/components/ui/button";
@@ -5,11 +6,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
-import { AggregatedTable, deduplicateTable } from "@/multi-cardinal-table-util";
-import { arbitraryQuery, requestAsSparqlTableResult, RequestError } from "@/sparql_queries";
+import { deduplicateTable } from "@/multi-cardinal-table-util";
+import { requestAsSparqlTableResult, RequestError } from "@/sparql_queries";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { Match } from "effect";
-import { Suspense, use, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Suspense, use, useMemo, useState, type ReactNode } from "react";
 
 
 type ErrorDisplayMessage = null | { type: "unknownError" } | { type: "validationError", msg: string }
@@ -145,7 +146,7 @@ export default function DeduplicationView({
                 <ErrorResponse error={error} />
 
                 {deduplicatedData && (
-                    <AggregatedTable rows={deduplicatedData} properties={[]} />
+                    <MultiCardinalTable rows={deduplicatedData} />
                 )}
                 {data && !deduplicatedData && (
                     <SparqlTableResultTable data={data} />

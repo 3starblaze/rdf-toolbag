@@ -1,8 +1,9 @@
 import ExamineSparql from "@/components/examine_sparql";
+import MultiCardinalTable from "@/components/multi-cardinal-table";
 import { PropertySelector } from "@/components/property_selector";
 import StateGuard from "@/components/state_guard";
 import { Button } from "@/components/ui/button";
-import { AggregatedTable, tableToRows } from "@/multi-cardinal-table-util";
+import { tableToRows } from "@/multi-cardinal-table-util";
 import { multiCardinalTableAsSelectQuery, typePropertiesQuery } from "@/sparql_queries";
 import { useStore } from "@/store";
 import { useQuery } from "@tanstack/react-query";
@@ -76,10 +77,7 @@ export default function SampleMulticardinalQuery({
             <StateGuard
                 queryRes={queryRes}
                 successComponent={(data) => (
-                    <AggregatedTable
-                        properties={properties}
-                        rows={tableToRows(data)}
-                    />
+                    <MultiCardinalTable rows={tableToRows(data)} />
                 )}
             />
         </div>

@@ -1,10 +1,6 @@
 import {
     type SparqlTableResult,
 } from "@/sparql_queries";
-import {
-    type ColumnDef,
-} from "@tanstack/react-table";
-import PaginatedTable from "@/components/paginated_table";
 import { Data, Option, MutableHashMap, MutableHashSet } from "effect";
 
 export interface MulticardinalRow {
@@ -175,62 +171,4 @@ export function tableToRows(table: SparqlTableResult) {
     }
 
     return [...collectingMap.values()];
-}
-
-export function AggregatedTable({
-    rows,
-}: {
-    properties: string[]
-    rows: MulticardinalRow[],
-}) {
-    // FIXME: We need a more sophisticated way to handle 0 rows, perhaps we need a type for whole
-    // table, not just rows.
-    if (rows.length === 0) {
-        return (<PaginatedTable data={[]} columns={[]} />)
-    }
-
-    const firstRow = rows[0];
-    const { idCols, restCols } = firstRow;
-
-    const idColumns: ColumnDef<MulticardinalRow>[] = idCols.map((idCol) => ({
-        id: idCol,
-        accessorFn: (row) => row.idValues[idCol],
-    }));
-
-    const valueColumns: ColumnDef<MulticardinalRow>[] = restCols.map((restCol) => ({
-        id: restCol,
-        accessorFn: (row) => row.restValues[restCol],
-        cell: ({ getValue }) => {
-            const val = getValue<string[] | undefined>() ?? [];
-
-            if (val.length === 1) {
-                return <p>{val[0]}</p>
-            }
-
-            return (
-                <ul className="flex flex-col gap-2">
-                    {val.map((item, i) => (
-                        <li
-                            key={i}
-                            className="list-disc ml-4"
-                        >
-                            {item}
-                        </li>
-                    ))}
-                </ul>
-            )
-        },
-    }));
-
-    const columns: ColumnDef<MulticardinalRow>[] = [
-        ...idColumns,
-        ...valueColumns,
-    ];
-
-    return (
-        <PaginatedTable
-            data={rows}
-            columns={columns}
-        />
-    );
 }

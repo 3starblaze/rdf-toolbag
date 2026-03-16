@@ -1,4 +1,12 @@
 import {
+    flexRender,
+    getCoreRowModel,
+    getPaginationRowModel,
+    useReactTable,
+    type ColumnDef,
+    type PaginationState,
+} from "@tanstack/react-table";
+import {
     Table,
     TableBody,
     TableCell,
@@ -6,49 +14,82 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import {
-    flexRender,
-    getCoreRowModel,
-    getPaginationRowModel,
-    useReactTable,
-    type ColumnDef,
-    type OnChangeFn,
-    type PaginationState,
-} from "@tanstack/react-table";
-import { PaginationBar } from "./table_pagination_bar";
-import {
-    useControllableState
-} from "@radix-ui/react-use-controllable-state";
+import type { MulticardinalRow } from "@/multi-cardinal-table-util";
+import { defaultPagination, PaginationBar } from "./table_pagination_bar";
+import PaginatedTable from "./paginated_table";
+import { useControllableState } from "@radix-ui/react-use-controllable-state";
 import { ColumnResizer } from "./column_resizer";
+import { cn } from "@/lib/utils";
 
-export const defaultPagination: PaginationState = {
-    pageIndex: 0,
-    pageSize: 10,
-};
+function getColumns(idCols: string[], restCols: string[]) {
+    const idColumns: ColumnDef<MulticardinalRow>[] = idCols.map((idCol) => ({
+        id: idCol,
+        accessorFn: (row) => row.idValues[idCol],
+    }));
 
-export default function PaginatedTable<TData>({
-    data,
-    columns,
+    const valueColumns: ColumnDef<MulticardinalRow>[] = restCols.map((restCol) => ({
+        id: restCol,
+        accessorFn: (row) => row.restValues[restCol],
+        cell: ({ getValue }) => {
+            const val = getValue<string[] | undefined>() ?? [];
+
+            if (val.length === 1) {
+                return <p>{val[0]}</p>
+            }
+
+            return (
+                <ul className="flex flex-col gap-2">
+                    {val.map((item, i) => (
+                        <li
+                            key={i}
+                            className="list-disc ml-4"
+                        >
+                            {item}
+                        </li>
+                    ))}
+                </ul>
+            )
+        },
+    }));
+
+    return [...idColumns, ...valueColumns];
+}
+
+/**
+ * Table component specialized in displaying multicardinal rows.
+ */
+export default function MultiCardinalTable({
+    rows,
     pagination: providedPagination,
     onPaginationChange,
 }: {
-    data: TData[],
-    columns: ColumnDef<TData>[],
+    rows: MulticardinalRow[],
     pagination?: PaginationState,
     onPaginationChange?: (state: PaginationState) => void,
 }) {
+    // FIXME: We need a more sophisticated way to handle 0 rows, perhaps we need a type for whole
+    // table, not just rows.
+    if (rows.length === 0) {
+        return (<PaginatedTable data={[]} columns={[]} />)
+    }
+
+    const firstRow = rows[0];
+    const { idCols, restCols } = firstRow;
+
+    const columns = getColumns(idCols, restCols);
+
     const [pagination, setPagination] = useControllableState<PaginationState>({
         prop: providedPagination,
         defaultProp: defaultPagination,
         onChange: onPaginationChange,
     });
 
-    const table = useReactTable<TData>({
-        data,
+    const table = useReactTable<MulticardinalRow>({
+        data: rows,
         columns,
         getCoreRowModel: getCoreRowModel(),
         getPaginationRowModel: getPaginationRowModel(),
-        onPaginationChange: setPagination as OnChangeFn<PaginationState>,
+        onPaginationChange: setPagination,
         state: {
             pagination,
         },
@@ -69,7 +110,10 @@ export default function PaginatedTable<TData>({
                             {headerGroup.headers.map((header) => {
                                 return (
                                     <TableHead
-                                        className="font-bold"
+                                        className={cn(
+                                            "font-bold",
+                                            idCols.includes(header.column.id) && "bg-gray-100"
+                                        )}
                                         key={header.id}
                                         style={{
                                             width: header.getSize(),
@@ -96,11 +140,15 @@ export default function PaginatedTable<TData>({
                     {table.getRowModel().rows?.length ? (
                         table.getRowModel().rows.map((row) => (
                             <TableRow
+                                className="group"
                                 key={row.id}
                                 data-state={row.getIsSelected() && "selected"}
                             >
                                 {row.getVisibleCells().map((cell) => (
                                     <TableCell
+                                        className={cn(
+                                            idCols.includes(cell.column.id) && "bg-gray-100 group-hover:bg-gray-200"
+                                        )}
                                         key={cell.id}
                                         style={{
                                             width: cell.column.getSize(),

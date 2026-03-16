@@ -4,7 +4,9 @@ export { PortalContext } from "@/components/ui/portal_context";
 export { formatMultiCardinalTableAsSelectQuery } from "@/sparql_queries";
 export {
     type MulticardinalRow,
-    AggregatedTable,
     tableToRows,
     deduplicateTable,
 } from "@/multi-cardinal-table-util";
+export {
+    default as AggregatedTable
+} from "@/components/multi-cardinal-table"
