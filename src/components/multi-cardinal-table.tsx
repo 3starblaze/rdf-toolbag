@@ -176,3 +176,124 @@ export default function MultiCardinalTable({
         </div>
     );
 }
+
+// FIXME: A lot of duplication with MultiCardinalTable
+export function MultiCardinalTableServer({
+    rows,
+    pagination: providedPagination,
+    onPaginationChange,
+}: {
+    rows: MulticardinalRow[],
+    pagination?: PaginationState,
+    onPaginationChange?: (state: PaginationState) => void,
+}) {
+    const firstRow = rows[0] as MulticardinalRow | undefined;
+
+    const columns = firstRow ? getColumns(firstRow.idCols, firstRow.restCols) : [];
+
+    const [pagination, setPagination] = useControllableState<PaginationState>({
+        prop: providedPagination,
+        defaultProp: defaultPagination,
+        onChange: onPaginationChange,
+    });
+
+    const table = useReactTable<MulticardinalRow>({
+        data: rows,
+        columns,
+        getCoreRowModel: getCoreRowModel(),
+        getPaginationRowModel: getPaginationRowModel(),
+        onPaginationChange: setPagination,
+        // TODO: Handle this
+        pageCount: -1,
+        manualPagination: true,
+        state: {
+            pagination,
+        },
+        enableColumnResizing: true,
+        columnResizeMode: "onChange",
+    });
+
+    const idCols = firstRow?.idCols;
+
+    // TODO: Support server-side pagination
+    // reuse the visual style, just swap some settings
+
+    return (
+        <div>
+            <Table
+                style={{
+                    width: table.getCenterTotalSize()
+                }}
+            >
+                <TableHeader>
+                    {table.getHeaderGroups().map((headerGroup) => (
+                        <TableRow key={headerGroup.id}>
+                            {headerGroup.headers.map((header) => {
+                                return (
+                                    <TableHead
+                                        className={cn(
+                                            "font-bold",
+                                            idCols?.includes(header.column.id) && "bg-gray-100"
+                                        )}
+                                        key={header.id}
+                                        style={{
+                                            width: header.getSize(),
+                                        }}
+                                    >
+                                        <div className="flex flex-row justify-between gap-4 h-full">
+                                            <div>
+                                                {header.isPlaceholder
+                                                    ? null
+                                                    : flexRender(
+                                                        header.column.columnDef.header,
+                                                        header.getContext()
+                                                    )}
+                                            </div>
+                                            <ColumnResizer header={header} />
+                                        </div>
+                                    </TableHead>
+                                )
+                            })}
+                        </TableRow>
+                    ))}
+                </TableHeader>
+                <TableBody>
+                    {table.getRowModel().rows?.length ? (
+                        table.getRowModel().rows.map((row) => (
+                            <TableRow
+                                className="group"
+                                key={row.id}
+                                data-state={row.getIsSelected() && "selected"}
+                            >
+                                {row.getVisibleCells().map((cell) => (
+                                    <TableCell
+                                        className={cn(
+                                            idCols?.includes(cell.column.id) && "bg-gray-100 group-hover:bg-gray-200"
+                                        )}
+                                        key={cell.id}
+                                        style={{
+                                            width: cell.column.getSize(),
+                                        }}
+                                    >
+                                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                    </TableCell>
+                                ))}
+                            </TableRow>
+                        ))
+                    ) : (
+                        <TableRow>
+                            <TableCell colSpan={columns.length} className="h-24 text-center">
+                                No results.
+                            </TableCell>
+                        </TableRow>
+                    )}
+                </TableBody>
+            </Table>
+            <PaginationBar
+                table={table}
+                pagination={pagination}
+                onPaginationChange={setPagination}
+            />
+        </div>
+    );
+}

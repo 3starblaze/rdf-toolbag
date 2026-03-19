@@ -1,4 +1,4 @@
-import MultiCardinalTable from "@/components/multi-cardinal-table";
+import MultiCardinalTable, { MultiCardinalTableServer } from "@/components/multi-cardinal-table";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
@@ -8,6 +8,8 @@ import { formatUniversalPaginatorQuery, requestAsSparqlTableResult, RequestError
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { Suspense, use, useMemo, useState, type ReactNode } from "react";
 import { Match } from "effect";
+import type { PaginationState } from "@tanstack/react-table";
+import { defaultPagination } from "@/components/table_pagination_bar";
 
 type ErrorDisplayMessage = null | { type: "unknownError" } | { type: "validationError", msg: string }
 
@@ -53,32 +55,6 @@ function ErrorResponse({
     );
 }
 
-function FormattedQuery({
-    queryString,
-    idVars,
-    className,
-}: {
-    queryString?: string,
-    idVars: string[],
-} & React.ComponentProps<"div">) {
-    return (
-        <div className={cn("flex flex-col gap-2", className)}>
-            <p className="font-bold">Formatted query</p>
-            <pre>
-                {queryString
-                    ? formatUniversalPaginatorQuery({
-                        queryToWrap: queryString,
-                        idVars,
-                        globalLimit: 1000,
-                        groupLimit: 10,
-                        groupOffset: 0,
-                    })
-                    : (<p>No query to format</p>)}
-            </pre>
-        </div>
-    );
-}
-
 // NOTE: Naive way of finding suggestions by matching everything that starts with question mark
 // Maybe won't be correct all the time but for the most cases this will be helpful.
 function findSuggestions(query: string): {value: string, label: string}[] {
@@ -113,12 +89,18 @@ export default function PaginatedDeduplicationView({
 
     const validQueryState = idCols.length !== 0 && queryString;
 
+    const [pagination, setPagination] = useState<PaginationState>(defaultPagination);
+
+    const groupLimit = pagination.pageSize;
+    const groupOffset = pagination.pageSize * pagination.pageIndex;
+
     const formattedQuery = validQueryState ? formatUniversalPaginatorQuery({
         queryToWrap: queryString,
         idVars: idCols,
+        // TODO: Add globalLimit warning
         globalLimit: 1000,
-        groupLimit: 10,
-        groupOffset: 0,
+        groupLimit,
+        groupOffset,
     }) : undefined;
 
     const { data, isLoading, error } = useQuery({
@@ -168,7 +150,10 @@ export default function PaginatedDeduplicationView({
                 className="font-mono resize"
             />
 
-            <FormattedQuery idVars={idCols} queryString={draftQueryString} />
+            <p className="font-bold">Formatted query</p>
+            <pre>
+                {formattedQuery ?? "No query to format"}
+            </pre>
 
             <Button
                 className="w-fit"
@@ -180,7 +165,12 @@ export default function PaginatedDeduplicationView({
 
             <p>Results {isLoading && <Spinner />}</p>
 
-            {deduplicatedData && (<MultiCardinalTable rows={deduplicatedData} />)}
+            {deduplicatedData && (
+                <MultiCardinalTableServer
+                    rows={deduplicatedData}
+                    pagination={pagination}
+                    onPaginationChange={setPagination}
+                />)}
 
             {error && <ErrorResponse error={error} />}
         </div>
