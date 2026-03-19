@@ -12,6 +12,7 @@ import ExamineSparql from "@/components/examine_sparql";
 import DefaultConstructQuery from "./default_construct_query";
 import SampleMulticardinalQuery from "./multicardinal_query_table/index";
 import DeduplicationView from "./deduplication_view";
+import PaginatedDeduplicationView from "./paginated_deduplication_view";
 
 function tryMakingUrl(urlName: string): URL | null {
     try {
@@ -81,6 +82,11 @@ function ContentSection({
             title: "Deduplication View",
             value: "deduplication-view",
             content: (<DeduplicationView url={url} />),
+        },
+        {
+            title: "Paginated deduplication view",
+            value: "paginated-deduplication-view",
+            content: (<PaginatedDeduplicationView url={url} />),
         },
     ];
 
