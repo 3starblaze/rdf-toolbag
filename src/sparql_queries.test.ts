@@ -1,6 +1,7 @@
 import { expect, test, describe } from "vitest";
 import {
-    formatUniversalPaginatorQuery
+    formatUniversalPaginatorQuery,
+    formatUniversalPaginatorQueryCounter
 } from "./sparql_queries";
 
 describe("formatUniversalPaginationQuery", () => {
@@ -45,5 +46,52 @@ SELECT * WHERE {
         expect(res).toMatch(/LIMIT 20/);
         expect(res).toMatch(/OFFSET 30/);
         expect(res).toMatch(/LIMIT 2000/);
+    });
+});
+
+describe("formatUniversalPaginatorQueryCounter", () => {
+    test("basic limitless query", () => {
+        const globalRowCountVar = "__global_count";
+        const groupedRowCountVar = "__grouped_count";
+
+        const queryToWrap = `SELECT * FROM { ?sub ?pred ?obj }`;
+
+        const q =formatUniversalPaginatorQueryCounter({
+            globalRowCountVar,
+            groupedRowCountVar,
+            idVars: ["sub", "pred"],
+            queryToWrap,
+        });
+
+        expect(q).toMatch(`?${globalRowCountVar}`);
+        expect(q).toMatch(`?${groupedRowCountVar}`);
+        expect(q).toMatch("?sub");
+        expect(q).toMatch("?pred");
+        expect(q).toMatch("?obj");
+    });
+    test("basic limited query", () => {
+        const globalRowCountVar = "__another_global_count";
+        const groupedRowCountVar = "__another_grouped_count";
+        const globalLimit = 1000;
+        const groupLimit = 20;
+
+        const queryToWrap = `SELECT * FROM { ?sub ?pred ?obj }`;
+
+        const q =formatUniversalPaginatorQueryCounter({
+            globalRowCountVar,
+            groupedRowCountVar,
+            idVars: ["sub", "pred"],
+            queryToWrap,
+            globalLimit,
+            groupLimit,
+        });
+
+        expect(q).toMatch(`?${globalRowCountVar}`);
+        expect(q).toMatch(`?${groupedRowCountVar}`);
+        expect(q).toMatch("?sub");
+        expect(q).toMatch("?pred");
+        expect(q).toMatch("?obj");
+        expect(q).toMatch(`LIMIT ${globalLimit}`);
+        expect(q).toMatch(`LIMIT ${groupLimit}`);
     });
 });

@@ -501,3 +501,52 @@ OFFSET ${groupOffset}`;
 
   return fmt;
 }
+
+/**
+ * Make query that counts grouped and total row count.
+ *
+ * Even though globalLimit is optional, it's advisable to set it in order to avoid seeking too many
+ * rows. If `globalLimit` is set and the query returns result with count `globalLimit`, returned
+ * grouped count is the minimum count and is not guaranteed to be exact.
+ */
+export function formatUniversalPaginatorQueryCounter({
+  queryToWrap,
+  idVars,
+  globalLimit,
+  groupLimit,
+  globalRowCountVar,
+  groupedRowCountVar,
+}: {
+  /** Query about which the info is retrieved. */
+  queryToWrap: string,
+  /** Columns that are used as a composite key. */
+  idVars: string[],
+  /** Name of the variable that will hold global row count. */
+  globalRowCountVar: string,
+  /** Name of the variable that will hold grouped row count. */
+  groupedRowCountVar: string,
+  /** Max count of grouped rows. */
+  groupLimit?: number,
+  /** Max count of total rows. */
+  globalLimit?: number,
+}): string {
+  const colsFmt = idVars.map((colName) => `?${colName}`).join(" ");
+
+  const query = [
+    [
+      "SELECT",
+      `(COUNT(*) AS ?${globalRowCountVar})`,
+      `(COUNT(DISTINCT *) AS ?${groupedRowCountVar})`,
+    ].join(" "),
+    [
+      `{ SELECT DISTINCT ${colsFmt} WHERE {${queryToWrap}}}`, // TODO: wrapped query
+      ...(groupLimit ? [`LIMIT ${groupLimit}`] : []),
+    ].join(" "),
+    [
+      `{ SELECT * WHERE {${queryToWrap}} }`,
+      ...(globalLimit ? [`LIMIT ${globalLimit}`] : []),
+    ].join(" "),
+  ].join("\n");
+
+  return query;
+}
