@@ -1,10 +1,9 @@
-import MultiCardinalTable, { MultiCardinalTableServer } from "@/components/multi-cardinal-table";
+import { MultiCardinalTableServer, type CountPayload } from "@/components/multi-cardinal-table";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
 import { deduplicateTable, PropertySelector } from "@/lib_index";
-import { formatUniversalPaginatorQuery, requestAsSparqlTableResult, RequestError } from "@/sparql_queries";
+import { formatUniversalPaginatorQuery, formatUniversalPaginatorQueryCounter, requestAsSparqlTableResult, RequestError } from "@/sparql_queries";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { Suspense, use, useMemo, useState, type ReactNode } from "react";
 import { Match } from "effect";
@@ -74,6 +73,84 @@ function isArrayEqual(a: unknown[], b: unknown[]): boolean {
     return JSON.stringify(a) === JSON.stringify(b);
 }
 
+function retryWithValidation(failureCount: number, error: Error) {
+    // NOTE: Mimic default behavior
+    if (failureCount === 3) return false;
+
+    if (error instanceof RequestError) {
+        const { response } = error;
+        // NOTE: This is validation error, the request will never be successful and we
+        // must stop trying
+        if (response.status === 400) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+async function tryGettingCount({
+    url,
+    formattedQuery,
+    globalRowCountVar,
+    groupedRowCountVar,
+}: {
+    url: URL,
+    formattedQuery: string,
+    globalRowCountVar: string,
+    groupedRowCountVar: string,
+}): Promise<CountPayload> {
+    const res = await requestAsSparqlTableResult(url, formattedQuery);
+
+    const firstRow = res.results.bindings[0];
+    if (!firstRow) throw new Error("No rows!");
+
+    const maybeGlobalCount = firstRow[globalRowCountVar];
+    if (!maybeGlobalCount) throw new Error("global count does not exist!");
+
+    const globalCount = Number(maybeGlobalCount.value);
+
+    const maybeGroupedCount = firstRow[groupedRowCountVar];
+    if (!maybeGroupedCount) throw new Error("grouped count does not exist!");
+
+    const groupedCount = Number(maybeGroupedCount.value);
+    return { globalCount, groupedCount };
+}
+
+function useRowCount({
+    queryToWrap,
+    url,
+    idVars,
+    globalLimit,
+}: {
+    queryToWrap?: string,
+    url: URL,
+    idVars: string[],
+    globalLimit: number,
+}): ReturnType<typeof useQuery<CountPayload>> {
+    const globalRowCountVar = "__global_count";
+    const groupedRowCountVar = "__grouped_count";
+
+    const formattedQuery = queryToWrap && formatUniversalPaginatorQueryCounter({
+        queryToWrap,
+        globalRowCountVar,
+        groupedRowCountVar,
+        idVars,
+        globalLimit,
+    });
+
+    return useQuery({
+        queryKey: ["useRowCount", queryToWrap, globalLimit],
+        retry: retryWithValidation,
+        queryFn: formattedQuery ? () => tryGettingCount({
+            url,
+            formattedQuery,
+            globalRowCountVar,
+            groupedRowCountVar,
+        }) : skipToken,
+    });
+}
+
 export default function PaginatedDeduplicationView({
     url,
 }: {
@@ -94,11 +171,13 @@ export default function PaginatedDeduplicationView({
     const groupLimit = pagination.pageSize;
     const groupOffset = pagination.pageSize * pagination.pageIndex;
 
+    // TODO: Add globalLimit warning
+    const globalLimit = 10000;
+
     const formattedQuery = validQueryState ? formatUniversalPaginatorQuery({
         queryToWrap: queryString,
         idVars: idCols,
-        // TODO: Add globalLimit warning
-        globalLimit: 1000,
+        globalLimit,
         groupLimit,
         groupOffset,
     }) : undefined;
@@ -106,22 +185,15 @@ export default function PaginatedDeduplicationView({
     const { data, isLoading, error } = useQuery({
         queryKey: ["PaginatedDeduplicationView", formattedQuery],
         queryFn: formattedQuery ? () => requestAsSparqlTableResult(url, formattedQuery) : skipToken,
-        retry: (failureCount, error) => {
-            // NOTE: Mimic default behavior
-            if (failureCount === 3) return false;
-
-            if (error instanceof RequestError) {
-                const { response } = error;
-                // NOTE: This is validation error, the request will never be successful and we
-                // must stop trying
-                if (response.status === 400) {
-                    return false;
-                }
-            }
-
-            return true;
-        }
+        retry: retryWithValidation,
      });
+
+    const rowCountQuery = useRowCount({
+        queryToWrap: queryString ?? undefined,
+        idVars: idCols,
+        url,
+        globalLimit,
+    });
 
     const deduplicatedData = data && deduplicateTable(data, idCols);
 
@@ -170,6 +242,8 @@ export default function PaginatedDeduplicationView({
                     rows={deduplicatedData}
                     pagination={pagination}
                     onPaginationChange={setPagination}
+                    countPayload={rowCountQuery.data}
+                    rowCountLimit={globalLimit}
                 />)}
 
             {error && <ErrorResponse error={error} />}

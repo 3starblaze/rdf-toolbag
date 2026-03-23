@@ -537,15 +537,15 @@ export function formatUniversalPaginatorQueryCounter({
       "SELECT",
       `(COUNT(*) AS ?${globalRowCountVar})`,
       `(COUNT(DISTINCT *) AS ?${groupedRowCountVar})`,
+      "{",
     ].join(" "),
     [
-      `{ SELECT DISTINCT ${colsFmt} WHERE {${queryToWrap}}}`, // TODO: wrapped query
-      ...(groupLimit ? [`LIMIT ${groupLimit}`] : []),
-    ].join(" "),
-    [
-      `{ SELECT * WHERE {${queryToWrap}} }`,
+      "{",
+      `SELECT ${colsFmt} WHERE {${queryToWrap}}`,
       ...(globalLimit ? [`LIMIT ${globalLimit}`] : []),
+      "}",
     ].join(" "),
+    "}",
   ].join("\n");
 
   return query;

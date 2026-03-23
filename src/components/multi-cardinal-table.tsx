@@ -15,7 +15,7 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import type { MulticardinalRow } from "@/multi-cardinal-table-util";
-import { defaultPagination, PaginationBar } from "./table_pagination_bar";
+import { defaultPagination, PaginationBar, ServerSidePaginationBar } from "./table_pagination_bar";
 import PaginatedTable from "./paginated_table";
 import { useControllableState } from "@radix-ui/react-use-controllable-state";
 import { ColumnResizer } from "./column_resizer";
@@ -177,15 +177,24 @@ export default function MultiCardinalTable({
     );
 }
 
+export interface CountPayload {
+    globalCount: number,
+    groupedCount: number,
+}
+
 // FIXME: A lot of duplication with MultiCardinalTable
 export function MultiCardinalTableServer({
     rows,
     pagination: providedPagination,
     onPaginationChange,
+    countPayload,
+    rowCountLimit,
 }: {
     rows: MulticardinalRow[],
     pagination?: PaginationState,
     onPaginationChange?: (state: PaginationState) => void,
+    countPayload?: CountPayload,
+    rowCountLimit?: number,
 }) {
     const firstRow = rows[0] as MulticardinalRow | undefined;
 
@@ -203,8 +212,7 @@ export function MultiCardinalTableServer({
         getCoreRowModel: getCoreRowModel(),
         getPaginationRowModel: getPaginationRowModel(),
         onPaginationChange: setPagination,
-        // TODO: Handle this
-        pageCount: -1,
+        rowCount: countPayload?.groupedCount ?? -1,
         manualPagination: true,
         state: {
             pagination,
@@ -289,10 +297,12 @@ export function MultiCardinalTableServer({
                     )}
                 </TableBody>
             </Table>
-            <PaginationBar
+            <ServerSidePaginationBar
                 table={table}
                 pagination={pagination}
                 onPaginationChange={setPagination}
+                countPayload={countPayload}
+                rowCountLimit={rowCountLimit}
             />
         </div>
     );
