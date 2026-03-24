@@ -13,6 +13,7 @@ import DefaultConstructQuery from "./default_construct_query";
 import SampleMulticardinalQuery from "./multicardinal_query_table/index";
 import DeduplicationView from "./deduplication_view";
 import PaginatedDeduplicationView from "./paginated_deduplication_view";
+import PropertyQueryBuilder from "./property_query_builder";
 
 function tryMakingUrl(urlName: string): URL | null {
     try {
@@ -87,6 +88,11 @@ function ContentSection({
             title: "Paginated deduplication view",
             value: "paginated-deduplication-view",
             content: (<PaginatedDeduplicationView url={url} />),
+        },
+        {
+            title: "Property query builder",
+            value: "property-query-builder",
+            content: (<PropertyQueryBuilder />),
         },
     ];
 

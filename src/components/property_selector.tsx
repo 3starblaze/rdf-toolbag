@@ -12,11 +12,13 @@ export function PropertySelector({
     defaultValue,
     onValueChange,
     suggestions,
+    addButtonContent = "+",
 }: {
     suggestions: { label: string, value: string }[],
     value?: string[],
     defaultValue?: string[],
     onValueChange?: (newValue: string[]) => void,
+    addButtonContent: string,
 }) {
     const [selectedProperties, setSelectedProperties] = useControllableState<string[]>({
         prop: controlledValue,
@@ -69,7 +71,7 @@ export function PropertySelector({
                 variant="outline"
                 onClick={() => setSelectedProperties((old) => [...old, ""])}
             >
-                +
+                {addButtonContent}
             </Button>
         </div>
     );
