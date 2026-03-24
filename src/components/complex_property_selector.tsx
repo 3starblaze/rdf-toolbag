@@ -13,6 +13,21 @@ interface SuggestionMap {
     }
 }
 
+interface ComplexPropertySelection {
+    rdfType: string,
+    dataProps: {
+        name: string,
+    }[],
+    objectProps: {
+        name: string,
+        selection: ComplexPropertySelection,
+    }[],
+}
+
+export function makeDefaultSelection(): ComplexPropertySelection {
+    return { rdfType: "", dataProps: [], objectProps: [] };
+}
+
 // FIXME: A lot of duplication with PropertySelector
 function ComplexPropertySelectorFragment({
     value: controlledValue,
@@ -26,27 +41,22 @@ function ComplexPropertySelectorFragment({
     recursionDepth = 0,
 }: {
     suggestions: { label: string, value: string }[],
+    value?: ComplexPropertySelection["objectProps"],
+    onValueChange?: (newValue: ComplexPropertySelection["objectProps"]) => void,
+    defaultValue?: ComplexPropertySelection["objectProps"],
     addButtonContent: string,
-    value?: string[],
-    defaultValue?: string[],
-    onValueChange?: (newValue: string[]) => void,
     recursionDepth?: number,
 }) {
-    const [selectedProperties, setSelectedProperties] = useControllableState<string[]>({
+    const [value, setValue] = useControllableState<ComplexPropertySelection["objectProps"]>({
         prop: controlledValue,
-        defaultProp: defaultValue ?? [],
+        defaultProp: defaultValue || [],
         onChange: onValueChange,
     });
-
-    // NOTE: Since properties are meant to be unique, there's no point in suggesting properties
-    // that are already selected.
-    const filteredSuggestions = suggestions
-        .filter(({ value }) => !selectedProperties.includes(value));
 
     return (
         <div className="max-w-prose flex flex-col gap-2">
             <div className="flex flex-col gap-1">
-                {selectedProperties.map((item, i) => (
+                {value.map((item, i) => (
                     <Collapsible className="flex flex-col group gap-2">
                         <div
                             key={i}
@@ -54,24 +64,25 @@ function ComplexPropertySelectorFragment({
                         >
                             <Combobox
                                 className="grow"
-                                options={filteredSuggestions}
+                                /* FIXME: Insert suggestions. */
+                                options={[]}
                                 unselectedLabel={(<span />)}
                                 emptyLabel="..."
                                 searchPlaceholder="..."
-                                value={item}
-                                onValueChange={(val) => setSelectedProperties([
-                                    ...selectedProperties.slice(0, i),
-                                    val,
-                                    ...selectedProperties.slice(i + 1),
+                                value={item.name}
+                                onValueChange={(newItemName) => setValue([
+                                    ...value.slice(0, i),
+                                    { ...value[i], name: newItemName },
+                                    ...value.slice(i + 1),
                                 ])}
                                 allowCustomValues
                             />
                             <Button
                                 className="cursor-pointer"
                                 variant="destructive"
-                                onClick={() => setSelectedProperties([
-                                    ...selectedProperties.slice(0, i),
-                                    ...selectedProperties.slice(i + 1),
+                                onClick={() => setValue([
+                                    ...value.slice(0, i),
+                                    ...value.slice(i + 1),
                                 ])}
                             >
                                 -
@@ -89,8 +100,14 @@ function ComplexPropertySelectorFragment({
                             (recursionDepth % 2 === 0) ? "bg-gray-100" : "bg-white",
                         )}>
                             <ComplexPropertySelector
-                                suggestionMap={{}}
-                                recursionDepth={recursionDepth + 1}
+                                selection={value[i].selection}
+                                onSelectionChange={(newSelection) => setValue([
+                                    ...value.slice(0, i),
+                                    { ...value[i], selection: newSelection },
+                                    ...value.slice(i + 1),
+                                ])}
+                            suggestionMap={{}}
+                            recursionDepth={recursionDepth + 1}
                             />
                         </CollapsibleContent>
                     </Collapsible>
@@ -99,7 +116,12 @@ function ComplexPropertySelectorFragment({
             <Button
                 className="cursor-pointer"
                 variant="outline"
-                onClick={() => setSelectedProperties((old) => [...old, ""])}
+                onClick={() => {
+                    setValue([
+                        ...value,
+                        { name: "", selection: makeDefaultSelection() },
+                    ])
+                }}
             >
                 {addButtonContent}
             </Button>
@@ -108,20 +130,37 @@ function ComplexPropertySelectorFragment({
 }
 
 export default function ComplexPropertySelector({
+    selection: controlledSelection,
+    onSelectionChange,
+    defaultSelection,
     recursionDepth = 0,
 }: {
+    selection?: ComplexPropertySelection,
+    onSelectionChange?: (selection: ComplexPropertySelection) => void,
+    defaultSelection?: ComplexPropertySelection,
     suggestionMap: SuggestionMap,
     /**
      * Recursion index that is used to apply style properly.
      */
     recursionDepth?: number,
 }) {
+    const [selection, setSelection] = useControllableState<ComplexPropertySelection>({
+        prop: controlledSelection,
+        defaultProp: defaultSelection ?? makeDefaultSelection(),
+        onChange: onSelectionChange,
+    });
+
     return (
         <div className="flex flex-col gap-4">
             <div>
                 <p>Type</p>
                 <Combobox
                     emptyLabel=""
+                    value={selection.rdfType}
+                    onValueChange={(newRdfType) => setSelection({
+                        ...selection,
+                        rdfType: newRdfType,
+                    })}
                     options={[]}
                     searchPlaceholder=""
                     unselectedLabel=""
@@ -131,6 +170,11 @@ export default function ComplexPropertySelector({
             <div>
                 <p>Properties (data)</p>
                 <PropertySelector
+                    value={selection.dataProps.map(({ name }) => name)}
+                    onValueChange={(newDataProps) => setSelection({
+                        ...selection,
+                        dataProps: newDataProps.map((name) => ({ name })),
+                    })}
                     suggestions={[]}
                     addButtonContent="Add data property"
                 />
@@ -138,6 +182,11 @@ export default function ComplexPropertySelector({
             <div>
                 <p>Properties (class)</p>
                 <ComplexPropertySelectorFragment
+                    value={selection.objectProps}
+                    onValueChange={(newValue) => setSelection({
+                        ...selection,
+                        objectProps: newValue,
+                    })}
                     suggestions={[]}
                     recursionDepth={recursionDepth}
                     addButtonContent="Add object property"

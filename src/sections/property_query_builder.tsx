@@ -1,9 +1,33 @@
-import ComplexPropertySelector from "@/components/complex_property_selector";
+import ComplexPropertySelector, { makeDefaultSelection } from "@/components/complex_property_selector";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ChevronDown } from "lucide-react";
+import { useState } from "react";
 
 export default function PropertyQueryBuilder() {
+    const [selection, setSelection] = useState(makeDefaultSelection);
+
     return (
-        <div>
-            <ComplexPropertySelector suggestionMap={{}} />
+        <div className="flex flex-col gap-4">
+            <Collapsible className="group flex flex-col gap-2">
+                <CollapsibleTrigger
+                    className="flex flex-row gap-1 items-center bg-gray-100 px-4 py-2 rounded-lg w-fit cursor-pointer"
+                >
+                    <p>JSON</p>
+                    <ChevronDown
+                        className="size-4 group-data-[state=open]:rotate-180 transition-transform"
+                    />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="bg-gray-100">
+                    <pre>
+                        {JSON.stringify(selection, undefined, 2)}
+                    </pre>
+                </CollapsibleContent>
+            </Collapsible>
+            <ComplexPropertySelector
+                selection={selection}
+                onSelectionChange={setSelection}
+                suggestionMap={{}}
+            />
         </div>
     );
 }
