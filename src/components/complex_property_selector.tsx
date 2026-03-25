@@ -13,7 +13,7 @@ interface SuggestionMap {
     }
 }
 
-interface ComplexPropertySelection {
+export interface ComplexPropertySelection {
     rdfType: string,
     dataProps: {
         name: string,
