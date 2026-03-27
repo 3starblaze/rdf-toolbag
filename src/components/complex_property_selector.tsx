@@ -5,13 +5,7 @@ import { Button } from "./ui/button";
 import { ChevronDown } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
 import { cn } from "@/lib/utils";
-
-interface SuggestionMap {
-    [rdfType: string]: {
-        dataProps: string[],
-        objectProps: string[],
-    }
-}
+import { skipToken, useQuery } from "@tanstack/react-query";
 
 export interface ComplexPropertySelection {
     rdfType: string,
@@ -33,16 +27,21 @@ function ComplexPropertySelectorFragment({
     value: controlledValue,
     defaultValue,
     onValueChange,
-    suggestions,
+    dataPropFetcher,
+    objectPropFetcher,
+    rdfType,
     addButtonContent = "+",
     /**
      * @see ComplexPropertySelector
      */
     recursionDepth = 0,
 }: {
-    suggestions: { label: string, value: string }[],
     value?: ComplexPropertySelection["objectProps"],
     onValueChange?: (newValue: ComplexPropertySelection["objectProps"]) => void,
+    dataPropFetcher?: (rdfType: string) => Promise<{ value: string, label: string }[]>,
+    objectPropFetcher?: (rdfType: string) => Promise<{ value: string, label: string }[]>,
+    rdfTypeFetcher?: () => Promise<{ value: string, label: string }[]>,
+    rdfType: string,
     defaultValue?: ComplexPropertySelection["objectProps"],
     addButtonContent: string,
     recursionDepth?: number,
@@ -52,6 +51,15 @@ function ComplexPropertySelectorFragment({
         defaultProp: defaultValue || [],
         onChange: onValueChange,
     });
+
+    const objPropQuery = useQuery({
+        queryKey: ["ComplexPropertySelector", "objectProp", rdfType],
+        queryFn: (rdfType && objectPropFetcher)
+            ? (() => objectPropFetcher(rdfType))
+            : skipToken,
+    });
+
+    const suggestions = objPropQuery.data ?? [];
 
     return (
         <div className="max-w-prose flex flex-col gap-2">
@@ -64,8 +72,7 @@ function ComplexPropertySelectorFragment({
                         >
                             <Combobox
                                 className="grow"
-                                /* FIXME: Insert suggestions. */
-                                options={[]}
+                                options={suggestions}
                                 unselectedLabel={(<span />)}
                                 emptyLabel="..."
                                 searchPlaceholder="..."
@@ -106,8 +113,9 @@ function ComplexPropertySelectorFragment({
                                     { ...value[i], selection: newSelection },
                                     ...value.slice(i + 1),
                                 ])}
-                            suggestionMap={{}}
-                            recursionDepth={recursionDepth + 1}
+                                dataPropFetcher={dataPropFetcher}
+                                objectPropFetcher={objectPropFetcher}
+                                recursionDepth={recursionDepth + 1}
                             />
                         </CollapsibleContent>
                     </Collapsible>
@@ -133,12 +141,17 @@ export default function ComplexPropertySelector({
     selection: controlledSelection,
     onSelectionChange,
     defaultSelection,
+    dataPropFetcher,
+    objectPropFetcher,
     recursionDepth = 0,
 }: {
     selection?: ComplexPropertySelection,
     onSelectionChange?: (selection: ComplexPropertySelection) => void,
     defaultSelection?: ComplexPropertySelection,
-    suggestionMap: SuggestionMap,
+    dataPropFetcher?: (rdfType: string) => Promise<{ value: string, label: string }[]>,
+    objectPropFetcher?: (rdfType: string) => Promise<{ value: string, label: string }[]>,
+    rdfTypeFetcher?: () => Promise<{ value: string, label: string }[]>,
+    prefixMap?: { [prefix: string]: string },
     /**
      * Recursion index that is used to apply style properly.
      */
@@ -149,6 +162,15 @@ export default function ComplexPropertySelector({
         defaultProp: defaultSelection ?? makeDefaultSelection(),
         onChange: onSelectionChange,
     });
+
+    const dataPropQuery = useQuery({
+        queryKey: ["ComplexPropertySelector", "dataProp", selection.rdfType],
+        queryFn: (selection.rdfType && dataPropFetcher)
+               ? (() => dataPropFetcher(selection.rdfType))
+               : skipToken,
+    });
+
+    const dataPropSuggestions = dataPropQuery.data ?? [];
 
     return (
         <div className="flex flex-col gap-4">
@@ -175,7 +197,7 @@ export default function ComplexPropertySelector({
                         ...selection,
                         dataProps: newDataProps.map((name) => ({ name })),
                     })}
-                    suggestions={[]}
+                    suggestions={dataPropSuggestions}
                     addButtonContent="Add data property"
                 />
             </div>
@@ -187,9 +209,11 @@ export default function ComplexPropertySelector({
                         ...selection,
                         objectProps: newValue,
                     })}
-                    suggestions={[]}
                     recursionDepth={recursionDepth}
                     addButtonContent="Add object property"
+                    dataPropFetcher={dataPropFetcher}
+                    objectPropFetcher={objectPropFetcher}
+                    rdfType={selection.rdfType}
                 />
             </div>
         </div>
