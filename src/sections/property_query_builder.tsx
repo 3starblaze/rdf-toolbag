@@ -1,7 +1,60 @@
-import ComplexPropertySelector, { makeDefaultSelection } from "@/components/complex_property_selector";
+import ComplexPropertySelector, { makeDefaultSelection, type ComplexPropertySelection } from "@/components/complex_property_selector";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { formatQuery } from "@/misc/complex_property_query_builder";
 import { ChevronDown } from "lucide-react";
 import { useState } from "react";
+
+function CollapsedInfo({
+    title,
+    children
+}: {
+    title: string,
+    children: React.ReactNode,
+}) {
+    return (
+        <Collapsible className="group flex flex-col gap-2">
+            <CollapsibleTrigger
+                className="flex flex-row gap-1 items-center bg-gray-100 px-4 py-2 rounded-lg w-fit cursor-pointer"
+            >
+                <p>{title}</p>
+                <ChevronDown
+                    className="size-4 group-data-[state=open]:rotate-180 transition-transform"
+                />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="bg-gray-100">
+                {children}
+            </CollapsibleContent>
+        </Collapsible>
+    );
+}
+
+function QueryDisplay({
+    selection,
+}: {
+    selection: ComplexPropertySelection,
+}) {
+    return (
+        <CollapsedInfo title="Query">
+            <pre>
+                {formatQuery(selection)}
+            </pre>
+        </CollapsedInfo>
+    );
+}
+
+function SelectionDisplay({
+    selection,
+}: {
+    selection: ComplexPropertySelection,
+}) {
+    return (
+        <CollapsedInfo title="JSON">
+            <pre>
+                {JSON.stringify(selection, undefined, 2)}
+            </pre>
+        </CollapsedInfo>
+    );
+}
 
 export default function PropertyQueryBuilder() {
     const [selection, setSelection] = useState(makeDefaultSelection);
@@ -15,21 +68,8 @@ export default function PropertyQueryBuilder() {
                 <span className="bg-blue-100">{specialRdfType}</span>
                 {" for extra property suggestions."}
             </p>
-            <Collapsible className="group flex flex-col gap-2">
-                <CollapsibleTrigger
-                    className="flex flex-row gap-1 items-center bg-gray-100 px-4 py-2 rounded-lg w-fit cursor-pointer"
-                >
-                    <p>JSON</p>
-                    <ChevronDown
-                        className="size-4 group-data-[state=open]:rotate-180 transition-transform"
-                    />
-                </CollapsibleTrigger>
-                <CollapsibleContent className="bg-gray-100">
-                    <pre>
-                        {JSON.stringify(selection, undefined, 2)}
-                    </pre>
-                </CollapsibleContent>
-            </Collapsible>
+            <SelectionDisplay selection={selection} />
+            <QueryDisplay selection={selection} />
             <ComplexPropertySelector
                 selection={selection}
                 onSelectionChange={setSelection}
