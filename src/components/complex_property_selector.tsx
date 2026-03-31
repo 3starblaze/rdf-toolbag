@@ -1,6 +1,5 @@
 import { useControllableState } from "@radix-ui/react-use-controllable-state";
-import { PropertySelector } from "./property_selector";
-import { Combobox } from "./ui/combobox";
+import { SingleStringCombobox, PropertySelector } from "./property_selector";
 import { Button } from "./ui/button";
 import { ChevronDown } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
@@ -70,19 +69,14 @@ function ComplexPropertySelectorFragment({
                             key={i}
                             className="flex gap-2"
                         >
-                            <Combobox
-                                className="grow"
-                                options={suggestions}
-                                unselectedLabel={(<span />)}
-                                emptyLabel="..."
-                                searchPlaceholder="..."
+                            <SingleStringCombobox
+                                suggestions={suggestions}
                                 value={item.name}
                                 onValueChange={(newItemName) => setValue([
                                     ...value.slice(0, i),
                                     { ...value[i], name: newItemName },
                                     ...value.slice(i + 1),
                                 ])}
-                                allowCustomValues
                             />
                             <Button
                                 className="cursor-pointer"
@@ -140,6 +134,7 @@ function ComplexPropertySelectorFragment({
 export default function ComplexPropertySelector({
     selection: controlledSelection,
     onSelectionChange,
+    rdfTypeFetcher,
     defaultSelection,
     dataPropFetcher,
     objectPropFetcher,
@@ -163,6 +158,11 @@ export default function ComplexPropertySelector({
         onChange: onSelectionChange,
     });
 
+    const rdfTypeQuery = useQuery({
+        queryKey: ["RdfTypeQuery"],
+        queryFn: rdfTypeFetcher ?? skipToken,
+    })
+
     const dataPropQuery = useQuery({
         queryKey: ["ComplexPropertySelector", "dataProp", selection.rdfType],
         queryFn: (selection.rdfType && dataPropFetcher)
@@ -176,17 +176,14 @@ export default function ComplexPropertySelector({
         <div className="flex flex-col gap-4">
             <div>
                 <p>Type</p>
-                <Combobox
-                    emptyLabel=""
+                <SingleStringCombobox
+                    suggestions={rdfTypeQuery.data ?? []}
                     value={selection.rdfType}
                     onValueChange={(newRdfType) => setSelection({
                         ...selection,
-                        rdfType: newRdfType,
+                        rdfType: newRdfType ?? "",
                     })}
-                    options={[]}
-                    searchPlaceholder=""
-                    unselectedLabel=""
-                    allowCustomValues
+                    placeholder="Enter type"
                 />
             </div>
             <div>

@@ -1,8 +1,66 @@
+import { useState } from "react";
 import { Button } from "./ui/button";
-import { Combobox } from "./ui/combobox";
+import { Combobox, ComboboxContent, ComboboxList, ComboboxItem, ComboboxInput, ComboboxEmpty } from "./ui/combobox";
 import {
     useControllableState
 } from "@radix-ui/react-use-controllable-state";
+
+export function SingleStringCombobox({
+    value,
+    onValueChange,
+    suggestions,
+    placeholder,
+}: {
+    value: string,
+    onValueChange: (newValue: string) => void,
+    suggestions: { label: string, value: string }[],
+    placeholder?: string,
+}) {
+    const valueToLabel = (targetValue: string) => suggestions
+        .find((item) => item.value === targetValue)?.label ?? targetValue;
+
+    // NOTE: It's important to set the initial value correctly because it could hold stale data.
+    const [inputValue, setInputValue] = useState(valueToLabel(value));
+    const shouldSuggestCustom = inputValue && !suggestions.find((item) => item.value === inputValue);
+
+    return (
+        <Combobox
+            inputValue={inputValue}
+            onInputValueChange={setInputValue}
+            value={value}
+            onValueChange={(newValue) => onValueChange(newValue || "")}
+            items={[
+                ...(shouldSuggestCustom ? [{
+                    label: inputValue,
+                    value: inputValue,
+                    isCustom: true,
+                }] : []),
+                ...suggestions,
+            ]}
+            itemToStringLabel={valueToLabel}
+        >
+            <ComboboxInput
+                className="grow"
+                placeholder={placeholder}
+            >
+            </ComboboxInput>
+            <ComboboxContent>
+                <ComboboxEmpty>
+                    Nothing found
+                </ComboboxEmpty>
+                <ComboboxList>
+                    {(item, i) => (
+                        <ComboboxItem key={`${i}-${item}`} value={item.value}>
+                            {item.isCustom ? (
+                                `Use "${item.label}"`
+                            ) : item.label}
+                        </ComboboxItem>
+                    )}
+                </ComboboxList>
+            </ComboboxContent>
+        </Combobox>
+    );
+}
 
 /**
  * String array input which is ideal for collecting properties.
@@ -26,32 +84,22 @@ export function PropertySelector({
         onChange: onValueChange,
     });
 
-    // NOTE: Since properties are meant to be unique, there's no point in suggesting properties
-    // that are already selected.
-    const filteredSuggestions = suggestions
-        .filter(({ value }) => !selectedProperties.includes(value));
-
     return (
         <div className="max-w-prose flex flex-col gap-2">
             <div className="flex flex-col gap-1">
                 {selectedProperties.map((item, i) => (
                     <div
-                        key={i}
+                        key={`${i}-${item}`}
                         className="flex gap-2"
                     >
-                        <Combobox
-                            className="grow"
-                            options={filteredSuggestions}
-                            unselectedLabel={(<span />)}
-                            emptyLabel="..."
-                            searchPlaceholder="..."
+                        <SingleStringCombobox
                             value={item}
                             onValueChange={(val) => setSelectedProperties([
                                 ...selectedProperties.slice(0, i),
                                 val,
                                 ...selectedProperties.slice(i + 1),
                             ])}
-                            allowCustomValues
+                            suggestions={suggestions}
                         />
                         <Button
                             className="cursor-pointer"

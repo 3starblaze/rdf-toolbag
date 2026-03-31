@@ -33,6 +33,10 @@ export default function PropertyQueryBuilder() {
             <ComplexPropertySelector
                 selection={selection}
                 onSelectionChange={setSelection}
+                rdfTypeFetcher={async () => [
+                    { label: ":barbaz", value: "http://barbaz" },
+                    { label: specialRdfType, value: specialRdfType },
+                ]}
                 dataPropFetcher={async (rdfType) => [
                     { value: "http://data0", label: ":data0" },
                     { value: "http://data1", label: ":data1" },
