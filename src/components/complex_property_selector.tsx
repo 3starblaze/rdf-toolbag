@@ -60,6 +60,15 @@ function ComplexPropertySelectorFragment({
 
     const suggestions = objPropQuery.data ?? [];
 
+    const unselectedSuggestions = suggestions
+        .filter((item) => !value.find(({ name }) => name === item.value));
+
+    // NOTE: See `PropertySelector`
+    const valueToSuggestion = (targetValue: string) => {
+        const maybeRes = suggestions.find((suggestion) => suggestion.value === targetValue);
+        return maybeRes ? [maybeRes] : [];
+    };
+
     return (
         <div className="max-w-prose flex flex-col gap-2">
             <div className="flex flex-col gap-1">
@@ -70,7 +79,10 @@ function ComplexPropertySelectorFragment({
                             className="flex gap-2"
                         >
                             <SingleStringCombobox
-                                suggestions={suggestions}
+                                suggestions={[
+                                    ...valueToSuggestion(item.name),
+                                    ...unselectedSuggestions,
+                                ]}
                                 value={item.name}
                                 onValueChange={(newItemName) => setValue([
                                     ...value.slice(0, i),

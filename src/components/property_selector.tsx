@@ -84,6 +84,17 @@ export function PropertySelector({
         onChange: onValueChange,
     });
 
+    const unselectedSuggestions = suggestions
+        .filter((item) => !selectedProperties.includes(item.value));
+
+    // NOTE: This is used to add the current value to suggestions. If we just pass
+    // `unselectedSuggestions`, we lose the currently selected item's label which is undesirable.
+    // NOTE: this is wrapped as array so that we can easily spread the result.
+    const valueToSuggestion = (targetValue: string) => {
+        const maybeRes = suggestions.find((suggestion) => suggestion.value === targetValue);
+        return maybeRes ? [maybeRes] : [];
+    };
+
     return (
         <div className="max-w-prose flex flex-col gap-2">
             <div className="flex flex-col gap-1">
@@ -99,7 +110,10 @@ export function PropertySelector({
                                 val,
                                 ...selectedProperties.slice(i + 1),
                             ])}
-                            suggestions={suggestions}
+                            suggestions={[
+                                ...valueToSuggestion(item),
+                                ...unselectedSuggestions,
+                            ]}
                         />
                         <Button
                             className="cursor-pointer"
