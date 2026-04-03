@@ -92,7 +92,7 @@ function ContentSection({
         {
             title: "Property query builder",
             value: "property-query-builder",
-            content: (<PropertyQueryBuilder />),
+            content: (<PropertyQueryBuilder url={url} />),
         },
     ];
 
