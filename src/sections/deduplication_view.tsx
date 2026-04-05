@@ -8,7 +8,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { deduplicateTable } from "@/multi-cardinal-table-util";
 import { requestAsSparqlTableResult, RequestError } from "@/sparql_queries";
-import { skipToken, useQuery } from "@tanstack/react-query";
+import { skipToken, useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { Match } from "effect";
 import { Suspense, use, useMemo, useState, type ReactNode } from "react";
 
@@ -96,6 +96,11 @@ export default function DeduplicationView({
                           && data
                           && deduplicateTable(data, deduplicationIdCols);
 
+    const suggestionsQueryResult = {
+        ...deduplicatedData,
+        data: data?.head.vars.map((s) => ({ label: s, value: s })),
+    } as UseQueryResult<{label: string, value: string}[], Error>;
+
     return (
         <div>
             <div className="flex flex-row gap-2 items-center">
@@ -119,7 +124,7 @@ export default function DeduplicationView({
             </Field>
 
             <PropertySelector
-                suggestions={data?.head.vars.map((s) => ({ label: s, value: s })) ?? []}
+                suggestionsQueryResult={suggestionsQueryResult}
                 value={deduplicationIdCols}
                 onValueChange={setDeduplicationIdCols}
             />

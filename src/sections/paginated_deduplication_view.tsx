@@ -197,11 +197,18 @@ export default function PaginatedDeduplicationView({
 
     const deduplicatedData = data && deduplicateTable(data, idCols);
 
+    // NOTE: this is really hacky but we need to pass a query result and this is the simplest way
+    // to get a queryResult
+    const suggestionsQueryResult = useQuery({
+        queryKey: ["findSuggestions", suggestions],
+        queryFn: async () => suggestions,
+    });
+
     return (
         <div className="flex flex-col gap-2">
             <p className="text-sm font-bold">Select properties</p>
             <PropertySelector
-                suggestions={suggestions}
+                suggestionsQueryResult={suggestionsQueryResult}
                 value={draftIdCols}
                 onValueChange={setDraftIdCols}
             />

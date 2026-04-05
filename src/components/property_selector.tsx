@@ -96,7 +96,7 @@ export function PropertySelector({
     value?: string[],
     defaultValue?: string[],
     onValueChange?: (newValue: string[]) => void,
-    addButtonContent: string,
+    addButtonContent?: string,
 }) {
     const [selectedProperties, setSelectedProperties] = useControllableState<string[]>({
         prop: controlledValue,

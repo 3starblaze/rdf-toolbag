@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { tableToRows } from "@/multi-cardinal-table-util";
 import { multiCardinalTableAsSelectQuery, typePropertiesQuery } from "@/sparql_queries";
 import { useStore } from "@/store";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { useState } from "react";
 
 function isArrayEqual(a: unknown[], b: unknown[]): boolean {
@@ -37,8 +37,13 @@ export default function SampleMulticardinalQuery({
         tanstackQueryOptions: typePropertiesQueryOptions,
     } = typePropertiesQuery(url, rdfType);
 
-    const typePropertiesQueryRes = useQuery(typePropertiesQueryOptions);
-    const suggestionData = typePropertiesQueryRes.data || [];
+    const { data: typePropertiesData, ...typePropertiesRest } = useQuery(typePropertiesQueryOptions);
+
+    // NOTE: the type system did not cooperate, casted to unknown
+    const suggestionsQueryResult = {
+        ...typePropertiesRest,
+        data: typePropertiesData?.map((value) => ({ value, label: value })),
+    } as unknown as UseQueryResult<{ value: string, label: string }[]>;
 
     return (
         <div>
@@ -51,10 +56,7 @@ export default function SampleMulticardinalQuery({
                 <PropertySelector
                     value={uncommittedProperties}
                     onValueChange={setUncommittedProperties}
-                    suggestions={suggestionData.map((item) => ({
-                        label: item,
-                        value: item,
-                    }))}
+                    suggestionsQueryResult={suggestionsQueryResult}
                 />
                 <div className="flex gap-2">
                     <Button

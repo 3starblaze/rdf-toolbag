@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { skipToken, useQuery } from "@tanstack/react-query";
 
 import {
     archetypesForTypeQuery,
@@ -29,7 +29,7 @@ export default function ArchetypeInfo({
     const queryString = maybeItems?.queryString;
 
     const queryRes = useQuery({
-        ...(maybeItems?.tanstackQueryOptions ?? {queryKey: []}),
+        ...(maybeItems?.tanstackQueryOptions ?? {queryKey: [], queryFn: skipToken}),
         enabled,
     });
 

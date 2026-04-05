@@ -10,7 +10,7 @@ import { useStore } from "@/store";
 import StateGuard from "@/components/state_guard";
 import ArchetypeInfo from "./archetype_info";
 import DataByArchetype from "./data_by_archetype";
-import { Combobox } from "@/components/ui/combobox";
+import { Combobox, ComboboxContent, ComboboxInput, ComboboxItem, ComboboxList } from "@/components/ui/combobox";
 import PaginatedTable from "@/components/paginated_table";
 import ExamineSparql from "@/components/examine_sparql";
 
@@ -35,13 +35,21 @@ function PinnedRdfTypeCombobox({ url }: {
 
     return (
         <Combobox
-            options={options}
-            unselectedLabel="Select type..."
-            emptyLabel="No type found..."
-            searchPlaceholder="Search type..."
+            items={options}
             value={value}
             onValueChange={setValue}
-        />
+        >
+            <ComboboxInput placeholder="Search type" />
+            <ComboboxContent>
+                <ComboboxList>
+                    {(item: typeof options[number], i) => (
+                        <ComboboxItem key={i} value={item.value}>
+                            {item.label}
+                        </ComboboxItem>
+                    )}
+                </ComboboxList>
+            </ComboboxContent>
+        </Combobox>
     );
 }
 
