@@ -58,17 +58,6 @@ function ComplexPropertySelectorFragment({
             : skipToken,
     });
 
-    const suggestions = objPropQuery.data ?? [];
-
-    const unselectedSuggestions = suggestions
-        .filter((item) => !value.find(({ name }) => name === item.value));
-
-    // NOTE: See `PropertySelector`
-    const valueToSuggestion = (targetValue: string) => {
-        const maybeRes = suggestions.find((suggestion) => suggestion.value === targetValue);
-        return maybeRes ? [maybeRes] : [];
-    };
-
     return (
         <div className="max-w-prose flex flex-col gap-2">
             <div className="flex flex-col gap-1">
@@ -79,10 +68,8 @@ function ComplexPropertySelectorFragment({
                             className="flex gap-2"
                         >
                             <SingleStringCombobox
-                                suggestions={[
-                                    ...valueToSuggestion(item.name),
-                                    ...unselectedSuggestions,
-                                ]}
+                                suggestionsQueryResult={objPropQuery}
+                                hiddenValueList={value.map((item) => item.name)}
                                 value={item.name}
                                 onValueChange={(newItemName) => setValue([
                                     ...value.slice(0, i),
@@ -182,14 +169,12 @@ export default function ComplexPropertySelector({
                : skipToken,
     });
 
-    const dataPropSuggestions = dataPropQuery.data ?? [];
-
     return (
         <div className="flex flex-col gap-4">
             <div>
                 <p>Type</p>
                 <SingleStringCombobox
-                    suggestions={rdfTypeQuery.data ?? []}
+                    suggestionsQueryResult={rdfTypeQuery}
                     value={selection.rdfType}
                     onValueChange={(newRdfType) => setSelection({
                         ...selection,
@@ -206,7 +191,7 @@ export default function ComplexPropertySelector({
                         ...selection,
                         dataProps: newDataProps.map((name) => ({ name })),
                     })}
-                    suggestions={dataPropSuggestions}
+                    suggestionsQueryResult={dataPropQuery}
                     addButtonContent="Add data property"
                 />
             </div>

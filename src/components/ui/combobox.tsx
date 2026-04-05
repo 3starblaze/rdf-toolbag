@@ -286,6 +286,14 @@ function ComboboxChipsInput({
   )
 }
 
+function ComboboxStatus({
+  ...props
+}: ComboboxPrimitive.Status.Props) {
+  return (
+      <ComboboxPrimitive.Status {...props} />
+  );
+}
+
 function useComboboxAnchor() {
   return React.useRef<HTMLDivElement | null>(null)
 }
@@ -301,6 +309,7 @@ export {
   ComboboxCollection,
   ComboboxEmpty,
   ComboboxSeparator,
+  ComboboxStatus,
   ComboboxChips,
   ComboboxChip,
   ComboboxChipsInput,

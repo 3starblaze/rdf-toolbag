@@ -1,8 +1,7 @@
 import ComplexPropertySelector, { makeDefaultSelection, type ComplexPropertySelection } from "@/components/complex_property_selector";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { formatQuery } from "@/misc/complex_property_query_builder";
-import { requestAsSparqlTableResult, typeCountQuery } from "@/sparql_queries";
-import { useQuery } from "@tanstack/react-query";
+import { requestAsSparqlTableResult } from "@/sparql_queries";
 import { ChevronDown } from "lucide-react";
 import { useState } from "react";
 
@@ -58,17 +57,22 @@ function SelectionDisplay({
     );
 }
 
-function useRdfTypesQuery({
-    url,
-}: {
-    url: URL,
-}) {
-    const { tanstackQueryOptions } = typeCountQuery(url);
-    const queryRes = useQuery(tanstackQueryOptions);
-    return {
-        ...queryRes,
-        data: queryRes.data?.map((item) => ({ label: item.type, value: item.type })),
-    };
+async function getRdfTypes(url: URL): Promise<{ label: string, value: string }[]> {
+    const limit = 100;
+
+    const queryString = `
+SELECT DISTINCT ?obj
+WHERE {
+  ?sub a ?obj
+}
+LIMIT ${limit}
+`;
+
+    const table = await requestAsSparqlTableResult(url, queryString);
+    const res = table.results.bindings
+                     .map((row) => row["obj"].value)
+                     .map((value) => ({ value, label: value}));
+    return res;
 }
 
 async function getTypeSuggestions(url: URL, rdfType: string): Promise<string[]> {
@@ -86,8 +90,6 @@ export default function PropertyQueryBuilder({
 }) {
     const [selection, setSelection] = useState(makeDefaultSelection);
 
-    const rdfTypesQuery = useRdfTypesQuery({url});
-
     const specialRdfType = "foobar";
 
     return (
@@ -102,7 +104,7 @@ export default function PropertyQueryBuilder({
             <ComplexPropertySelector
                 selection={selection}
                 onSelectionChange={setSelection}
-                rdfTypeFetcher={async () => rdfTypesQuery.data ?? []}
+                rdfTypeFetcher={() => getRdfTypes(url)}
                 dataPropFetcher={async (rdfType) => {
                     const types = await getTypeSuggestions(url, rdfType);
                     return types.map((val) => ({
