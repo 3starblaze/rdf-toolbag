@@ -1,15 +1,14 @@
 import ComplexPropertySelector, { makeDefaultSelection, type ComplexPropertySelection } from "@/components/complex_property_selector";
-import MultiCardinalTable from "@/components/multi-cardinal-table";
-import SparqlTableResultTable from "@/components/sparql_table_result_table";
+import { MultiCardinalTableServer, type CountPayload } from "@/components/multi-cardinal-table";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
-import { deduplicateTable, PropertySelector, tableToRows } from "@/lib_index";
+import { deduplicateTable, PropertySelector } from "@/lib_index";
 import { formatQuery } from "@/misc/complex_property_query_builder";
-import { formatUniversalPaginatorQuery, requestAsSparqlTableResult } from "@/sparql_queries";
+import { formatUniversalPaginatorQuery, formatUniversalPaginatorQueryCounter, requestAsSparqlTableResult, type SparqlTableResult } from "@/sparql_queries";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { ChevronDown } from "lucide-react";
 import { useEffect, useId, useState } from "react";
@@ -181,7 +180,6 @@ function LimitSection({
 
     const [idVars, setIdVars] = useState(paginationData?.idVars ?? []);
 
-
     useEffect(() => {
         if (globalLimit === null || groupLimit === null || groupOffset === null) {
             onPaginationDataChange(null);
@@ -236,6 +234,97 @@ function LimitSection({
     );
 }
 
+async function tryGettingCount({
+    url,
+    formattedQuery,
+    globalRowCountVar,
+    groupedRowCountVar,
+}: {
+    url: URL,
+    formattedQuery: string,
+    globalRowCountVar: string,
+    groupedRowCountVar: string,
+}): Promise<CountPayload> {
+    const res = await requestAsSparqlTableResult(url, formattedQuery);
+
+    const firstRow = res.results.bindings[0];
+    if (!firstRow) throw new Error("No rows!");
+
+    const maybeGlobalCount = firstRow[globalRowCountVar];
+    if (!maybeGlobalCount) throw new Error("global count does not exist!");
+
+    const globalCount = Number(maybeGlobalCount.value);
+
+    const maybeGroupedCount = firstRow[groupedRowCountVar];
+    if (!maybeGroupedCount) throw new Error("grouped count does not exist!");
+
+    const groupedCount = Number(maybeGroupedCount.value);
+    return { globalCount, groupedCount };
+}
+
+function makeCountPayloadFetcher({
+    queryToWrap,
+    url,
+    idVars,
+    globalLimit,
+}: {
+    queryToWrap: string,
+    url: URL,
+    idVars: string[],
+    globalLimit: number,
+}): () => Promise<CountPayload> {
+    const globalRowCountVar = "__global_count";
+    const groupedRowCountVar = "__grouped_count";
+
+    const formattedQuery = queryToWrap && formatUniversalPaginatorQueryCounter({
+        queryToWrap,
+        globalRowCountVar,
+        groupedRowCountVar,
+        idVars,
+        globalLimit,
+    });
+
+    return () => tryGettingCount({
+        url,
+        formattedQuery,
+        globalRowCountVar,
+        groupedRowCountVar,
+    });
+}
+
+type QuerySelection = Parameters<typeof formatUniversalPaginatorQuery>[0];
+
+function QueryResult({
+    tableData,
+    querySelection,
+    onQuerySelectionChange,
+    countPayload,
+}: {
+    tableData: SparqlTableResult,
+    querySelection: QuerySelection,
+    onQuerySelectionChange: (newValue: QuerySelection) => void,
+    countPayload?: CountPayload,
+}) {
+    const pageSize = querySelection.groupLimit;
+    const pagination = {
+        pageIndex: querySelection.groupOffset / pageSize,
+        pageSize,
+    };
+
+    return (
+        <MultiCardinalTableServer
+            rows={deduplicateTable(tableData, querySelection.idVars)}
+            countPayload={countPayload}
+            pagination={pagination}
+            onPaginationChange={({ pageIndex, pageSize }) => onQuerySelectionChange({
+                ...querySelection,
+                groupOffset: pageIndex * pageSize,
+                groupLimit: pageSize,
+            })}
+        />
+    );
+}
+
 export default function PropertyQueryBuilder({
     url,
 }: {
@@ -243,21 +332,35 @@ export default function PropertyQueryBuilder({
 }) {
     const [selection, setSelection] = useState(makeDefaultSelection);
 
-    const [selectedQuery, setSelectedQuery] = useState<null | string>(null);
+    const [querySelection, setQuerySelection] = useState<QuerySelection | null>(null);
 
     const queryResult = useQuery({
-        queryKey: ["PropertyQueryBuilder", "query", url, selectedQuery],
-        queryFn: selectedQuery
-               ? (() => requestAsSparqlTableResult(url, selectedQuery))
+        queryKey: ["PropertyQueryBuilder", "query", url, querySelection],
+        queryFn: querySelection
+               ? (() => requestAsSparqlTableResult(url, formatUniversalPaginatorQuery(querySelection)))
                : skipToken,
+    });
+
+    const counterQueryResult = useQuery({
+        queryKey: ["PropertyQueryBuilder", "queryCounter", url, querySelection],
+        queryFn: querySelection
+            ? (makeCountPayloadFetcher({
+                url: url,
+                queryToWrap: querySelection.queryToWrap,
+                globalLimit: querySelection.globalLimit,
+                idVars: querySelection.idVars,
+            })) : skipToken,
     });
 
     const [paginationData, setPaginationData] = useState<PaginationData | null>(null);
 
-    const globalQuery = (selectedQuery && paginationData) ? formatUniversalPaginatorQuery({
-        ...paginationData,
-        queryToWrap: selectedQuery
-    }) : null;
+    function updateQuerySelection() {
+        if (!paginationData) return;
+        setQuerySelection({
+            ...paginationData,
+            queryToWrap: formatQuery(selection),
+        });
+    }
 
     return (
         <div className="flex flex-col gap-4">
@@ -266,30 +369,37 @@ export default function PropertyQueryBuilder({
             <QueryDisplay selection={selection} />
             <CollapsedInfo title="Paginated query">
                 <pre>
-                    {globalQuery}
+                    {querySelection && formatUniversalPaginatorQuery(querySelection)}
                 </pre>
             </CollapsedInfo>
 
+            <div className="flex gap-2">
+                <p>Query count result</p>
+                <pre>{JSON.stringify(counterQueryResult.data)}</pre>
+            </div>
+
             <H1>Query results</H1>
+
             <Button
                 variant="outline"
-                onClick={() => {
-                    if (!paginationData) return;
-                    setSelectedQuery(
-                        formatUniversalPaginatorQuery({
-                            ...paginationData,
-                            queryToWrap: formatQuery(selection),
-                        }))
-                }}
+                onClick={updateQuerySelection}
                 disabled={!paginationData}
             >
                 Query {queryResult.isLoading && <Spinner />}
             </Button>
-            {/* FIXME: This is hacky because idVars should be committed along with query */}
-            {/* FIXME: Use MultiCardinalTableServer */}
-            {queryResult.data && (<MultiCardinalTable
-                rows={deduplicateTable(queryResult.data, paginationData?.idVars ?? [])}
-            />)}
+
+            {queryResult.data && querySelection && (
+                /* NOTE: Subtracting a healthy margin so that users can scroll past query content
+                 * without explicitly dragging a root scrollbar */
+                <div className="h-[calc(100vh-8rem)] overflow-y-auto">
+                    <QueryResult
+                        querySelection={querySelection}
+                        onQuerySelectionChange={setQuerySelection}
+                        tableData={queryResult.data}
+                        countPayload={counterQueryResult.data}
+                    />
+                </div>
+            )}
 
             <H1>Property selection</H1>
             <ComplexPropertySelector
