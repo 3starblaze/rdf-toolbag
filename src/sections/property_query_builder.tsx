@@ -10,7 +10,7 @@ import { deduplicateTable, PropertySelector } from "@/lib_index";
 import { formatQuery } from "@/misc/complex_property_query_builder";
 import { formatUniversalPaginatorQuery, formatUniversalPaginatorQueryCounter, requestAsSparqlTableResult, type SparqlTableResult } from "@/sparql_queries";
 import { skipToken, useQuery } from "@tanstack/react-query";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Info } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 
 function CollapsedInfo({
@@ -373,9 +373,25 @@ export default function PropertyQueryBuilder({
                 </pre>
             </CollapsedInfo>
 
-            <div className="flex gap-2">
-                <p>Query count result</p>
+            <div className="grid grid-cols-[auto_1fr] w-fit gap-x-2 gap-y-1">
+                <p className="font-bold">Query count result</p>
                 <pre>{JSON.stringify(counterQueryResult.data)}</pre>
+                <div className="col-span-2 text-gray-500 flex gap-1 items-center ml-2">
+                    <Info className="size-4" />
+                    <p>
+                        If globalCount equals globalLimit, the groupedCount is a minimum value,
+                        not exact value.
+                    </p>
+                </div>
+
+                <p className="font-bold">Query raw row count</p>
+                <p>{queryResult.data ? queryResult.data.results.bindings.length : "no result"}</p>
+                <div className="col-span-2 text-gray-500 flex gap-1 items-center ml-2">
+                    <Info className="size-4" />
+                    <p>
+                        If raw count equals globalLimit, the rows are unreliable and should not be used.
+                    </p>
+                </div>
             </div>
 
             <H1>Query results</H1>
