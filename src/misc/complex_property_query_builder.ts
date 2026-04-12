@@ -13,7 +13,7 @@ function collectConstraints(
 
     const objectPropConstraints = objectProps.flatMap(
         ({ name, selection }, i) => [
-            `${thisPrefix} <${name}> ${thisPrefix}_o_${i}`,
+            `?${thisPrefix} <${name}> ?${thisPrefix}_o_${i} .`,
             ...collectConstraints(`${thisPrefix}_o_${i}`, selection),
         ],
     );
