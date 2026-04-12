@@ -6,7 +6,6 @@ function collectConstraints(
     thisPrefix: string,
     { rdfType, dataProps, objectProps }: ComplexPropertySelection,
 ): string[] {
-    const typeConstraint = `?${thisPrefix} a <${rdfType}> .`;
     const dataPropConstraints = dataProps.map(
         ({ name }, i) => `?${thisPrefix} <${name}> ?${thisPrefix}_d_${i} .`,
     );
@@ -18,8 +17,13 @@ function collectConstraints(
         ],
     );
 
+    const miscConstraints: string[] = [
+        // NOTE: rdfType constraint should only be applied if the string is not empty
+        ...(rdfType !== "" ?  [`?${thisPrefix} a <${rdfType}> .`] : []),
+    ];
+
     return [
-        typeConstraint,
+        ...miscConstraints,
         ...dataPropConstraints,
         ...objectPropConstraints,
     ];
