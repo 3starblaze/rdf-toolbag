@@ -35,7 +35,15 @@ function collectConstraints(
 export function formatQuery(selection: ComplexPropertySelection) {
     const constraints = collectConstraints("this", selection);
 
-    const fmt = `SELECT * WHERE { ${constraints.join("\n")} }`;
+    const indentation = "  ";
+
+    const lines = [
+        "SELECT * WHERE {",
+        ...constraints.map((line) => `${indentation}${line}`),
+        "}",
+    ];
+
+    const fmt = lines.join("\n");
 
     return fmt;
 }

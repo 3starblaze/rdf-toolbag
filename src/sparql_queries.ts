@@ -486,18 +486,30 @@ export function formatUniversalPaginatorQuery({
 }): string {
   const selectedVars = idVars.map((varName) => `?${varName}`).join(" ");
 
+  const indentation = "  ";
+  const indent = (line: string) => `${indentation}${line}`;
+  const lineAwareIndent = (src: string) => src.split("\n").map(indent).join("\n");
+
   const distinctQuery = `SELECT DISTINCT ${selectedVars}
-WHERE {${queryToWrap}}
+WHERE {
+${lineAwareIndent(queryToWrap)}
+}
 LIMIT ${groupLimit}
 OFFSET ${groupOffset}`;
 
   // NOTE: The basic principle is to inject `distinctQuery` along with the regular query. The
   // neighboring `distinctQuery` filters the result set and then it's just a matter of wrapping
   // those two queries into same WHERE block which are returned as is, with group limit.
-  const fmt = `SELECT * WHERE {
-{ ${distinctQuery} }
-{ ${queryToWrap} }
-} LIMIT ${globalLimit}`
+  const fmt = [
+    "SELECT * WHERE {",
+    lineAwareIndent([
+      "{", lineAwareIndent(distinctQuery), "}"
+    ].join("\n")),
+    lineAwareIndent([
+      "{", lineAwareIndent(queryToWrap), "}"
+    ].join("\n")),
+    "}",
+  ].join("\n");
 
   return fmt;
 }
@@ -513,7 +525,6 @@ export function formatUniversalPaginatorQueryCounter({
   queryToWrap,
   idVars,
   globalLimit,
-  groupLimit,
   globalRowCountVar,
   groupedRowCountVar,
 }: {
@@ -532,19 +543,20 @@ export function formatUniversalPaginatorQueryCounter({
 }): string {
   const colsFmt = idVars.map((colName) => `?${colName}`).join(" ");
 
+  const indentation = "  ";
+  const indent = (line: string) => `${indentation}${line}`;
+  const lineAwareIndent = (src: string) => src.split("\n").map(indent).join("\n");
+
   const query = [
-    [
-      "SELECT",
-      `(COUNT(*) AS ?${globalRowCountVar})`,
-      `(COUNT(DISTINCT *) AS ?${groupedRowCountVar})`,
-      "{",
-    ].join(" "),
-    [
-      "{",
-      `SELECT ${colsFmt} WHERE {${queryToWrap}}`,
-      ...(globalLimit ? [`LIMIT ${globalLimit}`] : []),
-      "}",
-    ].join(" "),
+    "SELECT",
+    `(COUNT(*) AS ?${globalRowCountVar})`,
+    `(COUNT(DISTINCT *) AS ?${groupedRowCountVar})`,
+    "{",
+    lineAwareIndent([
+      `SELECT ${colsFmt} WHERE {`,
+      lineAwareIndent(queryToWrap),
+      ["}", ...(globalLimit ? [`LIMIT ${globalLimit}`] : [])].join(" "),
+    ].join("\n")),
     "}",
   ].join("\n");
 

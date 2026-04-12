@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { deduplicateTable, PropertySelector, type MulticardinalRow } from "@/lib_index";
 import { demangleVarName, formatQuery } from "@/misc/complex_property_query_builder";
 import { formatUniversalPaginatorQuery, formatUniversalPaginatorQueryCounter, requestAsSparqlTableResult, type SparqlTableResult } from "@/sparql_queries";
-import { skipToken, useQuery } from "@tanstack/react-query";
+import { skipToken, useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { ChevronDown, Info } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 
@@ -265,6 +265,20 @@ async function tryGettingCount({
     return { globalCount, groupedCount };
 }
 
+function querySelectionToCountQueryString({
+    queryToWrap,
+    globalLimit,
+    idVars,
+}: QuerySelection) {
+    return formatUniversalPaginatorQueryCounter({
+        queryToWrap,
+        globalLimit,
+        idVars,
+        globalRowCountVar: "__global_count",
+        groupedRowCountVar: "__grouped_count",
+    });
+}
+
 function makeCountPayloadFetcher({
     queryToWrap,
     url,
@@ -347,6 +361,73 @@ function QueryResult({
     );
 }
 
+function DebugInformation({
+    selection,
+    querySelection,
+    counterQueryResult,
+    queryResult,
+}: {
+    selection: ComplexPropertySelection,
+    querySelection: QuerySelection | null,
+    counterQueryResult: UseQueryResult<CountPayload>,
+    queryResult: UseQueryResult<SparqlTableResult>,
+}) {
+    function QueryDropdown({ title, value}: { title: string, value: string }) {
+        return (
+            <CollapsedInfo title={title}>
+                <pre>
+                    {value}
+                </pre>
+            </CollapsedInfo>
+        )
+    };
+
+    return (
+        <>
+            <SelectionDisplay selection={selection} />
+            <QueryDisplay selection={selection} />
+            {querySelection ? (
+                <>
+                    <QueryDropdown
+                        title="Paginated query"
+                        value={formatUniversalPaginatorQuery(querySelection)}
+                    />
+                    <QueryDropdown
+                        title="Paginated count query"
+                        value={querySelectionToCountQueryString(querySelection)}
+                    />
+                </>
+            ) : (
+                <div className="text-gray-500 flex gap-1 items-center">
+                    <Info className="size-4" />
+                    <p>Make query selection to get additional info</p>
+                </div>
+
+            )}
+            <div className="grid grid-cols-[auto_1fr] w-fit gap-x-2 gap-y-1">
+                <p className="font-bold">Query count result</p>
+                <pre>{JSON.stringify(counterQueryResult.data)}</pre>
+                <div className="col-span-2 text-gray-500 flex gap-1 items-center ml-2">
+                    <Info className="size-4" />
+                    <p>
+                        If globalCount equals globalLimit, the groupedCount is a minimum value,
+                        not exact value.
+                    </p>
+                </div>
+
+                <p className="font-bold">Query raw row count</p>
+                <p>{queryResult.data ? queryResult.data.results.bindings.length : "no result"}</p>
+                <div className="col-span-2 text-gray-500 flex gap-1 items-center ml-2">
+                    <Info className="size-4" />
+                    <p>
+                        If raw count equals globalLimit, the rows are unreliable and should not be used.
+                    </p>
+                </div>
+            </div>
+        </>
+    );
+}
+
 export default function PropertyQueryBuilder({
     url,
 }: {
@@ -391,34 +472,9 @@ export default function PropertyQueryBuilder({
     return (
         <div className="flex flex-col gap-4">
             <H1>Debug information</H1>
-            <SelectionDisplay selection={selection} />
-            <QueryDisplay selection={selection} />
-            <CollapsedInfo title="Paginated query">
-                <pre>
-                    {querySelection && formatUniversalPaginatorQuery(querySelection)}
-                </pre>
-            </CollapsedInfo>
-
-            <div className="grid grid-cols-[auto_1fr] w-fit gap-x-2 gap-y-1">
-                <p className="font-bold">Query count result</p>
-                <pre>{JSON.stringify(counterQueryResult.data)}</pre>
-                <div className="col-span-2 text-gray-500 flex gap-1 items-center ml-2">
-                    <Info className="size-4" />
-                    <p>
-                        If globalCount equals globalLimit, the groupedCount is a minimum value,
-                        not exact value.
-                    </p>
-                </div>
-
-                <p className="font-bold">Query raw row count</p>
-                <p>{queryResult.data ? queryResult.data.results.bindings.length : "no result"}</p>
-                <div className="col-span-2 text-gray-500 flex gap-1 items-center ml-2">
-                    <Info className="size-4" />
-                    <p>
-                        If raw count equals globalLimit, the rows are unreliable and should not be used.
-                    </p>
-                </div>
-            </div>
+            <DebugInformation
+                {...{selection, querySelection, queryResult, counterQueryResult}}
+            />
 
             <H1>Query results</H1>
 
