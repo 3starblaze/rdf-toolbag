@@ -476,7 +476,6 @@ export function formatUniversalPaginatorQuery({
   idVars,
   groupLimit,
   groupOffset,
-  globalLimit,
 }: {
   queryToWrap: string,
   idVars: string[],

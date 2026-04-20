@@ -1,5 +1,8 @@
 import "./index.css";
 export { PropertySelector } from "@/components/property_selector";
+export {
+    default as ComplexPropertySelector,
+} from "@/components/complex_property_selector";
 export { PortalContext } from "@/components/ui/portal_context";
 export { formatMultiCardinalTableAsSelectQuery } from "@/sparql_queries";
 export {
@@ -8,5 +11,7 @@ export {
     deduplicateTable,
 } from "@/multi-cardinal-table-util";
 export {
-    default as AggregatedTable
-} from "@/components/multi-cardinal-table"
+    default as AggregatedTable,
+    MultiCardinalTableServer,
+    type CountPayload,
+} from "@/components/multi-cardinal-table";

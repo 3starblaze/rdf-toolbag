@@ -4,7 +4,7 @@ import { Button } from "./ui/button";
 import { ChevronDown } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
 import { cn } from "@/lib/utils";
-import { skipToken, useQuery } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, skipToken, useQuery } from "@tanstack/react-query";
 
 export interface ComplexPropertySelection {
     rdfType: string,
@@ -99,7 +99,7 @@ function ComplexPropertySelectorFragment({
                             "text-gray-700 ml-4 p-2",
                             (recursionDepth % 2 === 0) ? "bg-gray-100" : "bg-white",
                         )}>
-                            <ComplexPropertySelector
+                            <ComplexPropertySelectorBase
                                 selection={value[i].selection}
                                 onSelectionChange={(newSelection) => setValue([
                                     ...value.slice(0, i),
@@ -130,15 +130,7 @@ function ComplexPropertySelectorFragment({
     );
 }
 
-export default function ComplexPropertySelector({
-    selection: controlledSelection,
-    onSelectionChange,
-    rdfTypeFetcher,
-    defaultSelection,
-    dataPropFetcher,
-    objectPropFetcher,
-    recursionDepth = 0,
-}: {
+interface ComplexPropertySelectorProps {
     selection?: ComplexPropertySelection,
     onSelectionChange?: (selection: ComplexPropertySelection) => void,
     defaultSelection?: ComplexPropertySelection,
@@ -150,7 +142,17 @@ export default function ComplexPropertySelector({
      * Recursion index that is used to apply style properly.
      */
     recursionDepth?: number,
-}) {
+}
+
+function ComplexPropertySelectorBase({
+    selection: controlledSelection,
+    onSelectionChange,
+    rdfTypeFetcher,
+    defaultSelection,
+    dataPropFetcher,
+    objectPropFetcher,
+    recursionDepth = 0,
+}: ComplexPropertySelectorProps) {
     const [selection, setSelection] = useControllableState<ComplexPropertySelection>({
         prop: controlledSelection,
         defaultProp: defaultSelection ?? makeDefaultSelection(),
@@ -211,5 +213,22 @@ export default function ComplexPropertySelector({
                 />
             </div>
         </div>
+    );
+}
+
+
+export default function ComplexPropertySelector(
+    props: ComplexPropertySelectorProps,
+) {
+    // NOTE: We are wrapping this component with its own queryClient so that this component can be
+    // used without explicitly requiring end users to use tanstack query.
+    // NOTE: Client is provided in a separate component so that `useQuery` works as expected and
+    // that recursive property selector invokations don't make new clients.
+    const queryClient = new QueryClient();
+
+    return (
+        <QueryClientProvider client={queryClient}>
+            <ComplexPropertySelectorBase {...props} />
+        </QueryClientProvider>
     );
 }
