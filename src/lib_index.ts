@@ -1,5 +1,10 @@
 import "./index.css";
-export { PropertySelector } from "@/components/property_selector";
+export {
+    SingleStringCombobox,
+    SyncSingleStringCombobox,
+    PropertySelector,
+    SyncPropertySelector,
+} from "@/components/property_selector";
 export {
     default as ComplexPropertySelector,
 } from "@/components/complex_property_selector";

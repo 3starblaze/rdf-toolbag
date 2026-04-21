@@ -6,7 +6,7 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
-import { deduplicateTable, PropertySelector, type MulticardinalRow } from "@/lib_index";
+import { deduplicateTable, SyncPropertySelector, type MulticardinalRow } from "@/lib_index";
 import { demangleVarName, formatQuery } from "@/misc/complex_property_query_builder";
 import { formatUniversalPaginatorQuery, formatUniversalPaginatorQueryCounter, requestAsSparqlTableResult, type SparqlTableResult } from "@/sparql_queries";
 import { skipToken, useQuery, type UseQueryResult } from "@tanstack/react-query";
@@ -201,12 +201,6 @@ function LimitSection({
             value,
         }));
 
-    // HACK: PropertySelector demands this
-    const suggestionsQueryResult = useQuery({
-        queryKey: ["LimitSection", suggestions],
-        queryFn: async () => suggestions,
-    });
-
     return (
         <>
             <div className="flex flex-col gap-4">
@@ -227,8 +221,8 @@ function LimitSection({
                     onValueChange={setGroupOffset}
                 />
                 <p>Id properties</p>
-                <PropertySelector
-                    suggestionsQueryResult={suggestionsQueryResult}
+                <SyncPropertySelector
+                    suggestions={suggestions}
                     value={idVars}
                     onValueChange={setIdVars}
                 />

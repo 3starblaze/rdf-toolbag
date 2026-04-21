@@ -170,3 +170,148 @@ export function PropertySelector({
         </div>
     );
 }
+
+// HACK: A lot of duplication with PropertySelector
+/**
+ * Like SingleStringComboBox but for synchronous suggestions.
+ */
+export function SyncSingleStringCombobox({
+    value,
+    onValueChange,
+    suggestions: initialSuggestions,
+    placeholder,
+    hiddenValueList,
+}: {
+    value: string,
+    onValueChange: (newValue: string) => void,
+    suggestions: { label: string, value: string }[],
+    /** Which values should not be displayed in suggestions. */
+    hiddenValueList?: string[],
+    placeholder?: string,
+}) {
+    const suggestions = initialSuggestions.filter(
+        ({ value }) => !hiddenValueList || !hiddenValueList.includes(value)
+    );
+
+    const valueToLabel = (targetValue: string) => suggestions
+        ?.find((item) => item.value === targetValue)?.label ?? targetValue;
+
+    // NOTE: It's important to set the initial value correctly because it could hold stale data.
+    const [inputValue, setInputValue] = useState(valueToLabel(value));
+    const shouldSuggestCustom = inputValue && (
+        !suggestions || !suggestions.find((item) => item.value === inputValue)
+    );
+
+    return (
+        <Combobox
+            inputValue={inputValue}
+            onInputValueChange={setInputValue}
+            value={value}
+            onValueChange={(newValue) => onValueChange(newValue || "")}
+            items={[
+                ...(shouldSuggestCustom ? [{
+                    label: inputValue,
+                    value: inputValue,
+                    isCustom: true,
+                }] : []),
+                ...suggestions ?? [],
+            ]}
+            itemToStringLabel={valueToLabel}
+        >
+            <ComboboxInput
+                className="grow"
+                placeholder={placeholder}
+            >
+            </ComboboxInput>
+            <ComboboxContent>
+                <ComboboxEmpty>
+                    Nothing found
+                </ComboboxEmpty>
+                <ComboboxList>
+                    {(item, i) => (
+                        <ComboboxItem key={`${i}-${item}`} value={item.value}>
+                            {item.isCustom ? (
+                                `Use "${item.label}"`
+                            ) : item.label}
+                        </ComboboxItem>
+                    )}
+                </ComboboxList>
+            </ComboboxContent>
+        </Combobox>
+    );
+}
+
+// HACK: A lot of duplication with PropertySelector
+/**
+ * Like PropertySelector but for synchronous suggestions.
+ */
+export function SyncPropertySelector({
+    suggestions: initialSuggestions,
+    value: controlledValue,
+    defaultValue,
+    onValueChange,
+    addButtonContent = "+",
+}: {
+    suggestions: { label: string, value: string }[],
+    value?: string[],
+    defaultValue?: string[],
+    onValueChange?: (newValue: string[]) => void,
+    addButtonContent?: string,
+}) {
+    const [selectedProperties, setSelectedProperties] = useControllableState<string[]>({
+        prop: controlledValue,
+        defaultProp: defaultValue ?? [],
+        onChange: onValueChange,
+    });
+
+    const unselectedSuggestions = initialSuggestions
+        ?.filter((item) => !selectedProperties.includes(item.value)) ?? [];
+
+    // NOTE: This is used to add the current value to suggestions. If we just pass
+    // `unselectedSuggestions`, we lose the currently selected item's label which is undesirable.
+    // NOTE: this is wrapped as array so that we can easily spread the result.
+    const valueToSuggestion = (targetValue: string) => {
+        const maybeRes = initialSuggestions?.find((suggestion) => suggestion.value === targetValue);
+        return maybeRes ? [maybeRes] : [];
+    };
+
+    return (
+        <div className="max-w-prose flex flex-col gap-2">
+            <div className="flex flex-col gap-1">
+                {selectedProperties.map((item, i) => (
+                    <div
+                        key={`${i}-${item}`}
+                        className="flex gap-2"
+                    >
+                        <SyncSingleStringCombobox
+                            value={item}
+                            onValueChange={(val) => setSelectedProperties([
+                                ...selectedProperties.slice(0, i),
+                                val,
+                                ...selectedProperties.slice(i + 1),
+                            ])}
+                            suggestions={[...valueToSuggestion(item), ...unselectedSuggestions]}
+                        />
+                        <Button
+                            className="cursor-pointer"
+                            variant="destructive"
+                            onClick={() => setSelectedProperties([
+                                ...selectedProperties.slice(0, i),
+                                ...selectedProperties.slice(i + 1),
+                            ])}
+                        >
+                            -
+                        </Button>
+                    </div>
+                ))}
+            </div>
+            <Button
+                className="cursor-pointer"
+                variant="outline"
+                onClick={() => setSelectedProperties((old) => [...old, ""])}
+            >
+                {addButtonContent}
+            </Button>
+        </div>
+    );
+}

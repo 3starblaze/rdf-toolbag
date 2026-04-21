@@ -2,7 +2,7 @@ import { MultiCardinalTableServer, type CountPayload } from "@/components/multi-
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
-import { deduplicateTable, PropertySelector } from "@/lib_index";
+import { deduplicateTable, SyncPropertySelector } from "@/lib_index";
 import { formatUniversalPaginatorQuery, formatUniversalPaginatorQueryCounter, requestAsSparqlTableResult, RequestError } from "@/sparql_queries";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { Suspense, use, useMemo, useState, type ReactNode } from "react";
@@ -197,18 +197,11 @@ export default function PaginatedDeduplicationView({
 
     const deduplicatedData = data && deduplicateTable(data, idCols);
 
-    // NOTE: this is really hacky but we need to pass a query result and this is the simplest way
-    // to get a queryResult
-    const suggestionsQueryResult = useQuery({
-        queryKey: ["findSuggestions", suggestions],
-        queryFn: async () => suggestions,
-    });
-
     return (
         <div className="flex flex-col gap-2">
             <p className="text-sm font-bold">Select properties</p>
-            <PropertySelector
-                suggestionsQueryResult={suggestionsQueryResult}
+            <SyncPropertySelector
+                suggestions={suggestions}
                 value={draftIdCols}
                 onValueChange={setDraftIdCols}
             />
