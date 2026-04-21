@@ -4,7 +4,11 @@ export {
     default as ComplexPropertySelector,
 } from "@/components/complex_property_selector";
 export { PortalContext } from "@/components/ui/portal_context";
-export { formatMultiCardinalTableAsSelectQuery } from "@/sparql_queries";
+export {
+    formatMultiCardinalTableAsSelectQuery,
+    formatUniversalPaginatorQuery,
+    formatUniversalPaginatorQueryCounter,
+} from "@/sparql_queries";
 export {
     type MulticardinalRow,
     tableToRows,
@@ -15,3 +19,7 @@ export {
     MultiCardinalTableServer,
     type CountPayload,
 } from "@/components/multi-cardinal-table";
+export {
+    formatQuery,
+    demangleVarName,
+} from "@/misc/complex_property_query_builder";
