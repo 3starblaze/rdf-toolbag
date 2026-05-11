@@ -28,6 +28,7 @@ function ComplexPropertySelectorFragment({
     onValueChange,
     dataPropFetcher,
     objectPropFetcher,
+    rdfTypeFetcher,
     rdfType,
     addButtonContent = "+",
     /**
@@ -108,6 +109,7 @@ function ComplexPropertySelectorFragment({
                                 ])}
                                 dataPropFetcher={dataPropFetcher}
                                 objectPropFetcher={objectPropFetcher}
+                                rdfTypeFetcher={rdfTypeFetcher}
                                 recursionDepth={recursionDepth + 1}
                             />
                         </CollapsibleContent>
@@ -209,6 +211,7 @@ function ComplexPropertySelectorBase({
                     addButtonContent="Add object property"
                     dataPropFetcher={dataPropFetcher}
                     objectPropFetcher={objectPropFetcher}
+                    rdfTypeFetcher={rdfTypeFetcher}
                     rdfType={selection.rdfType}
                 />
             </div>
