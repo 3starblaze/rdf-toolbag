@@ -17,6 +17,8 @@ export interface ComplexPropertySelection {
     }[],
 }
 
+type PropFetcher = (rdfType: string | null) => Promise<{ value: string, label: string }[]>;
+
 export function makeDefaultSelection(): ComplexPropertySelection {
     return { rdfType: "", dataProps: [], objectProps: [] };
 }
@@ -38,8 +40,8 @@ function ComplexPropertySelectorFragment({
 }: {
     value?: ComplexPropertySelection["objectProps"],
     onValueChange?: (newValue: ComplexPropertySelection["objectProps"]) => void,
-    dataPropFetcher?: (rdfType: string) => Promise<{ value: string, label: string }[]>,
-    objectPropFetcher?: (rdfType: string) => Promise<{ value: string, label: string }[]>,
+    dataPropFetcher?: PropFetcher,
+    objectPropFetcher?: PropFetcher,
     rdfTypeFetcher?: () => Promise<{ value: string, label: string }[]>,
     rdfType: string,
     defaultValue?: ComplexPropertySelection["objectProps"],
@@ -52,10 +54,12 @@ function ComplexPropertySelectorFragment({
         onChange: onValueChange,
     });
 
+    const nulledRdfType = (rdfType === "") ? null : rdfType;
+
     const objPropQuery = useQuery({
-        queryKey: ["ComplexPropertySelector", "objectProp", rdfType],
-        queryFn: (rdfType && objectPropFetcher)
-            ? (() => objectPropFetcher(rdfType))
+        queryKey: ["ComplexPropertySelector", "objectProp", nulledRdfType],
+        queryFn: objectPropFetcher
+            ? (() => objectPropFetcher(nulledRdfType))
             : skipToken,
     });
 
@@ -136,8 +140,8 @@ interface ComplexPropertySelectorProps {
     selection?: ComplexPropertySelection,
     onSelectionChange?: (selection: ComplexPropertySelection) => void,
     defaultSelection?: ComplexPropertySelection,
-    dataPropFetcher?: (rdfType: string) => Promise<{ value: string, label: string }[]>,
-    objectPropFetcher?: (rdfType: string) => Promise<{ value: string, label: string }[]>,
+    dataPropFetcher?: PropFetcher,
+    objectPropFetcher?: PropFetcher,
     rdfTypeFetcher?: () => Promise<{ value: string, label: string }[]>,
     prefixMap?: { [prefix: string]: string },
     /**
@@ -166,10 +170,12 @@ function ComplexPropertySelectorBase({
         queryFn: rdfTypeFetcher ?? skipToken,
     })
 
+    const nulledRdfType = (selection.rdfType === "") ? null : selection.rdfType;
+
     const dataPropQuery = useQuery({
-        queryKey: ["ComplexPropertySelector", "dataProp", selection.rdfType],
-        queryFn: (selection.rdfType && dataPropFetcher)
-               ? (() => dataPropFetcher(selection.rdfType))
+        queryKey: ["ComplexPropertySelector", "dataProp", nulledRdfType],
+        queryFn: dataPropFetcher
+               ? (() => dataPropFetcher(nulledRdfType))
                : skipToken,
     });
 

@@ -83,9 +83,13 @@ LIMIT ${limit}
     return res;
 }
 
-async function getTypeSuggestions(url: URL, rdfType: string): Promise<string[]> {
+async function getTypeSuggestions(url: URL, rdfType: string | null): Promise<string[]> {
     const limit = 100;
-    const queryString = `SELECT DISTINCT ?p WHERE { ?s ?p ?o . ?s a <${rdfType}> } LIMIT ${limit}`;
+    const whereBlock = ["?s ?p ?o .", (rdfType !== null) && `?s a <${rdfType}> .`]
+        .filter((x) => x)
+        .join(" ");
+
+    const queryString = `SELECT DISTINCT ?p WHERE { ${whereBlock} } LIMIT ${limit}`;
 
     const res = await requestAsSparqlTableResult(url, queryString);
     return res.results.bindings.map((row) => row["p"].value);
