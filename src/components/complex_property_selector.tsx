@@ -17,7 +17,7 @@ export interface ComplexPropertySelection {
     }[],
 }
 
-type PropFetcher = (rdfType: string | null) => Promise<{ value: string, label: string }[]>;
+export type PropFetcher = (rdfType: string | null) => Promise<{ value: string, label: string }[]>;
 
 export function makeDefaultSelection(): ComplexPropertySelection {
     return { rdfType: "", dataProps: [], objectProps: [] };
@@ -136,7 +136,7 @@ function ComplexPropertySelectorFragment({
     );
 }
 
-interface ComplexPropertySelectorProps {
+export interface ComplexPropertySelectorProps {
     selection?: ComplexPropertySelection,
     onSelectionChange?: (selection: ComplexPropertySelection) => void,
     defaultSelection?: ComplexPropertySelection,
