@@ -184,6 +184,7 @@ function ComplexPropertySelectorBase({
             <div>
                 <p>Type</p>
                 <SingleStringCombobox
+                    key={selection.rdfType}
                     suggestionsQueryResult={rdfTypeQuery}
                     value={selection.rdfType}
                     onValueChange={(newRdfType) => setSelection({
