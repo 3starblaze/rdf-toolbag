@@ -10,7 +10,7 @@ import { deduplicateTable, SyncPropertySelector, type MulticardinalRow } from "@
 import { demangleVarName, formatQuery } from "@/misc/complex_property_query_builder";
 import { formatUniversalPaginatorQuery, formatUniversalPaginatorQueryCounter, requestAsSparqlTableResult, type SparqlTableResult } from "@/sparql_queries";
 import { skipToken, useQuery, type UseQueryResult } from "@tanstack/react-query";
-import { ChevronDown, Info } from "lucide-react";
+import { ChevronDown, ChevronRight, Info } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 
 function CollapsedInfo({
@@ -350,6 +350,21 @@ function QueryResult({
             rows={rows}
             countPayload={countPayload}
             pagination={pagination}
+            renderHeader={(colName) => {
+                const parts = colName.split(">");
+                return (
+                    <div className="font-bold flex flex-col gap-1">
+                        {parts.map((part, i) => (
+                            <div className="flex items-start">
+                                <span className="font-normal">
+                                    {(i !== 0) && <ChevronRight className="size-4" />}
+                                </span>
+                                <span className="font-bold">{part}</span>
+                            </div>
+                        ))}
+                    </div>
+                );
+            }}
             onPaginationChange={({ pageIndex, pageSize }) => onQuerySelectionChange({
                 ...querySelection,
                 groupOffset: pageIndex * pageSize,

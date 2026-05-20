@@ -20,16 +20,23 @@ import PaginatedTable from "./paginated_table";
 import { useControllableState } from "@radix-ui/react-use-controllable-state";
 import { ColumnResizer } from "./column_resizer";
 import { cn } from "@/lib/utils";
+import type { ReactNode } from "react";
 
-function getColumns(idCols: string[], restCols: string[]) {
+function getColumns(
+    idCols: string[],
+    restCols: string[],
+    renderHeader?: (colName: string) => ReactNode,
+) {
     const idColumns: ColumnDef<MulticardinalRow>[] = idCols.map((idCol) => ({
         id: idCol,
         accessorFn: (row) => row.idValues[idCol],
+        ...(renderHeader && { header: () => renderHeader(idCol) }),
     }));
 
     const valueColumns: ColumnDef<MulticardinalRow>[] = restCols.map((restCol) => ({
         id: restCol,
         accessorFn: (row) => row.restValues[restCol],
+        ...(renderHeader && { header: () => renderHeader(restCol) }),
         cell: ({ getValue }) => {
             const val = getValue<string[] | undefined>() ?? [];
 
@@ -62,10 +69,12 @@ export default function MultiCardinalTable({
     rows,
     pagination: providedPagination,
     onPaginationChange,
+    renderHeader,
 }: {
     rows: MulticardinalRow[],
     pagination?: PaginationState,
     onPaginationChange?: (state: PaginationState) => void,
+    renderHeader?: (colName: string) => ReactNode,
 }) {
     // FIXME: We need a more sophisticated way to handle 0 rows, perhaps we need a type for whole
     // table, not just rows.
@@ -76,7 +85,7 @@ export default function MultiCardinalTable({
     const firstRow = rows[0];
     const { idCols, restCols } = firstRow;
 
-    const columns = getColumns(idCols, restCols);
+    const columns = getColumns(idCols, restCols, renderHeader);
 
     const [pagination, setPagination] = useControllableState<PaginationState>({
         prop: providedPagination,
@@ -189,16 +198,18 @@ export function MultiCardinalTableServer({
     onPaginationChange,
     countPayload,
     rowCountLimit,
+    renderHeader,
 }: {
     rows: MulticardinalRow[],
     pagination?: PaginationState,
     onPaginationChange?: (state: PaginationState) => void,
     countPayload?: CountPayload,
     rowCountLimit?: number,
+    renderHeader?: (colName: string) => ReactNode,
 }) {
     const firstRow = rows[0] as MulticardinalRow | undefined;
 
-    const columns = firstRow ? getColumns(firstRow.idCols, firstRow.restCols) : [];
+    const columns = firstRow ? getColumns(firstRow.idCols, firstRow.restCols, renderHeader) : [];
 
     const [pagination, setPagination] = useControllableState<PaginationState>({
         prop: providedPagination,
