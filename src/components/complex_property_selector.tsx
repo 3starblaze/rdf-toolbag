@@ -74,7 +74,6 @@ function ComplexPropertySelectorFragment({
                         >
                             <SingleStringCombobox
                                 suggestionsQueryResult={objPropQuery}
-                                hiddenValueList={value.map((item) => item.name)}
                                 value={item.name}
                                 onValueChange={(newItemName) => setValue([
                                     ...value.slice(0, i),

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "./ui/button";
 import { Combobox, ComboboxContent, ComboboxList, ComboboxItem, ComboboxInput, ComboboxEmpty, ComboboxStatus } from "./ui/combobox";
 import {
@@ -34,6 +34,11 @@ export function SingleStringCombobox({
     const shouldSuggestCustom = inputValue && (
         !suggestions || !suggestions.find((item) => item.value === inputValue)
     );
+
+    // NOTE: When value is changed the label must be forcefully updated
+    useEffect(() => {
+        setInputValue(valueToLabel(value));
+    }, [value]);
 
     return (
         <Combobox
@@ -201,6 +206,11 @@ export function SyncSingleStringCombobox({
     const shouldSuggestCustom = inputValue && (
         !suggestions || !suggestions.find((item) => item.value === inputValue)
     );
+
+    // NOTE: When value is changed the label must be forcefully updated
+    useEffect(() => {
+        setInputValue(valueToLabel(value));
+    }, [value]);
 
     return (
         <Combobox

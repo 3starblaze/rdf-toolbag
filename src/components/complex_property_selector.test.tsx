@@ -1,7 +1,11 @@
 import { afterEach, expect, test } from "vitest";
 import { render, screen, cleanup } from '@testing-library/react'
 import userEvent from '@testing-library/user-event';
-import ComplexPropertySelector, { makeDefaultSelection, type ComplexPropertySelection } from './complex_property_selector'
+import ComplexPropertySelector, {
+  makeDefaultSelection,
+  type ComplexPropertySelection,
+  type PropFetcher,
+} from './complex_property_selector'
 import { useState } from "react";
 
 afterEach(() => {
@@ -137,4 +141,64 @@ test("no object property smearing", async () => {
 
   expect(findCombobox("alpha")).toBeUndefined();
   expect(findCombobox("beta")).not.toBeUndefined();
+});
+
+function findComboboxByValue(value: string): HTMLElement {
+  const combobox = screen.getAllByRole("combobox").find((el) => (el as any).value === value);
+
+  if (!combobox) throw new Error("could not find combobox");
+
+  return combobox;
+}
+
+test("data prop labels are shown", async () => {
+  const user = userEvent.setup();
+
+  const selection: ComplexPropertySelection = {
+    rdfType: "",
+    dataProps: [
+      { name: "data_value" },
+    ],
+    objectProps: [],
+  };
+
+  const dataPropFetcher: PropFetcher = async () => {
+    return [
+      { label: "data_label", value: "data_value" },
+    ];
+  };
+
+  render(<ComplexPropertySelector {...{selection, dataPropFetcher}} />);
+
+  // NOTE: clicking and unclicking the combobox because there's label update issue
+  await user.click(findComboboxByValue("data_value"));
+  await user.click(document.body);
+
+  expect(screen.queryAllByDisplayValue("data_label")).not.toHaveLength(0);
+});
+
+test("object prop labels are shown", async () => {
+  const user = userEvent.setup();
+
+  const selection: ComplexPropertySelection = {
+    rdfType: "",
+    dataProps: [],
+    objectProps: [
+      { name: "cool_value", selection: makeDefaultSelection() },
+    ],
+  };
+
+  const objectPropFetcher: PropFetcher = async () => {
+    return [
+      { label: "cool_label", value: "cool_value" },
+    ];
+  };
+
+  render(<ComplexPropertySelector {...{selection, objectPropFetcher}} />);
+
+  // NOTE: clicking and unclicking the combobox because there's label update issue
+  await user.click(findComboboxByValue("cool_value"));
+  await user.click(document.body);
+
+  expect(screen.queryAllByDisplayValue("cool_label")).not.toHaveLength(0);
 });
