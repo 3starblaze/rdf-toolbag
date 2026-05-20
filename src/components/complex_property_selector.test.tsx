@@ -1,8 +1,12 @@
-import { expect, test } from "vitest";
-import { render, screen, renderHook } from '@testing-library/react'
+import { afterEach, expect, test } from "vitest";
+import { render, screen, cleanup } from '@testing-library/react'
 import userEvent from '@testing-library/user-event';
 import ComplexPropertySelector, { makeDefaultSelection, type ComplexPropertySelection } from './complex_property_selector'
 import { useState } from "react";
+
+afterEach(() => {
+  cleanup();
+});
 
 test("type is updated in UI", () => {
   const selection: ComplexPropertySelection = {
@@ -40,6 +44,51 @@ test("no type smearing", async () => {
 
   expect(screen.queryAllByDisplayValue("initialType")).toHaveLength(0);
   expect(screen.queryAllByDisplayValue("freshType")).not.toHaveLength(0);
+});
+
+test("no data property smearing", async () => {
+  const user = userEvent.setup();
+
+  function SelectionWrapper({
+    initialValue,
+  }: {
+    initialValue: ComplexPropertySelection
+  }) {
+    const [selection, setSelection] = useState(initialValue);
+
+    return (
+      <ComplexPropertySelector
+        selection={selection}
+        onSelectionChange={setSelection}
+      />
+    );
+  }
+
+  const initialSelection: ComplexPropertySelection = {
+    rdfType: "",
+    dataProps: [
+      { name: "alpha" },
+      { name: "beta" },
+    ],
+   objectProps: [],
+  };
+
+  render(<SelectionWrapper initialValue={initialSelection} />);
+
+  function findCombobox(value: string) {
+    return screen.getAllByRole("combobox").find((el) => (el as any).value === value)
+  }
+
+  expect(findCombobox("alpha")).not.toBeUndefined();
+  expect(findCombobox("beta")).not.toBeUndefined();
+
+  const deleteButtons = screen.queryAllByRole("button").filter((el) => el.innerHTML === "-");
+  expect(deleteButtons).toHaveLength(initialSelection.dataProps.length);
+
+  await user.click(deleteButtons[0]);
+
+  expect(findCombobox("alpha")).toBeUndefined();
+  expect(findCombobox("beta")).not.toBeUndefined();
 });
 
 // NOTE: Testing a previously-found bug that didn't visually update the comboboxes when one of the
