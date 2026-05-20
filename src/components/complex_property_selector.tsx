@@ -69,7 +69,7 @@ function ComplexPropertySelectorFragment({
                 {value.map((item, i) => (
                     <Collapsible className="flex flex-col group gap-2">
                         <div
-                            key={i}
+                            key={item.name}
                             className="flex gap-2"
                         >
                             <SingleStringCombobox
