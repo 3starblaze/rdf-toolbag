@@ -6,13 +6,17 @@ function collectConstraints(
     thisPrefix: string,
     { rdfType, dataProps, objectProps }: ComplexPropertySelection,
 ): string[] {
+    function wrapOptional(constraint: string): string {
+        return `OPTIONAL { ${constraint} }`;
+    }
+
     const dataPropConstraints = dataProps.map(
-        ({ name }, i) => `?${thisPrefix} <${name}> ?${thisPrefix}_d_${i} .`,
+        ({ name }, i) => wrapOptional(`?${thisPrefix} <${name}> ?${thisPrefix}_d_${i} .`),
     );
 
     const objectPropConstraints = objectProps.flatMap(
         ({ name, selection }, i) => [
-            `?${thisPrefix} <${name}> ?${thisPrefix}_o_${i} .`,
+            wrapOptional(`?${thisPrefix} <${name}> ?${thisPrefix}_o_${i} .`),
             ...collectConstraints(`${thisPrefix}_o_${i}`, selection),
         ],
     );
