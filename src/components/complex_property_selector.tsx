@@ -206,7 +206,7 @@ function ComplexPropertySelectorBase({
                 />
             </div>
             <div>
-                <p>Properties (class)</p>
+                <p>Properties (object)</p>
                 <ComplexPropertySelectorFragment
                     value={selection.objectProps}
                     onValueChange={(newValue) => setSelection({

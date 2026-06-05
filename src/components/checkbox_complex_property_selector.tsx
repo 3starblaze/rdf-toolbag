@@ -290,7 +290,7 @@ function ComplexPropertySelectorBase({
                 </div>
             </div>
             <div>
-                <p>Properties (class)</p>
+                <p>Properties (object)</p>
                 <div className="max-h-40 overflow-scroll">
                     {objPropQuery.data && (
                         <ObjectPropCheckboxList
