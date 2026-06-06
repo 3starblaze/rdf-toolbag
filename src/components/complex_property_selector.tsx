@@ -67,7 +67,10 @@ function ComplexPropertySelectorFragment({
         <div className="max-w-prose flex flex-col gap-2">
             <div className="flex flex-col gap-1">
                 {value.map((item, i) => (
-                    <Collapsible className="flex flex-col group gap-2">
+                    <Collapsible
+                        key={item.name}
+                        className="flex flex-col group gap-2"
+                    >
                         <div
                             key={item.name}
                             className="flex gap-2"
@@ -91,12 +94,10 @@ function ComplexPropertySelectorFragment({
                             >
                                 -
                             </Button>
-                            <CollapsibleTrigger>
-                                <Button className="cursor-pointer">
-                                    <ChevronDown
-                                        className="size-4 group-data-[state=open]:rotate-180 transition-transform"
-                                    />
-                                </Button>
+                            <CollapsibleTrigger className="cursor-pointer">
+                                <ChevronDown
+                                    className="size-4 group-data-[state=open]:rotate-180 transition-transform"
+                                />
                             </CollapsibleTrigger>
                         </div>
                         <CollapsibleContent className={cn(
