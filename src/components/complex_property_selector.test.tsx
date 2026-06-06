@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from "vitest";
 import { render, screen, cleanup } from '@testing-library/react'
-import userEvent from '@testing-library/user-event';
+import userEvent, { type UserEvent } from '@testing-library/user-event';
 import ComplexPropertySelector, {
   makeDefaultSelection,
   type ComplexPropertySelection,
@@ -143,12 +143,12 @@ test("no object property smearing", async () => {
   expect(findCombobox("beta")).not.toBeUndefined();
 });
 
-function findComboboxByValue(value: string): HTMLElement {
-  const combobox = screen.getAllByRole("combobox").find((el) => (el as any).value === value);
-
-  if (!combobox) throw new Error("could not find combobox");
-
-  return combobox;
+// NOTE: This hack is required to await immediately scheduled async functions.
+// NOTE: This function was created for combobox that is combined with async suggestion function. It
+// works but I can't guarantee there aren't race conditions. I imagine the suggestion function is
+// scheduled before user.click and that's why it works.
+async function waitAsync(user: UserEvent): Promise<void> {
+  await user.click(document.body);
 }
 
 test("data prop labels are shown", async () => {
@@ -170,9 +170,7 @@ test("data prop labels are shown", async () => {
 
   render(<ComplexPropertySelector {...{selection, dataPropFetcher}} />);
 
-  // NOTE: clicking and unclicking the combobox because there's label update issue
-  await user.click(findComboboxByValue("data_value"));
-  await user.click(document.body);
+  await waitAsync(user);
 
   expect(screen.queryAllByDisplayValue("data_label")).not.toHaveLength(0);
 });
@@ -196,9 +194,7 @@ test("object prop labels are shown", async () => {
 
   render(<ComplexPropertySelector {...{selection, objectPropFetcher}} />);
 
-  // NOTE: clicking and unclicking the combobox because there's label update issue
-  await user.click(findComboboxByValue("cool_value"));
-  await user.click(document.body);
+  await waitAsync(user);
 
   expect(screen.queryAllByDisplayValue("cool_label")).not.toHaveLength(0);
 });
