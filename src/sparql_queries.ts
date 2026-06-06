@@ -476,6 +476,7 @@ export function formatUniversalPaginatorQuery({
   idVars,
   groupLimit,
   groupOffset,
+  globalLimit,
 }: {
   queryToWrap: string,
   idVars: string[],
@@ -507,7 +508,7 @@ OFFSET ${groupOffset}`;
     lineAwareIndent([
       "{", lineAwareIndent(queryToWrap), "}"
     ].join("\n")),
-    "}",
+    `} LIMIT ${globalLimit}`,
   ].join("\n");
 
   return fmt;
