@@ -25,3 +25,6 @@ dist-ssr
 
 # Sqlite3 databases
 *.db
+
+*storybook.log
+storybook-static
