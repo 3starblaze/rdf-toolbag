@@ -137,13 +137,18 @@ function ComplexPropertySelectorFragment({
 }
 
 export interface ComplexPropertySelectorProps {
+    /** Selection to show. */
     selection?: ComplexPropertySelection,
+    /** Callback invoked on selection change. */
     onSelectionChange?: (selection: ComplexPropertySelection) => void,
+    /** Initial selection value for uncontrolled state. */
     defaultSelection?: ComplexPropertySelection,
+    /** Data property suggestion function. */
     dataPropFetcher?: PropFetcher,
+    /** Object property suggestion function. */
     objectPropFetcher?: PropFetcher,
+    /** Type suggestion function. */
     rdfTypeFetcher?: () => Promise<{ value: string, label: string }[]>,
-    prefixMap?: { [prefix: string]: string },
     /**
      * Recursion index that is used to apply style properly.
      */
