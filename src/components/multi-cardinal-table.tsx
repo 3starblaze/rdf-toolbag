@@ -192,6 +192,9 @@ export interface CountPayload {
 }
 
 // FIXME: A lot of duplication with MultiCardinalTable
+/**
+ * Render server-side paginated multi-cardinal rows into table.
+ */
 export function MultiCardinalTableServer({
     rows,
     pagination: providedPagination,
@@ -200,11 +203,17 @@ export function MultiCardinalTableServer({
     rowCountLimit,
     renderHeader,
 }: {
+    /** Currently visible rows to display. */
     rows: MulticardinalRow[],
+    /** Current pagination state */
     pagination?: PaginationState,
+    /** Callback invoked during pagination change. */
     onPaginationChange?: (state: PaginationState) => void,
+    /** Row count information. */
     countPayload?: CountPayload,
+    /** Limit that was used to obtain `countPayload`. */
     rowCountLimit?: number,
+    /** Component for overriding header cell render. */
     renderHeader?: (colName: string) => ReactNode,
 }) {
     const firstRow = rows[0] as MulticardinalRow | undefined;
