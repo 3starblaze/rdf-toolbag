@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { MultiCardinalTableServer } from './multi-cardinal-table';
 import { useState } from 'react';
 import type { MulticardinalRow } from '@/multi-cardinal-table-util';
-
+import { expect, findByText } from 'storybook/test';
 
 const meta = {
   title: "components/MultiCardinalTable",
@@ -187,5 +187,73 @@ export const CustomColumn: Story = {
                 </div>
             );
         },
+    },
+}
+
+export const CanOverpageOnNoSizeInformation: Story = {
+  args: {
+    rows: [],
+  },
+    play: async ({ canvas, userEvent, canvasElement, step }) => {
+        const currentPageNumberInitial = canvasElement.querySelector('[data-current-page]');
+        const nextPageButton = canvas.getByText(">");
+
+        await step("Assert initial state", () => {
+            expect(nextPageButton).not.toBeDisabled();
+
+            const lastPageButton = canvas.getByText(">>");
+
+            // NOTE: Page count is not known and neither is the last page
+            expect(lastPageButton).toBeDisabled();
+
+            expect(currentPageNumberInitial).toBeInTheDocument();
+            expect(currentPageNumberInitial).toHaveTextContent("1");
+        });
+
+        await step("Page can be changed", async () => {
+            await userEvent.click(nextPageButton);
+
+            expect(currentPageNumberInitial).toHaveTextContent("2");
+        });
+    },
+}
+
+export const CanOverpageOnPartialSizeInformation: Story = {
+    args: {
+        rows: [],
+        countPayload: { globalCount: 1000, groupedCount: 11 },
+        rowCountLimit: 1000,
+    },
+    play: async ({ canvas, userEvent, canvasElement, step }) => {
+        // NOTE: This test's groupedCount must exceed pageSize in order to also test last page
+        // button
+        const expectedPageCount = 2;
+
+        const currentPageNumber = canvasElement.querySelector('[data-current-page]');
+        if (!currentPageNumber) throw new Error("Unexpected missing item!");
+        const nextPageButton = canvas.getByText(">");
+        const lastPageButton = canvas.getByText(">>");
+
+        await step("Assert initial state", () => {
+            expect(nextPageButton).not.toBeDisabled();
+
+            // NOTE: Should not be disabled because
+            expect(lastPageButton).not.toBeDisabled();
+
+            expect(currentPageNumber).toBeInTheDocument();
+            expect(currentPageNumber).toHaveTextContent("1");
+        });
+
+        await step("Can go to last (known) page", async () => {
+            await userEvent.click(lastPageButton);
+            expect(currentPageNumber).toHaveTextContent(`${expectedPageCount}`);
+            expect(lastPageButton).toBeDisabled();
+        })
+
+        await step("Can go beyond last (known) page", async () => {
+            await userEvent.click(nextPageButton);
+
+            expect(currentPageNumber).toHaveTextContent(`${expectedPageCount + 1}`);
+        });
     },
 }

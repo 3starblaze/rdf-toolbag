@@ -156,6 +156,9 @@ export function ServerSidePaginationBar<T>({
         Match.exhaustive,
     );
 
+    // NOTE: If count is not exact we should allow user to keep going
+    const forceEnableNextPage = !isRowCountExact;
+
     return (
         <div className="flex flex-row items-center gap-4 bg-gray-50">
             <div className="flex flex-row gap-2 p-2 items-center">
@@ -172,11 +175,14 @@ export function ServerSidePaginationBar<T>({
                     {"<"}
                 </TableButton>
                 <p className="p-1">
-                    {pagination.pageIndex + 1} / {pageCountNode}
+                    <span data-current-page>
+                        {pagination.pageIndex + 1}
+                    </span>
+                    / {pageCountNode}
                 </p>
                 <TableButton
                     onClick={() => table.nextPage()}
-                    disabled={!table.getCanNextPage()}
+                    disabled={!(forceEnableNextPage || table.getCanNextPage())}
                 >
                     {">"}
                 </TableButton>
