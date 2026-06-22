@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { deduplicateTable, SyncPropertySelector, type MulticardinalRow } from "@/lib_index";
 import { demangleVarName, formatQuery } from "@/misc/complex_property_query_builder";
@@ -310,13 +309,13 @@ function makeCountPayloadFetcher({
 type QuerySelection = Parameters<typeof formatUniversalPaginatorQuery>[0];
 
 function QueryResult({
-    tableData,
+    fetchRawTable,
     querySelection,
     onQuerySelectionChange,
     columnRenamer,
     countPayload,
 }: {
-    tableData: SparqlTableResult,
+    fetchRawTable: () => Promise<SparqlTableResult>,
     querySelection: QuerySelection,
     onQuerySelectionChange: (newValue: QuerySelection) => void,
     columnRenamer: (oldName: string) => string,
@@ -343,11 +342,12 @@ function QueryResult({
         };
     }
 
-    const rows = deduplicateTable(tableData, querySelection.idVars).map(renameCols);
+    const fetchRows = () => fetchRawTable()
+        .then((tableData) => deduplicateTable(tableData, querySelection.idVars).map(renameCols))
 
     return (
         <MultiCardinalTableServer
-            rows={rows}
+            fetchRows={fetchRows}
             countPayload={countPayload}
             pagination={pagination}
             renderHeader={(colName) => {
@@ -461,6 +461,10 @@ export default function PropertyQueryBuilder({
     // in case.
     const labelMaker = (oldName: string): string => demangleVarName(oldName, selection) ?? oldName;
 
+    const fetchRawTable = querySelection
+        ? () => requestAsSparqlTableResult(url, formatUniversalPaginatorQuery(querySelection))
+        : () => { throw new Error("missing querySelection!") };
+
     const counterQueryResult = useQuery({
         queryKey: ["PropertyQueryBuilder", "queryCounter", url, querySelection],
         queryFn: querySelection
@@ -486,27 +490,28 @@ export default function PropertyQueryBuilder({
         <div className="flex flex-col gap-4">
             <H1>Debug information</H1>
             <DebugInformation
-                {...{selection, querySelection, queryResult, counterQueryResult}}
+                {...{ selection, querySelection, queryResult, counterQueryResult }}
             />
 
             <H1>Query results</H1>
 
-            <Button
-                variant="outline"
-                onClick={updateQuerySelection}
-                disabled={!paginationData}
-            >
-                Query {queryResult.isLoading && <Spinner />}
-            </Button>
+        <Button
+            variant="outline"
+            onClick={updateQuerySelection}
+            disabled={!paginationData}
+        >
+            Query
+        </Button>
 
-            {queryResult.data && querySelection && (
-                /* NOTE: Subtracting a healthy margin so that users can scroll past query content
-                 * without explicitly dragging a root scrollbar */
-                <div className="h-[calc(100vh-8rem)] overflow-y-auto">
-                    <QueryResult
-                        querySelection={querySelection}
+            {
+        querySelection && (
+            /* NOTE: Subtracting a healthy margin so that users can scroll past query content
+             * without explicitly dragging a root scrollbar */
+            <div className="h-[calc(100vh-8rem)] overflow-y-auto">
+                <QueryResult
+                    fetchRawTable={fetchRawTable}
+                    querySelection={querySelection}
                         onQuerySelectionChange={setQuerySelection}
-                        tableData={queryResult.data}
                         countPayload={counterQueryResult.data}
                         columnRenamer={labelMaker}
                     />

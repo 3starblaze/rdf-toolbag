@@ -21,6 +21,9 @@ import { useControllableState } from "@radix-ui/react-use-controllable-state";
 import { ColumnResizer } from "./column_resizer";
 import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
+import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
+import { Spinner } from "./ui/spinner";
+import { Button } from "./ui/button";
 
 // NOTE: Exported, just in case this data is needed
 export const defaultColumn = {
@@ -207,20 +210,11 @@ export interface CountPayload {
     groupedCount: number,
 }
 
-// FIXME: A lot of duplication with MultiCardinalTable
-/**
- * Render server-side paginated multi-cardinal rows into table.
- */
-export function MultiCardinalTableServer({
-    rows,
-    pagination: providedPagination,
-    onPaginationChange,
-    countPayload,
-    rowCountLimit,
-    renderHeader,
-}: {
-    /** Currently visible rows to display. */
-    rows: MulticardinalRow[],
+interface MultiCardinalTableServerProps {
+    /** Row fetcher that is called whenever new rows are required. */
+    fetchRows: ({}: {
+        pagination: PaginationState,
+    }) => Promise<MulticardinalRow[]>,
     /** Current pagination state */
     pagination?: PaginationState,
     /** Callback invoked during pagination change. */
@@ -231,16 +225,37 @@ export function MultiCardinalTableServer({
     rowCountLimit?: number,
     /** Component for overriding header cell render. */
     renderHeader?: (colName: string) => ReactNode,
-}) {
-    const firstRow = rows[0] as MulticardinalRow | undefined;
+}
 
-    const columns = firstRow ? getColumns(firstRow.idCols, firstRow.restCols, renderHeader) : [];
-
+// FIXME: A lot of duplication with MultiCardinalTable
+/**
+ * Render server-side paginated multi-cardinal rows into table.
+ */
+function MultiCardinalTableServerMain({
+    fetchRows,
+    pagination: providedPagination,
+    onPaginationChange,
+    countPayload,
+    rowCountLimit,
+    renderHeader,
+}: MultiCardinalTableServerProps) {
     const [pagination, setPagination] = useControllableState<PaginationState>({
         prop: providedPagination,
         defaultProp: defaultPagination,
         onChange: onPaginationChange,
     });
+
+    const rowsQuery = useQuery({
+        queryKey: ["MultiCardinalTableServer", pagination],
+        queryFn: () => fetchRows({ pagination }),
+        retry: false,
+    });
+
+    const rows = rowsQuery.data || [];
+
+    const firstRow = rows[0] as MulticardinalRow | undefined;
+
+    const columns = firstRow ? getColumns(firstRow.idCols, firstRow.restCols, renderHeader) : [];
 
     const table = useReactTable<MulticardinalRow>({
         data: rows,
@@ -260,16 +275,35 @@ export function MultiCardinalTableServer({
 
     const idCols = firstRow?.idCols;
 
-    // TODO: Support server-side pagination
-    // reuse the visual style, just swap some settings
+    function SingletonCell({
+        className,
+        ...props
+    }: React.ComponentProps<typeof TableCell>) {
+        return (
+            <TableRow>
+                <TableCell
+                    colSpan={columns.length}
+                    className={cn(
+                        "flex justify-center items-center p-4",
+                        className,
+                    )}
+                    {...props}
+                />
+            </TableRow>
+        )
+    }
+
+    // NOTE: If table width is 0px then there are no columns and we should not set the size
+    // explicitly in order to show status messages.
+    const tableStyle = (table.getCenterTotalSize() === 0) ? {} : {
+        width: table.getCenterTotalSize(),
+    };
 
     return (
         <div>
             <Table
                 className="table-fixed"
-                style={{
-                    width: table.getCenterTotalSize()
-                }}
+                style={tableStyle}
             >
                 <TableHeader>
                     {table.getHeaderGroups().map((headerGroup) => (
@@ -307,7 +341,23 @@ export function MultiCardinalTableServer({
                     ))}
                 </TableHeader>
                 <TableBody>
-                    {table.getRowModel().rows?.length ? (
+                    {rowsQuery.isLoading && (
+                        <SingletonCell>
+                            <Spinner role="status" />
+                        </SingletonCell>
+                    )}
+                    {rowsQuery.isError && (
+                        <SingletonCell className="flex flex-col gap-1">
+                            <p>Unexpected error while getting rows</p>
+                            <Button
+                                className="cursor-pointer"
+                                onClick={() => rowsQuery.refetch()}
+                            >
+                                 Retry
+                            </Button>
+                        </SingletonCell>
+                    )}
+                    {rowsQuery.isSuccess && (table.getRowModel().rows?.length ? (
                         table.getRowModel().rows.map((row) => (
                             <TableRow
                                 className="group"
@@ -330,12 +380,10 @@ export function MultiCardinalTableServer({
                             </TableRow>
                         ))
                     ) : (
-                        <TableRow>
-                            <TableCell colSpan={columns.length} className="h-24 text-center">
-                                No results.
-                            </TableCell>
-                        </TableRow>
-                    )}
+                        <SingletonCell>
+                            No results.
+                        </SingletonCell>
+                    ))}
                 </TableBody>
             </Table>
             <ServerSidePaginationBar
@@ -346,5 +394,15 @@ export function MultiCardinalTableServer({
                 rowCountLimit={rowCountLimit}
             />
         </div>
+    );
+}
+
+export function MultiCardinalTableServer(props: MultiCardinalTableServerProps) {
+    const queryClient = new QueryClient();
+
+    return (
+        <QueryClientProvider client={queryClient}>
+            <MultiCardinalTableServerMain {...props} />
+        </QueryClientProvider>
     );
 }

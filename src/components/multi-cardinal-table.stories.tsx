@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { MultiCardinalTableServer, defaultColumn } from './multi-cardinal-table';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import type { MulticardinalRow } from '@/multi-cardinal-table-util';
-import { expect } from 'storybook/test';
+import { expect, waitForElementToBeRemoved } from 'storybook/test';
 
 const meta = {
   title: "components/MultiCardinalTable",
@@ -14,13 +14,13 @@ type Story = StoryObj<typeof meta>;
 
 export const Empty: Story = {
   args: {
-    rows: [],
+    fetchRows: async () => [],
   },
 };
 
 export const WithData: Story = {
   args: {
-    rows: [
+    fetchRows: async () => [
       {
         idCols: [":key0", ":key1"],
         idValues: {
@@ -92,12 +92,11 @@ export const WithData: Story = {
 
 export const WithPagination: Story = {
   args: {
-    rows: [],
+    fetchRows: async () => [],
     countPayload: { globalCount: 1000, groupedCount: 30 },
   },
   // NOTE: Disable arguments in UI that will be overriden regardless
   argTypes: {
-    rows: { control: false },
     pagination: { control: false },
     onPaginationChange: { control: false },
   },
@@ -106,28 +105,32 @@ export const WithPagination: Story = {
 
     const [pagination, setPagination] = useState<Pagination>({ pageIndex: 0, pageSize: 10 });
 
-    const { pageSize, pageIndex } = pagination;
+    type FetchRows = React.ComponentProps<typeof MultiCardinalTableServer>["fetchRows"];
 
-    const rows: MulticardinalRow[] = Array(pageSize)
-      .fill(undefined)
-      .map((_, i) => ({
-        idCols: [":key0", ":key1"],
-        idValues: {
-          ":key0": `A${pageIndex}`,
-          ":key1": `B${i}`,
-        },
-        restCols: [":value0", ":valueConst"],
-        restValues: {
-          ":value0": ["Something", `page-${pagination.pageIndex}`],
-          ":valueConst": ["i stay the same"]
-        },
-      }));
+    const fetchRows: FetchRows  = async ({ pagination: { pageIndex, pageSize } }) => {
+          const rows: MulticardinalRow[] = Array(pageSize)
+              .fill(undefined)
+              .map((_, i) => ({
+                  idCols: [":key0", ":key1"],
+                  idValues: {
+                      ":key0": `A${pageIndex}`,
+                      ":key1": `B${i}`,
+                  },
+                  restCols: [":value0", ":valueConst"],
+                  restValues: {
+                      ":value0": ["Something", `page-${pagination.pageIndex}`],
+                      ":valueConst": ["i stay the same"]
+                  },
+              }));
+
+        return rows;
+      }
 
     return (
       <div className="">
         <MultiCardinalTableServer
           {...args}
-          rows={rows}
+          fetchRows={fetchRows}
           pagination={pagination}
           onPaginationChange={setPagination}
         />
@@ -138,7 +141,7 @@ export const WithPagination: Story = {
 
 export const WithRowCountLimit: Story = {
   args: {
-    rows: [],
+    fetchRows: async () => [],
     countPayload: { globalCount: 1000, groupedCount: 15 },
     rowCountLimit: 1000,
   },
@@ -146,7 +149,7 @@ export const WithRowCountLimit: Story = {
 
 export const CustomColumn: Story = {
     args: {
-        rows: [{
+        fetchRows: async() => [{
             idCols: ["ns3:key0", "ns2:key1"],
             idValues: {
                 "ns3:key0": `AA`,
@@ -192,7 +195,7 @@ export const CustomColumn: Story = {
 
 export const CanOverpageOnNoSizeInformation: Story = {
   args: {
-    rows: [],
+    fetchRows: async () => [],
   },
     play: async ({ canvas, userEvent, canvasElement, step }) => {
         const currentPageNumberInitial = canvasElement.querySelector('[data-current-page]');
@@ -220,7 +223,7 @@ export const CanOverpageOnNoSizeInformation: Story = {
 
 export const CanOverpageOnPartialSizeInformation: Story = {
     args: {
-        rows: [],
+        fetchRows: async () => [],
         countPayload: { globalCount: 1000, groupedCount: 11 },
         rowCountLimit: 1000,
     },
@@ -260,7 +263,7 @@ export const CanOverpageOnPartialSizeInformation: Story = {
 
 export const Resizable: Story = {
     args: {
-        rows: [
+        fetchRows: async () => [
             {
                 idCols: [":key0", ":key1"],
                 idValues: {
@@ -328,7 +331,10 @@ export const Resizable: Story = {
             },
         ],
     },
-    play: async ({ userEvent, canvasElement, step }) => {
+    play: async ({ userEvent, canvas, canvasElement, step }) => {
+        const spinner = canvas.queryByRole("status");
+        await waitForElementToBeRemoved(spinner);
+
         const columnIndex = 1;
         const dragHandle = canvasElement.querySelector(`[data-column-index="${columnIndex}"]`);
         if (!dragHandle) throw "Unexpected missing drag handle!";
@@ -363,3 +369,116 @@ export const Resizable: Story = {
         });
     },
 }
+
+function delayPromise(delay: number): Promise<void> {
+    return new Promise((resolve) => {
+        setTimeout(() => {
+            resolve();
+        }, delay);
+    })
+}
+
+function delayed<T>(
+  delay: number,
+  cb: () => Promise<T>,
+): () => Promise<T> {
+    return async () => {
+      await delayPromise(delay);
+      return await cb();
+    };
+}
+
+export const QueryFailure: Story = {
+    args: {
+      fetchRows: delayed(1000, () => { throw new Error("failure") }),
+    },
+    play: async ({ canvas }) => {
+        const errorMsg = await canvas.findByText("error", { exact: false });
+        expect(errorMsg).toBeInTheDocument();
+
+        const resetButton = canvas.getByText("retry", { exact: false });
+        expect(resetButton).toBeInTheDocument();
+    },
+}
+
+export const SlowSuccessfulQuery: Story = {
+  args: {
+    fetchRows: delayed(1000, async () => [{
+      idCols: [":key0", ":key1"],
+      idValues: {
+        ":key0": "AA",
+        ":key1": "BB",
+      },
+      restCols: [":value0"],
+      restValues: {
+        ":value0": ["query successful"],
+      },
+    }]),
+  },
+  play: async ({ canvas }) => {
+    const spinner = canvas.queryByRole("status");
+    expect(spinner).toBeInTheDocument();
+
+    await waitForElementToBeRemoved(spinner);
+    const tableItem = canvas.queryByText("query successful");
+    expect(tableItem).toBeInTheDocument();
+  },
+};
+
+export const SlowQueryFailThenSucceed: Story = {
+    args: {
+        // NOTE: Dummy arg specified to avoid typescript error
+        fetchRows: async () => [],
+    },
+    render: ({}) => {
+        const callCountRef = useRef(0);
+
+        const res: MulticardinalRow[] = [{
+            idCols: [":key0", ":key1"],
+            idValues: {
+                ":key0": "AA",
+                ":key1": "BB",
+            },
+            restCols: [":value0"],
+            restValues: {
+                ":value0": ["query successful"],
+            },
+        }];
+
+        const fetchRows = delayed(1000, async () => {
+            callCountRef.current += 1;
+
+            const callCount = callCountRef.current;
+
+            if (callCount < 2) throw new Error("womp womp");
+
+            return res;
+        });
+
+        return (
+            <MultiCardinalTableServer {...{ fetchRows }} />
+        );
+    },
+    play: async ({ canvas, userEvent, step }) => {
+        await step("Wait for error", async () => {
+            const spinner0 = canvas.queryByRole("status");
+            expect(spinner0).toBeInTheDocument();
+
+            await waitForElementToBeRemoved(spinner0);
+
+            const errorMsg = canvas.queryByText("error", { exact: false });
+            expect(errorMsg).toBeInTheDocument();
+        });
+
+        await step("Wait for data", async () => {
+            const resetButton = canvas.getByText("retry", { exact: false });
+            await userEvent.click(resetButton);
+
+            const spinner1 = await canvas.findByRole("status");
+            await waitForElementToBeRemoved(spinner1);
+
+            const tableItem = canvas.queryByText("query successful");
+            expect(tableItem).toBeInTheDocument();
+        });
+    },
+};

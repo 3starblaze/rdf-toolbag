@@ -1,58 +1,12 @@
 import { MultiCardinalTableServer, type CountPayload } from "@/components/multi-cardinal-table";
 import { Button } from "@/components/ui/button";
-import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { deduplicateTable, SyncPropertySelector } from "@/lib_index";
 import { formatUniversalPaginatorQuery, formatUniversalPaginatorQueryCounter, requestAsSparqlTableResult, RequestError } from "@/sparql_queries";
 import { skipToken, useQuery } from "@tanstack/react-query";
-import { Suspense, use, useMemo, useState, type ReactNode } from "react";
-import { Match } from "effect";
+import { useState } from "react";
 import type { PaginationState } from "@tanstack/react-table";
 import { defaultPagination } from "@/components/table_pagination_bar";
-
-type ErrorDisplayMessage = null | { type: "unknownError" } | { type: "validationError", msg: string }
-
-function DisplayErrorResponse({
-    messagePromise,
-}: {
-    messagePromise: Promise<ErrorDisplayMessage>,
-}): ReactNode {
-    return Match.value(use(messagePromise)).pipe(
-        Match.when(null, () => <></>),
-        Match.when({ type: "validationError" }, ({ msg }) => (
-            <p>
-                Received validation error:<br />
-                {msg}
-            </p>
-        )),
-        Match.orElse(() => <p>Received unexpected error!</p>)
-    );
-}
-
-function ErrorResponse({
-    error,
-}: {
-    error: Error | null,
-}): ReactNode {
-    const messagePromise: Promise<ErrorDisplayMessage> = useMemo(async () => {
-        return Match.value(error).pipe(
-            Match.withReturnType<Promise<ErrorDisplayMessage>>(),
-            Match.when(null, () => Promise.resolve(null)),
-            Match.when(Match.instanceOf(RequestError), ({ response }) => (
-                (response.status === 400)
-                    ? response.clone().text().then((msg) => ({ type: "validationError", msg }))
-                    : Promise.resolve(null)
-            )),
-            Match.orElse(() => Promise.resolve({ type: "unknownError" })),
-        );
-    }, [error]);
-
-    return (
-        <Suspense fallback={<p>Preparing error...</p>}>
-            <DisplayErrorResponse messagePromise={messagePromise} />
-        </Suspense>
-    );
-}
 
 // NOTE: Naive way of finding suggestions by matching everything that starts with question mark
 // Maybe won't be correct all the time but for the most cases this will be helpful.
@@ -182,11 +136,10 @@ export default function PaginatedDeduplicationView({
         groupOffset,
     }) : undefined;
 
-    const { data, isLoading, error } = useQuery({
-        queryKey: ["PaginatedDeduplicationView", formattedQuery],
-        queryFn: formattedQuery ? () => requestAsSparqlTableResult(url, formattedQuery) : skipToken,
-        retry: retryWithValidation,
-     });
+    const fetchRows = formattedQuery
+        ? () => requestAsSparqlTableResult(url, formattedQuery)
+            .then((data) => deduplicateTable(data, idCols))
+        : () => { throw new Error("missing querySelection!") };
 
     const rowCountQuery = useRowCount({
         queryToWrap: queryString ?? undefined,
@@ -194,8 +147,6 @@ export default function PaginatedDeduplicationView({
         url,
         globalLimit,
     });
-
-    const deduplicatedData = data && deduplicateTable(data, idCols);
 
     return (
         <div className="flex flex-col gap-2">
@@ -235,18 +186,15 @@ export default function PaginatedDeduplicationView({
                 Save query
             </Button>
 
-            <p>Results {isLoading && <Spinner />}</p>
+            <p>Results</p>
 
-            {deduplicatedData && (
-                <MultiCardinalTableServer
-                    rows={deduplicatedData}
-                    pagination={pagination}
-                    onPaginationChange={setPagination}
-                    countPayload={rowCountQuery.data}
-                    rowCountLimit={globalLimit}
-                />)}
-
-            {error && <ErrorResponse error={error} />}
+            <MultiCardinalTableServer
+                fetchRows={fetchRows}
+                pagination={pagination}
+                onPaginationChange={setPagination}
+                countPayload={rowCountQuery.data}
+                rowCountLimit={globalLimit}
+            />
         </div>
     );
 }
