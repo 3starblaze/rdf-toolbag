@@ -22,6 +22,15 @@ import { ColumnResizer } from "./column_resizer";
 import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
 
+// NOTE: Exported, just in case this data is needed
+export const defaultColumn = {
+    size: 150,
+    // NOTE: Going below 40px will mess the styling quite a bit, even with text overflow ellipsis
+    // and at this point it's easier to just not allow going beyond that.
+    minSize: 40,
+    maxSize: Number.MAX_SAFE_INTEGER,
+} as const;
+
 function getColumns(
     idCols: string[],
     restCols: string[],
@@ -31,6 +40,11 @@ function getColumns(
         id: idCol,
         accessorFn: (row) => row.idValues[idCol],
         ...(renderHeader && { header: () => renderHeader(idCol) }),
+        cell: ({ getValue }) => {
+            return (
+                <div className="text-ellipsis overflow-hidden">{getValue<string>()}</div>
+            )
+        },
     }));
 
     const valueColumns: ColumnDef<MulticardinalRow>[] = restCols.map((restCol) => ({
@@ -41,17 +55,17 @@ function getColumns(
             const val = getValue<string[] | undefined>() ?? [];
 
             if (val.length === 1) {
-                return <p>{val[0]}</p>
+                return <p className="text-ellipsis overflow-hidden">{val[0]}</p>
             }
 
             return (
-                <ul className="flex flex-col gap-2">
+                <ul className="flex flex-col gap-2 overflow-hidden">
                     {val.map((item, i) => (
                         <li
                             key={i}
                             className="list-disc ml-4"
                         >
-                            {item}
+                            <p className="text-ellipsis overflow-hidden">{item}</p>
                         </li>
                     ))}
                 </ul>
@@ -102,6 +116,7 @@ export default function MultiCardinalTable({
         state: {
             pagination,
         },
+        defaultColumn,
         enableColumnResizing: true,
         columnResizeMode: "onChange",
     });
@@ -109,6 +124,7 @@ export default function MultiCardinalTable({
     return (
         <div>
             <Table
+                className="table-fixed"
                 style={{
                     width: table.getCenterTotalSize()
                 }}
@@ -116,7 +132,7 @@ export default function MultiCardinalTable({
                 <TableHeader>
                     {table.getHeaderGroups().map((headerGroup) => (
                         <TableRow key={headerGroup.id}>
-                            {headerGroup.headers.map((header) => {
+                            {headerGroup.headers.map((header, i) => {
                                 return (
                                     <TableHead
                                         className={cn(
@@ -131,11 +147,11 @@ export default function MultiCardinalTable({
                                         <div className="flex flex-row justify-between gap-4 h-full">
                                             <div>
                                                 {header.isPlaceholder
-                                                    ? null
-                                                    : flexRender(
-                                                        header.column.columnDef.header,
-                                                        header.getContext()
-                                                    )}
+                                                ? null
+                                                : flexRender(
+                                                    header.column.columnDef.header,
+                                                    header.getContext()
+                                                )}
                                             </div>
                                             <ColumnResizer header={header} />
                                         </div>
@@ -237,6 +253,7 @@ export function MultiCardinalTableServer({
         state: {
             pagination,
         },
+        defaultColumn,
         enableColumnResizing: true,
         columnResizeMode: "onChange",
     });
@@ -249,6 +266,7 @@ export function MultiCardinalTableServer({
     return (
         <div>
             <Table
+                className="table-fixed"
                 style={{
                     width: table.getCenterTotalSize()
                 }}
@@ -256,11 +274,11 @@ export function MultiCardinalTableServer({
                 <TableHeader>
                     {table.getHeaderGroups().map((headerGroup) => (
                         <TableRow key={headerGroup.id}>
-                            {headerGroup.headers.map((header) => {
+                            {headerGroup.headers.map((header, i) => {
                                 return (
                                     <TableHead
                                         className={cn(
-                                            "font-bold",
+                                            "font-bold p-0",
                                             idCols?.includes(header.column.id) && "bg-gray-100"
                                         )}
                                         key={header.id}
@@ -269,7 +287,7 @@ export function MultiCardinalTableServer({
                                         }}
                                     >
                                         <div className="flex flex-row justify-between gap-4 h-full">
-                                            <div>
+                                            <div className="text-ellipsis overflow-hidden px-2">
                                                 {header.isPlaceholder
                                                     ? null
                                                     : flexRender(
@@ -277,7 +295,10 @@ export function MultiCardinalTableServer({
                                                         header.getContext()
                                                     )}
                                             </div>
-                                            <ColumnResizer header={header} />
+                                            <ColumnResizer
+                                                header={header}
+                                                data-column-index={i}
+                                            />
                                         </div>
                                     </TableHead>
                                 )

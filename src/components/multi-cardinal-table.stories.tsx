@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { MultiCardinalTableServer } from './multi-cardinal-table';
+import { MultiCardinalTableServer, defaultColumn } from './multi-cardinal-table';
 import { useState } from 'react';
 import type { MulticardinalRow } from '@/multi-cardinal-table-util';
-import { expect, findByText } from 'storybook/test';
+import { expect } from 'storybook/test';
 
 const meta = {
   title: "components/MultiCardinalTable",
@@ -254,6 +254,112 @@ export const CanOverpageOnPartialSizeInformation: Story = {
             await userEvent.click(nextPageButton);
 
             expect(currentPageNumber).toHaveTextContent(`${expectedPageCount + 1}`);
+        });
+    },
+}
+
+export const Resizable: Story = {
+    args: {
+        rows: [
+            {
+                idCols: [":key0", ":key1"],
+                idValues: {
+                    ":key0": "AA",
+                    ":key1": "BB",
+                },
+                restCols: [":value0", ":value1", ":value2"],
+                restValues: {
+                    ":value0": ["Something"],
+                    ":value1": ["One thing", "Or another"],
+                    ":value2": ["I'm fine"],
+                },
+            },
+            {
+                idCols: [":key0", ":key1"],
+                idValues: {
+                    ":key0": "AA",
+                    ":key1": "CC",
+                },
+                restCols: [":value0", ":value1", ":value2"],
+                restValues: {
+                    ":value0": ["This", "one", "has", "a", "few", "items"],
+                    ":value1": ["nothing in the next column"],
+                    ":value2": [],
+                },
+            },
+            {
+                idCols: [":key0", ":key1"],
+                idValues: {
+                    ":key0": "AA",
+                    ":key1": "DD",
+                },
+                restCols: [":value0", ":value1", ":value2"],
+                restValues: {
+                    ":value0": ["Something"],
+                    ":value1": ["One thing", "Or another"],
+                    ":value2": ["I'm fine"],
+                },
+            },
+            {
+                idCols: [":key0", ":key1"],
+                idValues: {
+                    ":key0": "BB",
+                    ":key1": "CC",
+                },
+                restCols: [":value0", ":value1", ":value2"],
+                restValues: {
+                    ":value0": ["Something"],
+                    ":value1": ["One thing", "Or another"],
+                    ":value2": ["I'm fine"],
+                },
+            },
+            {
+                idCols: [":key0", ":key1"],
+                idValues: {
+                    ":key0": "BB",
+                    ":key1": "DD",
+                },
+                restCols: [":value0", ":value1", ":value2"],
+                restValues: {
+                    ":value0": ["Something"],
+                    ":value1": ["One thing", "Or another"],
+                    ":value2": ["I'm fine"],
+                },
+            },
+        ],
+    },
+    play: async ({ userEvent, canvasElement, step }) => {
+        const columnIndex = 1;
+        const dragHandle = canvasElement.querySelector(`[data-column-index="${columnIndex}"]`);
+        if (!dragHandle) throw "Unexpected missing drag handle!";
+
+        const col = canvasElement.querySelector(
+            `table > thead > tr > :nth-child(${columnIndex + 1})`
+        );
+
+        if (!col) throw "Unexpected missing column element!";
+
+        const from = { clientX: 800, clientY: 100 };
+        const to = { clientX: 10, clientY: 10 };
+
+        // NOTE: How much we move horizontally (signed)
+        const dx = to.clientX - from.clientX;
+        // NOTE: minimal amount of delta to apply to reach smallest size (signed)
+        const minimalDx = defaultColumn.minSize - defaultColumn.size;
+
+        await step("Initial checks", () => {
+            expect(dx).toBeLessThanOrEqual(minimalDx);
+            expect(col.clientWidth).toBe(defaultColumn.size);
+        });
+
+        await step("Resizing", async () => {
+            await userEvent.pointer([
+                { keys: '[MouseLeft>]', coords: from, target: dragHandle },
+                { coords: to, target: dragHandle, },
+                { keys: '[/MouseLeft]' },
+            ]);
+
+            expect(col.clientWidth).toBe(defaultColumn.minSize);
         });
     },
 }
