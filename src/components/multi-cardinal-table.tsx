@@ -156,7 +156,10 @@ export default function MultiCardinalTable({
                                                     header.getContext()
                                                 )}
                                             </div>
-                                            <ColumnResizer header={header} />
+                                            <ColumnResizer
+                                                header={header}
+                                                data-column-index={i}
+                                            />
                                         </div>
                                     </TableHead>
                                 )
