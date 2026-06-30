@@ -490,9 +490,11 @@ export function formatUniversalPaginatorQuery({
   const indent = (line: string) => `${indentation}${line}`;
   const lineAwareIndent = (src: string) => src.split("\n").map(indent).join("\n");
 
+  const { preamble, main } = splitQueryPreamble(queryToWrap);
+
   const distinctQuery = `SELECT DISTINCT ${selectedVars}
 WHERE {
-${lineAwareIndent(queryToWrap)}
+${lineAwareIndent(main)}
 }
 LIMIT ${groupLimit}
 OFFSET ${groupOffset}`;
@@ -501,12 +503,13 @@ OFFSET ${groupOffset}`;
   // neighboring `distinctQuery` filters the result set and then it's just a matter of wrapping
   // those two queries into same WHERE block which are returned as is, with group limit.
   const fmt = [
+    preamble,
     "SELECT * WHERE {",
     lineAwareIndent([
       "{", lineAwareIndent(distinctQuery), "}"
     ].join("\n")),
     lineAwareIndent([
-      "{", lineAwareIndent(queryToWrap), "}"
+      "{", lineAwareIndent(main), "}"
     ].join("\n")),
     `} LIMIT ${globalLimit}`,
   ].join("\n");
@@ -547,18 +550,42 @@ export function formatUniversalPaginatorQueryCounter({
   const indent = (line: string) => `${indentation}${line}`;
   const lineAwareIndent = (src: string) => src.split("\n").map(indent).join("\n");
 
+  const { preamble, main } = splitQueryPreamble(queryToWrap);
+
   const query = [
+    preamble,
     "SELECT",
     `(COUNT(*) AS ?${globalRowCountVar})`,
     `(COUNT(DISTINCT *) AS ?${groupedRowCountVar})`,
     "{",
     lineAwareIndent([
       `SELECT ${colsFmt} WHERE {`,
-      lineAwareIndent(queryToWrap),
+      lineAwareIndent(main),
       ["}", ...(globalLimit ? [`LIMIT ${globalLimit}`] : [])].join(" "),
     ].join("\n")),
     "}",
   ].join("\n");
 
   return query;
+}
+
+/**
+ * Split query with the intention of nesting into subqueries.
+ *
+ * @return Two parts -- preamble that can't be nested and main that can be
+ */
+function splitQueryPreamble(
+  query: string,
+): { preamble: string, main: string } {
+  const lineIsPrefixStatement = (line: string) => !!line.match(/\s*PREFIX/);
+  const lineIsBlank = (line: string) => !!line.match(/^\s*$/);
+
+  const lines = query.split("\n");
+  const boundaryIndex = lines
+    .findIndex((line) => !(lineIsPrefixStatement(line) || lineIsBlank(line)));
+
+  return {
+    preamble: lines.slice(0, boundaryIndex).join("\n"),
+    main: lines.slice(boundaryIndex).join("\n"),
+  };
 }

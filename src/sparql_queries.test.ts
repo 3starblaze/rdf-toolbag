@@ -4,6 +4,21 @@ import {
     formatUniversalPaginatorQueryCounter
 } from "./sparql_queries";
 
+function expectPrefixesToNotBeNested(query: string) {
+    const lines = query.split("\n");
+
+    const lineIsPrefixStmt = (line: string) => !!line.match(/\s*PREFIX/);
+    const lineIsBlank = (line: string) => !!line.match(/^\s*$/);
+
+    const maxPrefixIndex = ([...lines.entries()])
+        .filter(([_, l]) => lineIsPrefixStmt(l))
+        .map(([i]) => i)
+        .reduce((a, b) => Math.max(a, b));
+
+    expect(lines.slice(0, maxPrefixIndex + 1))
+        .toSatisfyAll((line) => lineIsPrefixStmt(line) || lineIsBlank(line));
+}
+
 describe("formatUniversalPaginationQuery", () => {
     test("basic query with one distinct variable", () => {
         const q = `
@@ -46,6 +61,31 @@ SELECT * WHERE {
         expect(res).toMatch(/LIMIT 20/);
         expect(res).toMatch(/OFFSET 30/);
         expect(res).toMatch(/LIMIT 2000/);
+    });
+
+    test("query with prefixes", () => {
+        // NOTE: applying weird spacing to check that our function can handle various situations
+        const q = `
+    PREFIX dcat: <http://www.w3.org/ns/dcat#>
+PREFIX dct: <http://purl.org/dc/terms/>
+
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+
+SELECT DISTINCT * WHERE{
+        ?Catalog rdf:type dcat:Catalog .
+        OPTIONAL{?Catalog dct:title ?title .  }
+        OPTIONAL{?Catalog dct:description ?description .  }
+} LIMIT 20`;
+
+        const res = formatUniversalPaginatorQuery({
+            queryToWrap: q,
+            groupLimit: 20,
+            groupOffset: 30,
+            globalLimit: 2000,
+            idVars: ["Catalog"],
+        });
+
+        expectPrefixesToNotBeNested(res);
     });
 });
 
@@ -94,5 +134,34 @@ describe("formatUniversalPaginatorQueryCounter", () => {
         expect(q).toMatch(`LIMIT ${globalLimit}`);
         // NOTE: groupLimit doesn't matter in this context
         //expect(q).toMatch(`LIMIT ${groupLimit}`);
+    });
+    test("query with prefixes", () => {
+        const globalRowCountVar = "__another_global_count";
+        const groupedRowCountVar = "__another_grouped_count";
+        const globalLimit = 1000;
+        const groupLimit = 20;
+
+        const queryToWrap = `
+    PREFIX dcat: <http://www.w3.org/ns/dcat#>
+PREFIX dct: <http://purl.org/dc/terms/>
+
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+
+SELECT DISTINCT * WHERE{
+        ?Catalog rdf:type dcat:Catalog .
+        OPTIONAL{?Catalog dct:title ?title .  }
+        OPTIONAL{?Catalog dct:description ?description .  }
+} LIMIT 20`;
+
+        const q = formatUniversalPaginatorQueryCounter({
+            globalRowCountVar,
+            groupedRowCountVar,
+            idVars: ["sub", "pred"],
+            queryToWrap,
+            globalLimit,
+            groupLimit,
+        });
+
+        expectPrefixesToNotBeNested(q);
     });
 });
