@@ -1,43 +1,90 @@
 import type { ComplexPropertySelection } from "@/components/complex_property_selector";
-import { Match } from "effect";
+
+export interface VarInfo {
+    /** Final sparql variable name */
+    varName: string,
+    /** List of URIs that were used to generated the var */
+    path: string[],
+}
+
+interface ConstraintPayload {
+    constraints: string[],
+    varInfos: VarInfo[],
+}
+
+function formatVar(path: string[]) {
+    // NOTE: Since empty name is not allowed, we need something like this
+    if (path.length === 0) return "this";
+    // NOTE: URI items are usually segmented by slashes and sometimes "#", so we just split assume
+    // that the last item is the most accurate identifier
+    return path.map((item) => item.split(/[\/|#]+/).at(-1)).join("__");
+}
+
+function formatVarInfo(path: string[]): VarInfo {
+    return {
+        path,
+        varName: formatVar(path),
+    };
+}
 
 // NOTE: Made this helper function so that we can elegantly collect object properties.
 function collectConstraints(
-    thisPrefix: string,
+    pathPrefix: string[],
     { rdfType, dataProps, objectProps }: ComplexPropertySelection,
-): string[] {
+): ConstraintPayload {
     function wrapOptional(constraint: string): string {
         return `OPTIONAL { ${constraint} }`;
     }
 
-    const dataPropConstraints = dataProps.map(
-        ({ name }, i) => wrapOptional(`?${thisPrefix} <${name}> ?${thisPrefix}_d_${i} .`),
-    );
+    const thisVar = formatVarInfo(pathPrefix);
 
-    const objectPropConstraints = objectProps.flatMap(
-        ({ name, selection }, i) => [
-            wrapOptional(`?${thisPrefix} <${name}> ?${thisPrefix}_o_${i} .`),
-            ...collectConstraints(`${thisPrefix}_o_${i}`, selection),
-        ],
-    );
+    const dataVars = dataProps.map(({ name }) => {
+        const varInfo = formatVarInfo([...pathPrefix, name]);
+        const constraint = wrapOptional(`?${thisVar.varName} <${name}> ?${varInfo.varName}`);
+        return { varInfo, constraint };
+    });
+
+    const objectVars: ConstraintPayload[] = objectProps.map(({ name, selection }) => {
+        const varInfo = formatVarInfo([...pathPrefix, name]);
+        const constraint = wrapOptional(`?${thisVar.varName} <${name}> ?${varInfo.varName}`);
+        const { constraints, varInfos } = collectConstraints([...pathPrefix, name], selection);
+        return {
+            constraints: [constraint, ...constraints],
+            varInfos: [varInfo, ...varInfos],
+        };
+    })
 
     const miscConstraints: string[] = [
         // NOTE: rdfType constraint should only be applied if the string is not empty
-        ...(rdfType !== "" ?  [`?${thisPrefix} a <${rdfType}> .`] : []),
+        ...(rdfType !== "" ?  [`?${thisVar.varName} a <${rdfType}> .`] : []),
     ];
 
-    return [
-        ...miscConstraints,
-        ...dataPropConstraints,
-        ...objectPropConstraints,
-    ];
+    return {
+        constraints: [
+            ...dataVars.map((item) => item.constraint),
+            ...objectVars.flatMap((item) => item.constraints),
+            ...miscConstraints,
+        ],
+        varInfos: [
+            thisVar,
+            ...dataVars.map((item) => item.varInfo),
+            ...objectVars.flatMap((item) => item.varInfos),
+        ],
+    };
 }
 
 /**
  * Make a query that represents the passed selection.
  */
-export function formatQuery(selection: ComplexPropertySelection) {
-    const constraints = collectConstraints("this", selection);
+export function formatQuery(selection: ComplexPropertySelection): {
+    query: string,
+    varInfos: VarInfo[],
+} {
+    const { constraints, varInfos: initialVarInfos } = collectConstraints([], selection);
+
+    // NOTE: Drop duplicates by using varName as key
+    const varInfosMap = new Map(initialVarInfos.map((varInfo) => [varInfo.varName, varInfo]));
+    const varInfos = [...varInfosMap.values()];
 
     const indentation = "  ";
 
@@ -47,56 +94,7 @@ export function formatQuery(selection: ComplexPropertySelection) {
         "}",
     ];
 
-    const fmt = lines.join("\n");
+    const query = lines.join("\n");
 
-    return fmt;
-}
-
-/**
- * Turn generated variable name into human-readable label.
- *
- * Null is returned when varName does not match selection.
- *
- * @param varName variable without the leading "?" symbol
- * @param selection selection that is used for reference
- */
-export function demangleVarName(
-    varName: string,
-    selection: ComplexPropertySelection,
-): string | null {
-    /**
-     *
-     * @param parts fragments from variable name
-     * @param labelParts list of already collected label fragments that will be combined
-     */
-    function resolve(
-        parts: string[],
-        labelParts: string[],
-        currentSelection: ComplexPropertySelection,
-    ): string[] | null {
-        return Match.value(parts.slice(0, 2)).pipe(
-            Match.when(["d", Match.any], ([_, indexString]) => {
-                const maybeLabelPart = currentSelection.dataProps[Number(indexString)]?.name;
-                return maybeLabelPart ? [...labelParts, maybeLabelPart] : null;
-            }),
-            Match.when(["o", Match.any], ([_, indexString]) => {
-                const maybeProp = currentSelection.objectProps[Number(indexString)];
-                if (!maybeProp) return null;
-                return resolve(
-                    parts.slice(2),
-                    [...labelParts, maybeProp.name],
-                    maybeProp.selection,
-                );
-            }),
-            // NOTE: We are finished and we can return what we have collected
-            Match.when((val) => val.length === 0, () => labelParts),
-            Match.orElse(() => null),
-        );
-    }
-
-    const [thisPart, ...restParts] = varName.split("_");
-    if (thisPart !== "this") return null;
-
-    const labelParts = resolve(restParts, ["this"], selection);
-    return labelParts ? labelParts.join(" > ") : null;
+    return { query, varInfos };
 }

@@ -1,81 +1,143 @@
 import { expect, test, describe } from "vitest";
-import { demangleVarName, formatQuery } from "./complex_property_query_builder";
+import { formatQuery, type VarInfo } from "./complex_property_query_builder";
 import type { ComplexPropertySelection } from "@/components/complex_property_selector";
 
-const sampleSelection = {
-    rdfType: "http://Person",
-    dataProps: [{ name: "http://p0" }, { name: "http://p1" }],
-    objectProps: [
-        {
-            name: "http://relation",
-            selection: {
-                rdfType: "http://Item",
-                dataProps: [{ name: "http://p0" }],
-                objectProps: [
-                    {
-                        name: "http://anotherRelation",
-                        selection: {
-                            rdfType: "http://anotherRelatedType",
-                            dataProps: [
-                                { name: "http://lastDataPropISwear" }
-                            ],
-                            objectProps: [],
-                        },
-                    }
-                ],
-            },
-        },
-    ],
-} satisfies ComplexPropertySelection;
+function expectExpectedVarsToBeInQuery(
+    expectedVarInfos: VarInfo[],
+    query: string,
+) {
+    const expectedVars = expectedVarInfos.map((item) => item.varName);
+    // NOTE: find vars and strip leading "?"
+    const foundVars = [...new Set(query.match(/\?\w+/g)?.map((s) => s.slice(1)))];
+    expect(foundVars).toIncludeAllMembers(expectedVars);
+}
+
+function expectNoDuplicateVarInfo(varInfos: VarInfo[]) {
+    expect(varInfos.length).toEqual((new Set(varInfos.map((item) => item.varName))).size);
+}
 
 describe("formatQuery", () => {
     test("basic test", () => {
-        const expectedVars = [
-            "?this",
-            "?this_d_0",
-            "?this_d_1",
-            "?this_o_0",
-            "?this_o_0_d_0",
-            "?this_o_0_o_0",
-            "?this_o_0_o_0_d_0",
+        const sampleSelection = {
+            rdfType: "http://Person",
+            dataProps: [{ name: "http://p0" }, { name: "http://p1" }],
+            objectProps: [
+                {
+                    name: "http://relation",
+                    selection: {
+                        rdfType: "http://Item",
+                        dataProps: [{ name: "http://p0" }],
+                        objectProps: [
+                            {
+                                name: "http://anotherRelation",
+                                selection: {
+                                    rdfType: "http://anotherRelatedType",
+                                    dataProps: [
+                                        { name: "http://lastDataPropISwear" }
+                                    ],
+                                    objectProps: [],
+                                },
+                            }
+                        ],
+                    },
+                },
+            ],
+        } satisfies ComplexPropertySelection;
+
+        const expectedVarInfos = [
+            { varName: "this", path: [] },
+            { varName: "p0", path: ["http://p0"] },
+            { varName: "p1", path: ["http://p1"] },
+            { varName: "relation", path: ["http://relation"] },
+            { varName: "relation__p0", path: ["http://relation", "http://p0"] },
+            {
+                varName: "relation__anotherRelation",
+                path: ["http://relation", "http://anotherRelation"],
+            },
+            {
+                varName: "relation__anotherRelation__lastDataPropISwear",
+                path: ["http://relation", "http://anotherRelation", "http://lastDataPropISwear"],
+            },
         ];
 
-        const formattedQuery = formatQuery(sampleSelection);
-        const foundVars = new Set(formattedQuery.match(/\?\w+/g));
+        const { query, varInfos } = formatQuery(sampleSelection);
 
-        // NOTE: we should see all the expected vars in the query
-        expect(expectedVars.every((varName) => foundVars.has(varName))).toBe(true);
+        expectExpectedVarsToBeInQuery(expectedVarInfos, query);
 
         // NOTE: asserting one constraint that should appear
-        expect(formattedQuery).toMatch(`?this_o_0 <${sampleSelection.dataProps[0]?.name}> ?this_o_0_d_0`);
-    });
-});
+        expect(query).toMatch(`?this <${sampleSelection.dataProps[0]?.name}> ?p0`);
 
-describe("demangleVarName", () => {
-    test("just this", () => {
-        expect(demangleVarName("this", sampleSelection)).toMatch("this");
+        expectNoDuplicateVarInfo(varInfos);
     });
-    test("data prop", () => {
-        expect(demangleVarName("this_d_1", sampleSelection)).toMatch("this > http://p1");
-    });
-    test("obj prop", () => {
-        expect(demangleVarName("this_o_0", sampleSelection)).toMatch("this > http://relation");
-    });
-    test("nested data prop", () => {
-        expect(demangleVarName("this_o_0_d_0", sampleSelection))
-            .toMatch("this > http://relation > http://p0");
-    });
-    test("deeper nesting", () => {
-        expect(demangleVarName("this_o_0_o_0_d_0", sampleSelection))
-            .toMatch("this > http://relation > http://anotherRelation > http://lastDataPropISwear");
-    });
-    test("garbage is rejected", () => {
-        expect(demangleVarName("garbage", sampleSelection)).toBe(null);
-    });
-    test("garbage starting with 'this' is rejected", () => {
-       expect(demangleVarName("this_garbage", sampleSelection)).toBe(null);
-    });
-    test("out of range property is rejected", () => {
-       expect(demangleVarName("this_d_99", sampleSelection)).toBe(null);
+    test("more realistic test", () => {
+        const sampleSelection = {
+            "rdfType": "http://data.nobelprize.org/terms/Laureate",
+            "dataProps": [
+                {
+                    "name": "http://xmlns.com/foaf/0.1/name"
+                },
+                {
+                    "name": "http://www.w3.org/2000/01/rdf-schema#label"
+                },
+                {
+                    "name": "http://dbpedia.org/property/dateOfBirth"
+                },
+                {
+                    "name": "http://xmlns.com/foaf/0.1/birthday"
+                },
+                {
+                    "name": "http://xmlns.com/foaf/0.1/givenName"
+                }
+            ],
+            "objectProps": [
+                {
+                    "name": "http://dbpedia.org/ontology/birthPlace",
+                    "selection": {
+                        "rdfType": "",
+                        "dataProps": [],
+                        "objectProps": []
+                    }
+                },
+                {
+                    "name": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+                    "selection": {
+                        "rdfType": "",
+                        "dataProps": [],
+                        "objectProps": []
+                    }
+                },
+                {
+                    "name": "http://dbpedia.org/ontology/deathPlace",
+                    "selection": {
+                        "rdfType": "",
+                        "dataProps": [],
+                        "objectProps": []
+                    }
+                }
+            ]
+        } satisfies ComplexPropertySelection;
+
+        const expectedVarInfos: VarInfo[] = [
+            { varName: "this", path: [] },
+            { varName: "name", path: ["http://xmlns.com/foaf/0.1/name"] },
+            { varName: "label", path: ["http://www.w3.org/2000/01/rdf-schema#label"] },
+            { varName: "dateOfBirth", path: ["http://dbpedia.org/property/dateOfBirth"] },
+            { varName: "birthday", path: ["http://xmlns.com/foaf/0.1/birthday"] },
+            { varName: "givenName", path: ["http://xmlns.com/foaf/0.1/givenName"] },
+            { varName: "birthPlace", path: ["http://dbpedia.org/ontology/birthPlace"] },
+            { varName: "type", path: ["http://www.w3.org/1999/02/22-rdf-syntax-ns#type"] },
+            { varName: "deathPlace", path: ["http://dbpedia.org/ontology/deathPlace"] },
+        ];
+
+        const { query, varInfos } = formatQuery(sampleSelection);
+
+        expectExpectedVarsToBeInQuery(expectedVarInfos, query);
+
+        // NOTE: asserting some constraints that should appear
+        expect(query).toMatch(`?this <http://dbpedia.org/property/dateOfBirth> ?dateOfBirth`);
+        expect(query).toMatch(`?this <http://dbpedia.org/ontology/birthPlace> ?birthPlace`);
+
+        expect(varInfos).toIncludeAllMembers(expectedVarInfos);
+        expectNoDuplicateVarInfo(varInfos);
     });
 });

@@ -6,7 +6,7 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { deduplicateTable, SyncPropertySelector, type MulticardinalRow } from "@/lib_index";
-import { demangleVarName, formatQuery } from "@/misc/complex_property_query_builder";
+import { formatQuery } from "@/misc/complex_property_query_builder";
 import { formatUniversalPaginatorQuery, formatUniversalPaginatorQueryCounter, requestAsSparqlTableResult, type SparqlTableResult } from "@/sparql_queries";
 import { skipToken, useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight, Info } from "lucide-react";
@@ -44,7 +44,7 @@ function QueryDisplay({
     return (
         <CollapsedInfo title="Query">
             <pre>
-                {formatQuery(selection)}
+                {formatQuery(selection).query}
             </pre>
         </CollapsedInfo>
     );
@@ -162,7 +162,7 @@ interface PaginationData {
 
 function selectionToIdVarSuggestions(selection: ComplexPropertySelection): string[] {
     // NOTE: A pretty rough method to do this but it does work
-    const formattedQuery = formatQuery(selection);
+    const formattedQuery = formatQuery(selection).query;
     const matches = formattedQuery.match(/\?\w+/g);
     // NOTE: Keep unique values and remove the leading "?" in matched var name
     return [...new Set(matches)].map((match) => match.slice(1));
@@ -457,9 +457,7 @@ export default function PropertyQueryBuilder({
                : skipToken,
     });
 
-    // NOTE: demangleVarName should always succeed in this case but we are adding a fallback just
-    // in case.
-    const labelMaker = (oldName: string): string => demangleVarName(oldName, selection) ?? oldName;
+    const labelMaker = (oldName: string): string => oldName;
 
     const fetchRawTable = querySelection
         ? () => requestAsSparqlTableResult(url, formatUniversalPaginatorQuery(querySelection))
@@ -482,7 +480,7 @@ export default function PropertyQueryBuilder({
         if (!paginationData) return;
         setQuerySelection({
             ...paginationData,
-            queryToWrap: formatQuery(selection),
+            queryToWrap: formatQuery(selection).query,
         });
     }
 

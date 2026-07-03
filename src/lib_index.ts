@@ -26,5 +26,4 @@ export {
 } from "@/components/multi-cardinal-table";
 export {
     formatQuery,
-    demangleVarName,
 } from "@/misc/complex_property_query_builder";
