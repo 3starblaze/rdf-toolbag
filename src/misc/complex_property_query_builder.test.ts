@@ -1,5 +1,5 @@
 import { expect, test, describe } from "vitest";
-import { formatQuery, type VarInfo } from "./complex_property_query_builder";
+import { formatQuery, sparqlVarRe, type VarInfo } from "./complex_property_query_builder";
 import type { ComplexPropertySelection } from "@/components/complex_property_selector";
 
 function expectExpectedVarsToBeInQuery(
@@ -8,7 +8,7 @@ function expectExpectedVarsToBeInQuery(
 ) {
     const expectedVars = expectedVarInfos.map((item) => item.varName);
     // NOTE: find vars and strip leading "?"
-    const foundVars = [...new Set(query.match(/\?\w+/g)?.map((s) => s.slice(1)))];
+    const foundVars = [...new Set(query.match(sparqlVarRe)?.map((s) => s.slice(1)))];
     expect(foundVars).toIncludeAllMembers(expectedVars);
 }
 
@@ -138,6 +138,60 @@ describe("formatQuery", () => {
         expect(query).toMatch(`?this <http://dbpedia.org/ontology/birthPlace> ?birthPlace`);
 
         expect(varInfos).toIncludeAllMembers(expectedVarInfos);
+        expectNoDuplicateVarInfo(varInfos);
+    });
+    test("potential varName collisions", () => {
+        const sampleSelection = {
+            "rdfType": "http://ldf.fi/schema/yoma/ReferencedPerson",
+            "dataProps": [
+                {
+                    "name": "http://www.w3.org/2004/02/skos/core#prefLabel"
+                },
+                {
+                    "name": "http://www.w3.org/2008/05/skos-xl#prefLabel"
+                },
+            ],
+            "objectProps": []
+        } satisfies ComplexPropertySelection;
+
+        const expectedVarInfos: VarInfo[] = [
+            { varName: "this", path: [] },
+            { varName: "core⁻prefLabel", path: ["http://www.w3.org/2004/02/skos/core#prefLabel"] },
+            { varName: "skos�xl⁻prefLabel", path: ["http://www.w3.org/2008/05/skos-xl#prefLabel"] },
+        ];
+
+        const { query, varInfos } = formatQuery(sampleSelection);
+        expectExpectedVarsToBeInQuery(expectedVarInfos, query);
+        expectNoDuplicateVarInfo(varInfos);
+    });
+    test("prefixed var is handled correctly", () => {
+        const sampleSelection = {
+            "rdfType": "http://ldf.fi/schema/yoma/ReferencedPerson",
+            "dataProps": [
+                {
+                    "name": "http://www.w3.org/2004/02/skos/core#prefLabel"
+                },
+                {
+                    "name": "http://www.w3.org/2008/05/skos-xl#prefLabel"
+                },
+                {
+                    "name": "http://www.w3.org/2004/02/skos/core#prefLabel123"
+                },
+            ],
+            "objectProps": [],
+        } satisfies ComplexPropertySelection;
+
+        const { query, varInfos } = formatQuery(sampleSelection);
+
+        const expectedVarInfos: VarInfo[] = [
+            { varName: "this", path: [] },
+            { varName: "core⁻prefLabel", path: ["http://www.w3.org/2004/02/skos/core#prefLabel"] },
+            { varName: "skos�xl⁻prefLabel", path: ["http://www.w3.org/2008/05/skos-xl#prefLabel"] },
+            { varName: "prefLabel123", path: ["http://www.w3.org/2004/02/skos/core#prefLabel123"] },
+        ];
+
+        expectExpectedVarsToBeInQuery(expectedVarInfos, query);
+
         expectNoDuplicateVarInfo(varInfos);
     });
 });

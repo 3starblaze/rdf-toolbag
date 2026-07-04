@@ -6,7 +6,7 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { deduplicateTable, SyncPropertySelector, type MulticardinalRow } from "@/lib_index";
-import { formatQuery } from "@/misc/complex_property_query_builder";
+import { formatQuery, sparqlVarRe } from "@/misc/complex_property_query_builder";
 import { formatUniversalPaginatorQuery, formatUniversalPaginatorQueryCounter, requestAsSparqlTableResult, type SparqlTableResult } from "@/sparql_queries";
 import { skipToken, useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight, Info } from "lucide-react";
@@ -163,7 +163,7 @@ interface PaginationData {
 function selectionToIdVarSuggestions(selection: ComplexPropertySelection): string[] {
     // NOTE: A pretty rough method to do this but it does work
     const formattedQuery = formatQuery(selection).query;
-    const matches = formattedQuery.match(/\?\w+/g);
+    const matches = formattedQuery.match(sparqlVarRe);
     // NOTE: Keep unique values and remove the leading "?" in matched var name
     return [...new Set(matches)].map((match) => match.slice(1));
 }
