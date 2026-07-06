@@ -1,8 +1,11 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { MultiCardinalTableServer, defaultColumn } from './multi-cardinal-table';
+import { defaultColumn } from './multi-cardinal-table';
+import { MultiCardinalTableServer } from './MultiCardinalTableServer2';
 import { useState, useRef } from 'react';
 import type { MulticardinalRow } from '@/multi-cardinal-table-util';
 import { expect, waitForElementToBeRemoved } from 'storybook/test';
+import type { SparqlTableResult } from '@/sparql_queries';
+import type { PaginationState } from '@tanstack/react-table';
 
 const meta = {
   title: "components/MultiCardinalTable",
@@ -12,88 +15,180 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+function withRows(rows: { [key: string]: string }[]): SparqlTableResult {
+  if (rows.length === 0) return ({ head: { vars: [] }, results: { bindings: [] } });
+  const firstRow = rows[0];
+  const keys = Object.keys(firstRow);
+
+  return {
+    head: { vars: keys },
+    results: { bindings: rows.map((row) => {
+      const entries = Object.entries(row)
+        .map(([k, v]) => [k, { type: "string", value: v }] as const);
+      return Object.fromEntries(entries);
+    }) },
+  }
+}
+
+// Source - https://stackoverflow.com/a/43053803
+// Retrieved 2026-07-06, License - CC BY-SA 4.0
+function cartesian <T>(...a: T[][]): T[][] {
+  // NOTE: the solution comment mentions the N = 1 case being broken and thus we handle this
+  // explicitly
+  if (a.length === 1) return a[0].map((it) => [it]);
+  // NOTE: Casting to any because it should work
+  return a.reduce((a, b) => a.flatMap(d => b.map(e => [d, e].flat())) as any) as any;
+}
+
+function inferPagination(query: string): PaginationState | null {
+  const reRes = query.match(/LIMIT\s+(\d+)\s+OFFSET\s+(\d+)/);
+
+  if (!reRes) return null;
+
+  const pageSize = Number(reRes[1]);
+
+  return {
+    pageIndex: Number(reRes[2]) / pageSize,
+    pageSize,
+  };
+}
+
+
+function withGroupedRows(groupedRows: MulticardinalRow[]): SparqlTableResult {
+    return withRows(groupedRows.flatMap(({
+        idCols,
+        idValues,
+        restCols,
+        restValues,
+    }) => {
+        const entries = Object.entries(restValues);
+        const entryProduct = cartesian(...entries.map(([_, v]) => v));
+        return entryProduct.map((restValuesArr) => {
+            return {
+                ...idValues,
+              ...Object.fromEntries(entries.map(([k], i) => [k, restValuesArr[i]] as const)),
+            };
+        });
+    }));
+}
+
+function isCounterQuery(query: string) {
+  return query.includes("?__global_count")
+}
+
+function counterPayload({
+  globalCount,
+  groupedCount,
+}: {
+  globalCount: number,
+  groupedCount: number,
+}) {
+    return withRows([{
+      "__global_count": globalCount.toString(),
+      "__grouped_count": groupedCount.toString(),
+    }])
+}
+
+const defaultArgs: Omit<Story["args"], "queryCallback"> = {
+    baseQuery: "",
+    counterLimit: 10_000_000,
+    rawRowLimit: 100_000,
+    idVars: [],
+}
+
 export const Empty: Story = {
   args: {
-    fetchRows: async () => [],
+    ...defaultArgs,
+    queryCallback: async () => withRows([]),
   },
 };
 
 export const WithData: Story = {
-  args: {
-    fetchRows: async () => [
-      {
-        idCols: [":key0", ":key1"],
-        idValues: {
-          ":key0": "AA",
-          ":key1": "BB",
-        },
-        restCols: [":value0", ":value1", ":value2"],
-        restValues: {
-          ":value0": ["Something"],
-          ":value1": ["One thing", "Or another"],
-          ":value2": ["I'm fine"],
-        },
-      },
-      {
-        idCols: [":key0", ":key1"],
-        idValues: {
-          ":key0": "AA",
-          ":key1": "CC",
-        },
-        restCols: [":value0", ":value1", ":value2"],
-        restValues: {
-          ":value0": ["This", "one", "has", "a", "few", "items"],
-          ":value1": ["nothing in the next column"],
-          ":value2": [],
-        },
-      },
-      {
-        idCols: [":key0", ":key1"],
-        idValues: {
-          ":key0": "AA",
-          ":key1": "DD",
-        },
-        restCols: [":value0", ":value1", ":value2"],
-        restValues: {
-          ":value0": ["Something"],
-          ":value1": ["One thing", "Or another"],
-          ":value2": ["I'm fine"],
-        },
-      },
-      {
-        idCols: [":key0", ":key1"],
-        idValues: {
-          ":key0": "BB",
-          ":key1": "CC",
-        },
-        restCols: [":value0", ":value1", ":value2"],
-        restValues: {
-          ":value0": ["Something"],
-          ":value1": ["One thing", "Or another"],
-          ":value2": ["I'm fine"],
-        },
-      },
-      {
-        idCols: [":key0", ":key1"],
-        idValues: {
-          ":key0": "BB",
-          ":key1": "DD",
-        },
-        restCols: [":value0", ":value1", ":value2"],
-        restValues: {
-          ":value0": ["Something"],
-          ":value1": ["One thing", "Or another"],
-          ":value2": ["I'm fine"],
-        },
-      },
-    ],
-  },
-};
+    args: {
+        ...defaultArgs,
+        queryCallback: async ({ query }) => {
+            if (isCounterQuery(query)) return counterPayload({
+              groupedCount: 1,
+              globalCount: 1000,
+            });
+
+            return withGroupedRows([
+                {
+                    idCols: [":key0", ":key1"],
+                    idValues: {
+                        ":key0": "AA",
+                        ":key1": "BB",
+                    },
+                    restCols: [":value0", ":value1", ":value2"],
+                    restValues: {
+                        ":value0": ["Something"],
+                        ":value1": ["One thing", "Or another"],
+                        ":value2": ["I'm fine"],
+                    },
+                },
+                {
+                    idCols: [":key0", ":key1"],
+                    idValues: {
+                        ":key0": "AA",
+                        ":key1": "CC",
+                    },
+                    restCols: [":value0", ":value1", ":value2"],
+                    restValues: {
+                        ":value0": ["This", "one", "has", "a", "few", "items"],
+                        ":value1": ["nothing in the next column"],
+                        ":value2": [],
+                    },
+                },
+                {
+                    idCols: [":key0", ":key1"],
+                    idValues: {
+                        ":key0": "AA",
+                        ":key1": "DD",
+                    },
+                    restCols: [":value0", ":value1", ":value2"],
+                    restValues: {
+                        ":value0": ["Something"],
+                        ":value1": ["One thing", "Or another"],
+                        ":value2": ["I'm fine"],
+                    },
+                },
+                {
+                    idCols: [":key0", ":key1"],
+                    idValues: {
+                        ":key0": "BB",
+                        ":key1": "CC",
+                    },
+                    restCols: [":value0", ":value1", ":value2"],
+                    restValues: {
+                        ":value0": ["Something"],
+                        ":value1": ["One thing", "Or another"],
+                        ":value2": ["I'm fine"],
+                    },
+                },
+                {
+                    idCols: [":key0", ":key1"],
+                    idValues: {
+                        ":key0": "BB",
+                        ":key1": "DD",
+                    },
+                    restCols: [":value0", ":value1", ":value2"],
+                    restValues: {
+                        ":value0": ["Something"],
+                        ":value1": ["One thing", "Or another"],
+                        ":value2": ["I'm fine"],
+                    },
+                },
+            ]);
+        }
+    }
+}
+
 
 export const WithPagination: Story = {
   args: {
-    fetchRows: async () => [],
-    countPayload: { globalCount: 1000, groupedCount: 30 },
+    ...defaultArgs,
+    idVars: [":key0", ":key1"],
+    queryCallback: async () => withRows([]),
   },
   // NOTE: Disable arguments in UI that will be overriden regardless
   argTypes: {
@@ -105,9 +200,15 @@ export const WithPagination: Story = {
 
     const [pagination, setPagination] = useState<Pagination>({ pageIndex: 0, pageSize: 10 });
 
-    type FetchRows = React.ComponentProps<typeof MultiCardinalTableServer>["fetchRows"];
+    const queryCallback: Story["args"]["queryCallback"] = async ({ query }) => {
+          if (isCounterQuery(query)) return counterPayload({ globalCount: 1000, groupedCount: 30 });
 
-    const fetchRows: FetchRows  = async ({ pagination: { pageIndex, pageSize } }) => {
+          const maybePaginationInfo = inferPagination(query);
+
+          if (!maybePaginationInfo) throw new Error("unexpected missing pagination");
+
+          const { pageSize, pageIndex } = maybePaginationInfo;
+
           const rows: MulticardinalRow[] = Array(pageSize)
               .fill(undefined)
               .map((_, i) => ({
@@ -123,14 +224,14 @@ export const WithPagination: Story = {
                   },
               }));
 
-        return rows;
-      }
+          return withGroupedRows(rows);
+      };
 
     return (
       <div className="">
         <MultiCardinalTableServer
           {...args}
-          fetchRows={fetchRows}
+          queryCallback={queryCallback}
           pagination={pagination}
           onPaginationChange={setPagination}
         />
@@ -141,26 +242,34 @@ export const WithPagination: Story = {
 
 export const WithRowCountLimit: Story = {
   args: {
-    fetchRows: async () => [],
-    countPayload: { globalCount: 1000, groupedCount: 15 },
-    rowCountLimit: 1000,
+    ...defaultArgs,
+    counterLimit: 1000,
+    queryCallback: async ({ query }) => {
+      if (isCounterQuery(query)) return counterPayload({ globalCount: 1000, groupedCount: 15 });
+      return withRows([]);
+    },
   },
 }
 
 export const CustomColumn: Story = {
     args: {
-        fetchRows: async() => [{
-            idCols: ["ns3:key0", "ns2:key1"],
-            idValues: {
-                "ns3:key0": `AA`,
-                "ns2:key1": `BB`,
-            },
-            restCols: ["ns1:value0", "ns0:valueConst"],
-            restValues: {
-                "ns1:value0": ["val0", "val1", "val2"],
-                "ns0:valueConst": ["i stay the same"]
-            },
-        }],
+        ...defaultArgs,
+        idVars: ["ns3:key0", "ns2:key1"],
+        queryCallback: async ({ query }) => {
+            if (isCounterQuery(query)) return counterPayload({ globalCount: 1000, groupedCount: 1 });
+            return withGroupedRows([{
+                idCols: ["ns3:key0", "ns2:key1"],
+                idValues: {
+                    "ns3:key0": `AA`,
+                    "ns2:key1": `BB`,
+                },
+                restCols: ["ns1:value0", "ns0:valueConst"],
+                restValues: {
+                    "ns1:value0": ["val0", "val1", "val2"],
+                    "ns0:valueConst": ["i stay the same"]
+                },
+            }]);
+        },
         renderHeader: (name) => {
             function colorCn(key: string): string {
                 switch (key) {
@@ -191,12 +300,13 @@ export const CustomColumn: Story = {
             );
         },
     },
-}
+};
 
 export const CanOverpageOnNoSizeInformation: Story = {
-  args: {
-    fetchRows: async () => [],
-  },
+    args: {
+        ...defaultArgs,
+        queryCallback: async () => withRows([]),
+    },
     play: async ({ canvas, userEvent, canvasElement, step }) => {
         const currentPageNumberInitial = canvasElement.querySelector('[data-current-page]');
         const nextPageButton = canvas.getByText(">");
@@ -223,9 +333,13 @@ export const CanOverpageOnNoSizeInformation: Story = {
 
 export const CanOverpageOnPartialSizeInformation: Story = {
     args: {
-        fetchRows: async () => [],
-        countPayload: { globalCount: 1000, groupedCount: 11 },
-        rowCountLimit: 1000,
+      ...defaultArgs,
+      queryCallback: async ({ query }) => {
+        return isCounterQuery(query)
+          ? counterPayload({ globalCount: 1000, groupedCount: 11 })
+          : withRows([]);
+      },
+      counterLimit: 1000,
     },
     play: async ({ canvas, userEvent, canvasElement, step }) => {
         // NOTE: This test's groupedCount must exceed pageSize in order to also test last page
@@ -263,7 +377,11 @@ export const CanOverpageOnPartialSizeInformation: Story = {
 
 export const Resizable: Story = {
     args: {
-        fetchRows: async () => [
+      ...defaultArgs,
+      idVars: [":key0", ":key1"],
+      queryCallback: async ({ query }) => {
+        if (isCounterQuery(query)) throw new Error("no count");
+        return withGroupedRows([
             {
                 idCols: [":key0", ":key1"],
                 idValues: {
@@ -329,7 +447,8 @@ export const Resizable: Story = {
                     ":value2": ["I'm fine"],
                 },
             },
-        ],
+        ])
+      },
     },
     play: async ({ userEvent, canvas, canvasElement, step }) => {
         const spinner = canvas.queryByRole("status");
@@ -390,7 +509,8 @@ function delayed<T>(
 
 export const QueryFailure: Story = {
     args: {
-      fetchRows: delayed(1000, () => { throw new Error("failure") }),
+      ...defaultArgs,
+      queryCallback: delayed(1000, () => { throw new Error("failure") }),
     },
     play: async ({ canvas }) => {
         const errorMsg = await canvas.findByText("error", { exact: false });
@@ -403,17 +523,25 @@ export const QueryFailure: Story = {
 
 export const SlowSuccessfulQuery: Story = {
   args: {
-    fetchRows: delayed(1000, async () => [{
-      idCols: [":key0", ":key1"],
-      idValues: {
-        ":key0": "AA",
-        ":key1": "BB",
-      },
-      restCols: [":value0"],
-      restValues: {
-        ":value0": ["query successful"],
-      },
-    }]),
+    ...defaultArgs,
+    idVars: [":key0", ":key1"],
+    queryCallback: async ({ query }) => {
+        if (isCounterQuery(query)) throw new Error("no count");
+        return await delayed(1000, async () => {
+            const groupedRows = withGroupedRows([{
+                idCols: [":key0", ":key1"],
+                idValues: {
+                    ":key0": "AA",
+                    ":key1": "BB",
+                },
+                restCols: [":value0"],
+                restValues: {
+                  ":value0": ["query successful"],
+                },
+            }]);
+          return groupedRows;
+})();
+    },
   },
   play: async ({ canvas }) => {
     const spinner = canvas.queryByRole("status");
@@ -427,10 +555,13 @@ export const SlowSuccessfulQuery: Story = {
 
 export const SlowQueryFailThenSucceed: Story = {
     args: {
-        // NOTE: Dummy arg specified to avoid typescript error
-        fetchRows: async () => [],
+      ...defaultArgs,
+      idVars: [":key0", ":key1"],
+      queryCallback: async () => {
+        throw new Error("shouldn't be called");
+      }
     },
-    render: ({}) => {
+    render: (args) => {
         const callCountRef = useRef(0);
 
         const res: MulticardinalRow[] = [{
@@ -445,18 +576,22 @@ export const SlowQueryFailThenSucceed: Story = {
             },
         }];
 
-        const fetchRows = delayed(1000, async () => {
-            callCountRef.current += 1;
+        const queryCallback: Story["args"]["queryCallback"] = async ({ query }) => {
+            if (isCounterQuery(query)) throw new Error("no count");
+            return await delayed(1000, async () => {
 
-            const callCount = callCountRef.current;
+                callCountRef.current += 1;
 
-            if (callCount < 2) throw new Error("womp womp");
+                const callCount = callCountRef.current;
 
-            return res;
-        });
+                if (callCount < 2) throw new Error("womp womp");
+
+                return withGroupedRows(res);
+            })();
+        }
 
         return (
-            <MultiCardinalTableServer {...{ fetchRows }} />
+            <MultiCardinalTableServer {...{ ...args, queryCallback }} />
         );
     },
     play: async ({ canvas, userEvent, step }) => {
