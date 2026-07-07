@@ -32,7 +32,11 @@ import { cn } from "@/lib/utils";
 import { ColumnResizer } from "./column_resizer";
 import { Spinner } from "./ui/spinner";
 import { Button } from "./ui/button";
-import type { CountPayload } from "./multi-cardinal-table";
+
+interface CountPayload {
+    globalCount: number,
+    groupedCount: number,
+}
 
 // NOTE: Exported, just in case this data is needed
 export const defaultColumn = {

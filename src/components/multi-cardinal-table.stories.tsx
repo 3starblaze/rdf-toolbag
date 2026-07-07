@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { defaultColumn } from './multi-cardinal-table';
-import { MultiCardinalTableServer } from './MultiCardinalTableServer2';
+import { MultiCardinalTableServer } from './MultiCardinalTableServer';
 import { useState, useRef } from 'react';
 import type { MulticardinalRow } from '@/multi-cardinal-table-util';
 import { expect, waitForElementToBeRemoved } from 'storybook/test';
@@ -56,9 +56,7 @@ function inferPagination(query: string): PaginationState | null {
 
 function withGroupedRows(groupedRows: MulticardinalRow[]): SparqlTableResult {
     return withRows(groupedRows.flatMap(({
-        idCols,
         idValues,
-        restCols,
         restValues,
     }) => {
         const entries = Object.entries(restValues);

@@ -21,9 +21,10 @@ export {
 } from "@/multi-cardinal-table-util";
 export {
     default as AggregatedTable,
-    MultiCardinalTableServer,
-    type CountPayload,
 } from "@/components/multi-cardinal-table";
+export {
+    MultiCardinalTableServer,
+} from "@/components/MultiCardinalTableServer";
 export {
     formatQuery,
 } from "@/misc/complex_property_query_builder";

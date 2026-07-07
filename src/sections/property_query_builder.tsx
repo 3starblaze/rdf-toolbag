@@ -1,11 +1,11 @@
 import ComplexPropertySelector, { makeDefaultSelection, type ComplexPropertySelection } from "@/components/complex_property_selector";
-import { MultiCardinalTableServer, type CountPayload } from "@/components/multi-cardinal-table";
+import { MultiCardinalTableServer } from "@/components/MultiCardinalTableServer";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { deduplicateTable, SyncPropertySelector, type MulticardinalRow } from "@/lib_index";
+import { SyncPropertySelector } from "@/lib_index";
 import { formatQuery, sparqlVarRe } from "@/misc/complex_property_query_builder";
 import { formatUniversalPaginatorQuery, formatUniversalPaginatorQueryCounter, requestAsSparqlTableResult, type SparqlTableResult } from "@/sparql_queries";
 import { skipToken, useQuery, type UseQueryResult } from "@tanstack/react-query";
@@ -172,12 +172,10 @@ function LimitSection({
     selection,
     paginationData,
     onPaginationDataChange: onPaginationDataChange,
-    labelMaker,
 }: {
     selection: ComplexPropertySelection,
     paginationData: PaginationData | null,
     onPaginationDataChange: (newValue: PaginationData | null) => void,
-    labelMaker: (value: string) => string,
 }) {
     const [globalLimit, setGlobalLimit] = useState<number | null>(paginationData?.globalLimit ?? null);
     const [groupLimit, setGroupLimit] = useState<number | null>(paginationData?.groupLimit ?? null);
@@ -200,7 +198,7 @@ function LimitSection({
 
     const suggestions: { label: string, value: string }[] = selectionToIdVarSuggestions(selection)
         .map((value) => ({
-            label: labelMaker(value),
+            label: value,
             value,
         }));
 
@@ -234,34 +232,6 @@ function LimitSection({
     );
 }
 
-async function tryGettingCount({
-    url,
-    formattedQuery,
-    globalRowCountVar,
-    groupedRowCountVar,
-}: {
-    url: URL,
-    formattedQuery: string,
-    globalRowCountVar: string,
-    groupedRowCountVar: string,
-}): Promise<CountPayload> {
-    const res = await requestAsSparqlTableResult(url, formattedQuery);
-
-    const firstRow = res.results.bindings[0];
-    if (!firstRow) throw new Error("No rows!");
-
-    const maybeGlobalCount = firstRow[globalRowCountVar];
-    if (!maybeGlobalCount) throw new Error("global count does not exist!");
-
-    const globalCount = Number(maybeGlobalCount.value);
-
-    const maybeGroupedCount = firstRow[groupedRowCountVar];
-    if (!maybeGroupedCount) throw new Error("grouped count does not exist!");
-
-    const groupedCount = Number(maybeGroupedCount.value);
-    return { globalCount, groupedCount };
-}
-
 function querySelectionToCountQueryString({
     queryToWrap,
     globalLimit,
@@ -276,50 +246,16 @@ function querySelectionToCountQueryString({
     });
 }
 
-function makeCountPayloadFetcher({
-    queryToWrap,
-    url,
-    idVars,
-    globalLimit,
-}: {
-    queryToWrap: string,
-    url: URL,
-    idVars: string[],
-    globalLimit: number,
-}): () => Promise<CountPayload> {
-    const globalRowCountVar = "__global_count";
-    const groupedRowCountVar = "__grouped_count";
-
-    const formattedQuery = queryToWrap && formatUniversalPaginatorQueryCounter({
-        queryToWrap,
-        globalRowCountVar,
-        groupedRowCountVar,
-        idVars,
-        globalLimit,
-    });
-
-    return () => tryGettingCount({
-        url,
-        formattedQuery,
-        globalRowCountVar,
-        groupedRowCountVar,
-    });
-}
-
 type QuerySelection = Parameters<typeof formatUniversalPaginatorQuery>[0];
 
 function QueryResult({
-    fetchRawTable,
     querySelection,
     onQuerySelectionChange,
-    columnRenamer,
-    countPayload,
+    url,
 }: {
-    fetchRawTable: () => Promise<SparqlTableResult>,
     querySelection: QuerySelection,
     onQuerySelectionChange: (newValue: QuerySelection) => void,
-    columnRenamer: (oldName: string) => string,
-    countPayload?: CountPayload,
+    url: URL,
 }) {
     const pageSize = querySelection.groupLimit;
     const pagination = {
@@ -327,28 +263,19 @@ function QueryResult({
         pageSize,
     };
 
-    function renameCols(row: MulticardinalRow): MulticardinalRow {
-        function renameObj<T>(item: {[k:string]: T}): {[k: string]: T} {
-            return Object.fromEntries(
-                Object.entries(item).map(([k, v]) => [columnRenamer(k), v])
-            );
-        }
-
-        return {
-            idCols: row.idCols.map(columnRenamer),
-            restCols: row.restCols.map(columnRenamer),
-            idValues: renameObj(row.idValues),
-            restValues: renameObj(row.restValues),
-        };
-    }
-
-    const fetchRows = () => fetchRawTable()
-        .then((tableData) => deduplicateTable(tableData, querySelection.idVars).map(renameCols))
+    const {
+        queryToWrap: baseQuery,
+        globalLimit,
+        idVars,
+    } = querySelection;
 
     return (
         <MultiCardinalTableServer
-            fetchRows={fetchRows}
-            countPayload={countPayload}
+            queryCallback={({ query }) => requestAsSparqlTableResult(url, query)}
+            baseQuery={baseQuery}
+            counterLimit={globalLimit}
+            rawRowLimit={globalLimit}
+            idVars={idVars}
             pagination={pagination}
             renderHeader={(colName) => {
                 const parts = colName.split(">");
@@ -377,12 +304,10 @@ function QueryResult({
 function DebugInformation({
     selection,
     querySelection,
-    counterQueryResult,
     queryResult,
 }: {
     selection: ComplexPropertySelection,
     querySelection: QuerySelection | null,
-    counterQueryResult: UseQueryResult<CountPayload>,
     queryResult: UseQueryResult<SparqlTableResult>,
 }) {
     function QueryDropdown({ title, value}: { title: string, value: string }) {
@@ -418,16 +343,6 @@ function DebugInformation({
 
             )}
             <div className="grid grid-cols-[auto_1fr] w-fit gap-x-2 gap-y-1">
-                <p className="font-bold">Query count result</p>
-                <pre>{JSON.stringify(counterQueryResult.data)}</pre>
-                <div className="col-span-2 text-gray-500 flex gap-1 items-center ml-2">
-                    <Info className="size-4" />
-                    <p>
-                        If globalCount equals globalLimit, the groupedCount is a minimum value,
-                        not exact value.
-                    </p>
-                </div>
-
                 <p className="font-bold">Query raw row count</p>
                 <p>{queryResult.data ? queryResult.data.results.bindings.length : "no result"}</p>
                 <div className="col-span-2 text-gray-500 flex gap-1 items-center ml-2">
@@ -457,23 +372,6 @@ export default function PropertyQueryBuilder({
                : skipToken,
     });
 
-    const labelMaker = (oldName: string): string => oldName;
-
-    const fetchRawTable = querySelection
-        ? () => requestAsSparqlTableResult(url, formatUniversalPaginatorQuery(querySelection))
-        : () => { throw new Error("missing querySelection!") };
-
-    const counterQueryResult = useQuery({
-        queryKey: ["PropertyQueryBuilder", "queryCounter", url, querySelection],
-        queryFn: querySelection
-            ? (makeCountPayloadFetcher({
-                url: url,
-                queryToWrap: querySelection.queryToWrap,
-                globalLimit: querySelection.globalLimit,
-                idVars: querySelection.idVars,
-            })) : skipToken,
-    });
-
     const [paginationData, setPaginationData] = useState<PaginationData | null>(null);
 
     function updateQuerySelection() {
@@ -488,7 +386,7 @@ export default function PropertyQueryBuilder({
         <div className="flex flex-col gap-4">
             <H1>Debug information</H1>
             <DebugInformation
-                {...{ selection, querySelection, queryResult, counterQueryResult }}
+                {...{ selection, querySelection, queryResult }}
             />
 
             <H1>Query results</H1>
@@ -507,13 +405,11 @@ export default function PropertyQueryBuilder({
              * without explicitly dragging a root scrollbar */
             <div className="h-[calc(100vh-8rem)] overflow-y-auto">
                 <QueryResult
-                    fetchRawTable={fetchRawTable}
+                    url={url}
                     querySelection={querySelection}
-                        onQuerySelectionChange={setQuerySelection}
-                        countPayload={counterQueryResult.data}
-                        columnRenamer={labelMaker}
-                    />
-                </div>
+                    onQuerySelectionChange={setQuerySelection}
+                />
+            </div>
             )}
 
             <H1>Property selection</H1>
@@ -541,7 +437,6 @@ export default function PropertyQueryBuilder({
                 selection={selection}
                 paginationData={paginationData}
                 onPaginationDataChange={setPaginationData}
-                labelMaker={labelMaker}
             />
         </div>
     );

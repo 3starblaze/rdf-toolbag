@@ -1,9 +1,8 @@
-import { MultiCardinalTableServer, type CountPayload } from "@/components/multi-cardinal-table";
+import { MultiCardinalTableServer } from "@/components/MultiCardinalTableServer";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { deduplicateTable, SyncPropertySelector } from "@/lib_index";
-import { formatUniversalPaginatorQuery, formatUniversalPaginatorQueryCounter, requestAsSparqlTableResult, RequestError } from "@/sparql_queries";
-import { skipToken, useQuery } from "@tanstack/react-query";
+import { SyncPropertySelector } from "@/lib_index";
+import { formatUniversalPaginatorQuery, requestAsSparqlTableResult } from "@/sparql_queries";
 import { useState } from "react";
 import type { PaginationState } from "@tanstack/react-table";
 import { defaultPagination } from "@/components/table_pagination_bar";
@@ -25,84 +24,6 @@ function findSuggestions(query: string): {value: string, label: string}[] {
 
 function isArrayEqual(a: unknown[], b: unknown[]): boolean {
     return JSON.stringify(a) === JSON.stringify(b);
-}
-
-function retryWithValidation(failureCount: number, error: Error) {
-    // NOTE: Mimic default behavior
-    if (failureCount === 3) return false;
-
-    if (error instanceof RequestError) {
-        const { response } = error;
-        // NOTE: This is validation error, the request will never be successful and we
-        // must stop trying
-        if (response.status === 400) {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-async function tryGettingCount({
-    url,
-    formattedQuery,
-    globalRowCountVar,
-    groupedRowCountVar,
-}: {
-    url: URL,
-    formattedQuery: string,
-    globalRowCountVar: string,
-    groupedRowCountVar: string,
-}): Promise<CountPayload> {
-    const res = await requestAsSparqlTableResult(url, formattedQuery);
-
-    const firstRow = res.results.bindings[0];
-    if (!firstRow) throw new Error("No rows!");
-
-    const maybeGlobalCount = firstRow[globalRowCountVar];
-    if (!maybeGlobalCount) throw new Error("global count does not exist!");
-
-    const globalCount = Number(maybeGlobalCount.value);
-
-    const maybeGroupedCount = firstRow[groupedRowCountVar];
-    if (!maybeGroupedCount) throw new Error("grouped count does not exist!");
-
-    const groupedCount = Number(maybeGroupedCount.value);
-    return { globalCount, groupedCount };
-}
-
-function useRowCount({
-    queryToWrap,
-    url,
-    idVars,
-    globalLimit,
-}: {
-    queryToWrap?: string,
-    url: URL,
-    idVars: string[],
-    globalLimit: number,
-}): ReturnType<typeof useQuery<CountPayload>> {
-    const globalRowCountVar = "__global_count";
-    const groupedRowCountVar = "__grouped_count";
-
-    const formattedQuery = queryToWrap && formatUniversalPaginatorQueryCounter({
-        queryToWrap,
-        globalRowCountVar,
-        groupedRowCountVar,
-        idVars,
-        globalLimit,
-    });
-
-    return useQuery({
-        queryKey: ["useRowCount", queryToWrap, globalLimit],
-        retry: retryWithValidation,
-        queryFn: formattedQuery ? () => tryGettingCount({
-            url,
-            formattedQuery,
-            globalRowCountVar,
-            groupedRowCountVar,
-        }) : skipToken,
-    });
 }
 
 export default function PaginatedDeduplicationView({
@@ -135,18 +56,6 @@ export default function PaginatedDeduplicationView({
         groupLimit,
         groupOffset,
     }) : undefined;
-
-    const fetchRows = formattedQuery
-        ? () => requestAsSparqlTableResult(url, formattedQuery)
-            .then((data) => deduplicateTable(data, idCols))
-        : () => { throw new Error("missing querySelection!") };
-
-    const rowCountQuery = useRowCount({
-        queryToWrap: queryString ?? undefined,
-        idVars: idCols,
-        url,
-        globalLimit,
-    });
 
     return (
         <div className="flex flex-col gap-2">
@@ -188,13 +97,19 @@ export default function PaginatedDeduplicationView({
 
             <p>Results</p>
 
-            <MultiCardinalTableServer
-                fetchRows={fetchRows}
-                pagination={pagination}
-                onPaginationChange={setPagination}
-                countPayload={rowCountQuery.data}
-                rowCountLimit={globalLimit}
-            />
+            {queryString ? (
+                <MultiCardinalTableServer
+                    queryCallback={({ query }) => requestAsSparqlTableResult(url, query)}
+                    baseQuery={queryString}
+                    pagination={pagination}
+                    onPaginationChange={setPagination}
+                    rawRowLimit={globalLimit}
+                    counterLimit={globalLimit}
+                    idVars={idCols}
+                />
+            ) : (
+                <p>No query is set!</p>
+            )}
         </div>
     );
 }
