@@ -106,17 +106,19 @@ function getColumns(
     return [...idColumns, ...valueColumns];
 }
 
-function useRows({
-    pagination,
-    queryCallback,
-    baseQuery,
-    idVars,
-    rawRowLimit,
-}: Pick<Props, "queryCallback" | "baseQuery" | "idVars" | "rawRowLimit"> & {
+function useRows(args: Pick<Props, "queryCallback" | "baseQuery" | "idVars" | "rawRowLimit"> & {
     pagination: NonNullable<Props["pagination"]>,
 }) {
+    const {
+        pagination,
+        queryCallback,
+        baseQuery,
+        idVars,
+        rawRowLimit,
+    } = args;
+
     return useQuery({
-        queryKey: ["rows", pagination],
+        queryKey: ["rows", args],
         queryFn: async () => {
             const query = formatUniversalPaginatorQuery({
                 globalLimit: rawRowLimit,
@@ -133,12 +135,14 @@ function useRows({
     });
 }
 
-function useCount({
-    queryCallback,
-    baseQuery,
-    counterLimit,
-    idVars,
-}: Pick<Props, "queryCallback" | "baseQuery" | "idVars" | "counterLimit">) {
+function useCount(args: Pick<Props, "queryCallback" | "baseQuery" | "idVars" | "counterLimit">) {
+    const {
+        queryCallback,
+        baseQuery,
+        counterLimit,
+        idVars,
+    } = args;
+
     const globalRowCountVar = "__global_count";
     const groupedRowCountVar = "__grouped_count";
 
@@ -163,7 +167,7 @@ function useCount({
     }
 
     return useQuery({
-        queryKey: ["count", baseQuery, globalRowCountVar, groupedRowCountVar, idVars, counterLimit],
+        queryKey: ["count", args],
         queryFn: async () => {
             const query = formatUniversalPaginatorQueryCounter({
                 queryToWrap: baseQuery,
