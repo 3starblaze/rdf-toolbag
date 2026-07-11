@@ -28,6 +28,8 @@
     "@tailwindcss/vite": "^4.1.17",
     "@tanstack/react-query": "^5.90.11",
     "@tanstack/react-table": "^8.21.3",
+    "@traqula/generator-sparql-1-1": "^1.1.8",
+    "@traqula/parser-sparql-1-1": "^1.1.8",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",

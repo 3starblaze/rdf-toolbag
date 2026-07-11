@@ -28,3 +28,6 @@ export {
 export {
     formatQuery,
 } from "@/misc/complex_property_query_builder";
+export {
+    rewriteQueryWithPrefixes,
+} from "@/query-util";
