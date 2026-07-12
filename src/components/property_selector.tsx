@@ -35,10 +35,12 @@ export function SingleStringCombobox({
         !suggestions || !suggestions.find((item) => item.value === inputValue)
     );
 
+    const currentLabel = valueToLabel(value);
+
     // NOTE: When value or suggestions are changed the label must be forcefully updated
     useEffect(() => {
-        setInputValue(valueToLabel(value));
-    }, [value, suggestions]);
+        setInputValue(currentLabel);
+    }, [currentLabel]);
 
     return (
         <Combobox
