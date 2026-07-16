@@ -2,6 +2,7 @@ import { expect, test, describe } from 'vitest'
 import {
   rewriteQueryWithPrefixes,
   findVars,
+  isQueryValid,
 } from './query-util';
 
 describe("rewriteQueryWithPrefixes", () => {
@@ -123,5 +124,17 @@ describe("findVars", () => {
       "type",
       "deathPlace",
     ]);
+  });
+});
+
+describe("isQueryValid", () => {
+  test("valid query", () => {
+    const query = "SELECT * WHERE { ?s ?p ?o }";
+    expect(isQueryValid(query)).toBeTrue();
+  });
+
+  test("invalid query", () => {
+    const query = "SELECT * WHERE ?s ?p ?o";
+    expect(isQueryValid(query)).toBeFalse();
   });
 });

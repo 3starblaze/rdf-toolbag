@@ -3,6 +3,7 @@ import {
   formatPaginatedQuery,
   formatPaginatedCounterQuery,
 } from "./compact-pagination";
+import { isQueryValid } from "./query-util";
 
 function expectPrefixesToNotBeNested(query: string) {
     const lines = query.split("\n");
@@ -17,6 +18,10 @@ function expectPrefixesToNotBeNested(query: string) {
 
     expect(lines.slice(0, maxPrefixIndex + 1))
         .toSatisfyAll((line) => lineIsPrefixStmt(line) || lineIsBlank(line));
+}
+
+function expectValidQuery(query: string) {
+  expect(isQueryValid(query)).toBeTrue();
 }
 
 const propNameVar = "__propName";
@@ -38,6 +43,9 @@ SELECT * WHERE {
       propNameVar,
       propValVar,
     });
+
+    expect(res).toBeValidSparqlQuery();
+
     // NOTE: Should have a distinct query involving the ?sub column
     expect(res).toMatch(/SELECT\s+DISTINCT\s+\?sub/);
     // NOTE: Match passed parameters
@@ -100,18 +108,20 @@ SELECT DISTINCT * WHERE{
       propValVar,
     });
 
+    expectValidQuery(res);
     expectPrefixesToNotBeNested(res);
   });
 });
 
 
-describe("formatPaginatedQuery", () => {
+describe("formatPaginatedCounterQuery", () => {
   test("basic limited query", () => {
     const globalRowCountVar = "__another_global_count";
     const groupedRowCountVar = "__another_grouped_count";
     const globalLimit = 1000;
 
     const queryToWrap = `SELECT * WHERE { ?sub ?pred ?obj }`;
+    expect(queryToWrap).toBeValidSparqlQuery();
 
     const q = formatPaginatedCounterQuery({
       globalRowCountVar,
@@ -120,9 +130,10 @@ describe("formatPaginatedQuery", () => {
       queryToWrap,
       globalLimit,
       propNameVar,
-      propValVar
+      propValVar,
     });
 
+    expect(q).toBeValidSparqlQuery();
     expect(q).toMatch(`?${globalRowCountVar}`);
     expect(q).toMatch(`?${groupedRowCountVar}`);
     expect(q).toMatch("?sub");
@@ -147,14 +158,19 @@ SELECT DISTINCT * WHERE{
         OPTIONAL{?Catalog dct:title ?title .  }
         OPTIONAL{?Catalog dct:description ?description .  }
 } LIMIT 20`;
+    expectValidQuery(queryToWrap);
 
     const q = formatPaginatedCounterQuery({
+      propNameVar,
+      propValVar,
       globalRowCountVar,
       groupedRowCountVar,
       idVars: ["sub", "pred"],
       queryToWrap,
       globalLimit,
     });
+
+    expect(q).toBeValidSparqlQuery();
 
     expectPrefixesToNotBeNested(q);
   });

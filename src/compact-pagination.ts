@@ -29,7 +29,7 @@ function formatPropConstraints({
 
   return [
     `VALUES ?${propNameVar} { ${valueVars.map((it) => `"${it}"`).join(" ")} }`,
-    `BIND(${makeIfExpr(valueVars)} AS ${propValVar})`,
+    `BIND(${makeIfExpr(valueVars)} AS ?${propValVar})`,
   ].join("\n");
 }
 
@@ -94,20 +94,22 @@ export function formatPaginatedCounterQuery({
   const { preamble, main } = splitQueryPreamble(queryToWrap);
 
   const limitedSubquery: string = [
-    "SELECT DISTINCT * {",
-    lineAwareIndent(main),
+    `SELECT ${fmtVars(idVars)} WHERE {`,
+    fmtSubquery(main),
     lineAwareIndent(
       formatPropConstraints({ query: queryToWrap, idVars, propNameVar, propValVar })
     ),
     `} LIMIT ${globalLimit}`,
   ].join("\n");
 
+  // NOTE: Limited subquery first selects "DISTINCT *" tuples and then keeps only id vars. This way
+  // we can use COUNT(*) and COUNT(DISTINCT *) to get expected results.
   const query = [
     preamble,
     "SELECT",
-    `(COUNT(DISTINCT *) AS ?${globalRowCountVar})`,
-    `(COUNT(DISTINCT ${fmtVars(idVars)}) AS ?${groupedRowCountVar})`,
-    "{",
+    `(COUNT(*) AS ?${globalRowCountVar})`,
+    `(COUNT(DISTINCT *) AS ?${groupedRowCountVar})`,
+    "WHERE {",
     fmtSubquery(limitedSubquery),
     "}",
   ].join("\n");

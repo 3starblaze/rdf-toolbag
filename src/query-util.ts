@@ -127,3 +127,13 @@ export function splitQueryPreamble(
     main: lines.slice(boundaryIndex).join("\n"),
   };
 }
+
+export function isQueryValid(query: string) {
+  const parser = new Parser();
+  try {
+    parser.parse(query);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
