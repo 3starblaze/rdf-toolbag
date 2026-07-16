@@ -4,6 +4,7 @@ import {
   formatPaginatedCounterQuery,
 } from "./compact-pagination";
 import { isQueryValid } from "./query-util";
+import { loadSWAPIStore, queryStore } from "./test-util";
 
 function expectPrefixesToNotBeNested(query: string) {
     const lines = query.split("\n");
@@ -173,5 +174,40 @@ SELECT DISTINCT * WHERE{
     expect(q).toBeValidSparqlQuery();
 
     expectPrefixesToNotBeNested(q);
+  });
+});
+
+describe("pagination query tests", async () => {
+  const store = await loadSWAPIStore();
+
+  test("basic example", async () => {
+    const expectedLength = 37;
+
+    const query = `PREFIX voc:   <https://swapi.co/vocabulary/>
+    PREFIX rdfs:  <http://www.w3.org/2000/01/rdf-schema#>
+    SELECT * WHERE {
+      ?Starship a voc:Starship .
+      ?Starship rdfs:label ?StarshipName .
+      ?Starship voc:starshipClass ?StarshipClass .
+    } LIMIT 100
+`;
+
+    expect(query).toBeValidSparqlQuery();
+
+    const newQuery = formatPaginatedQuery({
+      queryToWrap: query,
+      globalLimit: 1000,
+      groupLimit: 50,
+      groupOffset: 0,
+      idVars: ["Starship", "StarshipClass"],
+      propNameVar,
+      propValVar,
+    });
+
+    expect(newQuery).toBeValidSparqlQuery();
+
+    const res = queryStore(store, newQuery);
+
+    expect(res.results.bindings).toHaveLength(expectedLength);
   });
 });
