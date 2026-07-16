@@ -81,3 +81,49 @@ export function rewriteQueryWithPrefixes({
 
   return newQuery;
 }
+
+export function findVars({
+  query,
+}: {
+  query: string,
+}): string[] {
+  const parser = new Parser();
+  const transformer = new AstTransformer();
+
+  const ast = parser.parse(query);
+
+  const vars = new Set<string>();
+
+  transformer.visitNode(ast, {
+    term: {
+      visitor: (item) => {
+        if (item.subType !== "variable") return;
+        vars.add(item.value);
+      },
+    },
+  });
+
+  return [...vars];
+}
+
+
+/**
+ * Split query with the intention of nesting into subqueries.
+ *
+ * @return Two parts -- preamble that can't be nested and main that can be
+ */
+export function splitQueryPreamble(
+  query: string,
+): { preamble: string, main: string } {
+  const lineIsPrefixStatement = (line: string) => !!line.match(/\s*PREFIX/);
+  const lineIsBlank = (line: string) => !!line.match(/^\s*$/);
+
+  const lines = query.split("\n");
+  const boundaryIndex = lines
+    .findIndex((line) => !(lineIsPrefixStatement(line) || lineIsBlank(line)));
+
+  return {
+    preamble: lines.slice(0, boundaryIndex).join("\n"),
+    main: lines.slice(boundaryIndex).join("\n"),
+  };
+}

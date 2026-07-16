@@ -1,5 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import N3 from "n3";
+import { splitQueryPreamble } from "./query-util";
 
 export interface SparqlTableResult {
     head: {
@@ -567,25 +568,4 @@ export function formatUniversalPaginatorQueryCounter({
   ].join("\n");
 
   return query;
-}
-
-/**
- * Split query with the intention of nesting into subqueries.
- *
- * @return Two parts -- preamble that can't be nested and main that can be
- */
-function splitQueryPreamble(
-  query: string,
-): { preamble: string, main: string } {
-  const lineIsPrefixStatement = (line: string) => !!line.match(/\s*PREFIX/);
-  const lineIsBlank = (line: string) => !!line.match(/^\s*$/);
-
-  const lines = query.split("\n");
-  const boundaryIndex = lines
-    .findIndex((line) => !(lineIsPrefixStatement(line) || lineIsBlank(line)));
-
-  return {
-    preamble: lines.slice(0, boundaryIndex).join("\n"),
-    main: lines.slice(boundaryIndex).join("\n"),
-  };
 }

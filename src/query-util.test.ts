@@ -1,5 +1,8 @@
 import { expect, test, describe } from 'vitest'
-import { rewriteQueryWithPrefixes } from './query-util';
+import {
+  rewriteQueryWithPrefixes,
+  findVars,
+} from './query-util';
 
 describe("rewriteQueryWithPrefixes", () => {
   test("no prefixes initially", () => {
@@ -91,4 +94,34 @@ SELECT DISTINCT * WHERE{
     // NOTE: prefix should not be redefined if it already exists
     expect(matches).toHaveLength(1);
   })
+});
+
+describe("findVars", () => {
+  test("basic test", () => {
+    const query = `SELECT * WHERE {
+    OPTIONAL { ?this <http://xmlns.com/foaf/0.1/name> ?name }
+    OPTIONAL { ?this <http://www.w3.org/2000/01/rdf-schema#label> ?label }
+    OPTIONAL { ?this <http://dbpedia.org/property/dateOfBirth> ?dateOfBirth }
+    OPTIONAL { ?this <http://xmlns.com/foaf/0.1/birthday> ?birthday }
+    OPTIONAL { ?this <http://xmlns.com/foaf/0.1/givenName> ?givenName }
+    OPTIONAL { ?this <http://dbpedia.org/ontology/birthPlace> ?birthPlace }
+    OPTIONAL { ?this <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> ?type }
+    OPTIONAL { ?this <http://dbpedia.org/ontology/deathPlace> ?deathPlace }
+    ?this a <http://data.nobelprize.org/terms/Laureate> .
+    }`;
+
+    const vars = findVars({ query });
+
+    expect(vars).toIncludeAllMembers([
+      "this",
+      "name",
+      "label",
+      "dateOfBirth",
+      "birthday",
+      "givenName",
+      "birthPlace",
+      "type",
+      "deathPlace",
+    ]);
+  });
 });
