@@ -2,9 +2,12 @@ import { expect, test, describe } from "vitest";
 import {
   formatPaginatedQuery,
   formatPaginatedCounterQuery,
+  tableToMulticardinalRow,
 } from "./compact-pagination";
 import { isQueryValid } from "./query-util";
 import { loadSWAPIStore, queryStore } from "./test-util";
+import type { SparqlTableResult } from "./sparql_queries";
+import type { MulticardinalRow } from "./multi-cardinal-table-util";
 
 function expectPrefixesToNotBeNested(query: string) {
     const lines = query.split("\n");
@@ -174,6 +177,65 @@ SELECT DISTINCT * WHERE{
     expect(q).toBeValidSparqlQuery();
 
     expectPrefixesToNotBeNested(q);
+  });
+});
+
+describe("tableToMulticardinalRow", () => {
+  test("basic example", () => {
+    const v = (value: string) => ({ value, type: "literal" });
+
+    const row = (a: string, b: string, c: string, d: string) => ({
+      productType: v(a),
+      color: v(b),
+      [propNameVar]: v(c),
+      [propValVar]: v(d),
+    })
+
+    const resultingTable: SparqlTableResult = {
+      head: { vars: [propNameVar, propValVar, "productType", "color"] },
+      results: {
+        bindings: [
+          row("watch", "blue", "price", "9999"),
+          row("watch", "blue", "price", "4999"),
+          row("watch", "blue", "buildType", "new"),
+
+          row("watch", "black", "price", "7999"),
+          row("watch", "black", "buildType", "new"),
+
+          row("phone", "black", "price", "999"),
+          row("phone", "black", "price", "899"),
+          row("phone", "black", "buildType", "refurbished"),
+        ],
+      },
+    };
+
+    const rows = tableToMulticardinalRow({ propNameVar, propValVar, resultingTable });
+
+    const idCols = ["productType", "color"];
+    const restCols = ["price", "buildType"];
+
+    const expectedRows: MulticardinalRow[] = [
+      {
+        idCols,
+        idValues: { productType: "watch", color: "blue" },
+        restCols,
+        restValues: { price: ["9999", "4999"], buildType: ["new"] },
+      },
+      {
+        idCols,
+        idValues: { productType: "watch", color: "black" },
+        restCols,
+        restValues: { price: ["7999"], buildType: ["new"] },
+      },
+      {
+        idCols,
+        idValues: { productType: "phone", color: "black" },
+        restCols,
+        restValues: { price: ["999", "899"], buildType: ["refurbished"] },
+      },
+    ];
+
+    expect(rows).toEqual(expectedRows);
   });
 });
 

@@ -1,4 +1,7 @@
+import type { MulticardinalRow } from "./multi-cardinal-table-util";
 import { findVars, splitQueryPreamble } from "./query-util";
+import type { SparqlTableResult } from "./sparql_queries";
+import { Data, Option, MutableHashMap, MutableHashSet, HashMap } from "effect";
 
 const indentation = "  ";
 const indent = (line: string) => `${indentation}${line}`;
@@ -115,4 +118,53 @@ export function formatPaginatedCounterQuery({
   ].join("\n");
 
   return query;
+}
+
+export function tableToMulticardinalRow({
+  propNameVar,
+  propValVar,
+  resultingTable,
+}: {
+  resultingTable: SparqlTableResult,
+  propNameVar: string,
+  propValVar: string,
+}): MulticardinalRow[] {
+  const vars = resultingTable.head.vars;
+  if (!vars.includes(propNameVar)) throw new Error(`Could not find ${propNameVar}`);
+  if (!vars.includes(propValVar)) throw new Error(`Could not find ${propValVar}`);
+
+  const idCols = vars.filter((it) => it !== propNameVar && it !== propValVar);
+
+  type BindingItem = SparqlTableResult["results"]["bindings"][number]
+
+  const collectingMap = MutableHashMap.fromIterable<readonly string[], BindingItem[]>([]);
+
+  resultingTable.results.bindings.forEach((it) => {
+    const mapKey = Data.array(idCols.map((idCol) => it[idCol].value));
+    collectingMap.pipe(
+      MutableHashMap.modifyAt(mapKey, (items) => {
+        const current = Option.getOrElse(items, () => []);
+        return Option.some([...current, it]);
+      })
+    );
+  });
+
+  const res: MulticardinalRow[] = collectingMap
+    .pipe(MutableHashMap.keys)
+    .map((k) => {
+      const items = collectingMap.pipe(MutableHashMap.get(k), Option.getOrThrow);
+      const propToVal = items.map((it) => [it[propNameVar].value, it[propValVar].value] as const);
+
+      const propMap = new Map<string, string[]>();
+      propToVal.forEach(([prop, val]) => propMap.set(prop, [...propMap.get(prop) ?? [], val]));
+
+      return {
+        idCols,
+        idValues: Object.fromEntries(idCols.map((col, i) => [col, k[i]] as const)),
+        restCols: [...propMap.keys()],
+        restValues: Object.fromEntries(propMap),
+      };
+    });
+
+  return res;
 }
