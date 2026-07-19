@@ -1,8 +1,12 @@
 import {
-    formatUniversalPaginatorQuery,
-    formatUniversalPaginatorQueryCounter,
   type SparqlTableResult,
 } from "@/sparql_queries";
+import {
+    formatPaginatedCounterQuery,
+    formatPaginatedQuery,
+    tableToCountPayload,
+    tableToMulticardinalRow,
+} from "@/compact-pagination";
 import {
   QueryClient,
   QueryClientProvider,
@@ -27,11 +31,12 @@ import {
 } from "@/components/ui/table";
 import { useControllableState } from "@radix-ui/react-use-controllable-state";
 import { defaultPagination, ServerSidePaginationBar } from "./table_pagination_bar";
-import { deduplicateTable, type MulticardinalRow } from "@/multi-cardinal-table-util";
+import { type MulticardinalRow } from "@/multi-cardinal-table-util";
 import { cn } from "@/lib/utils";
 import { ColumnResizer } from "./column_resizer";
 import { Spinner } from "./ui/spinner";
 import { Button } from "./ui/button";
+import { useEffect } from "react";
 
 interface CountPayload {
     globalCount: number,
@@ -117,18 +122,24 @@ function useRows(args: Pick<Props, "queryCallback" | "baseQuery" | "idVars" | "r
         rawRowLimit,
     } = args;
 
+    const propNameVar = "__propName";
+    const propValVar = "__propVal";
+
     return useQuery({
         queryKey: ["rows", args],
         queryFn: async () => {
-            const query = formatUniversalPaginatorQuery({
+            const query = formatPaginatedQuery({
+                propNameVar,
+                propValVar,
                 globalLimit: rawRowLimit,
                 groupLimit: pagination.pageSize,
                 groupOffset: pagination.pageSize * pagination.pageIndex,
                 idVars,
                 queryToWrap: baseQuery,
             });
-            const tableRes = await queryCallback({ query });
-            const res = deduplicateTable(tableRes, idVars);
+            const resultingTable = await queryCallback({ query });
+
+            const res = tableToMulticardinalRow({ resultingTable, propNameVar, propValVar });
             return res;
         },
         retry: false,
@@ -145,39 +156,27 @@ function useCount(args: Pick<Props, "queryCallback" | "baseQuery" | "idVars" | "
 
     const globalRowCountVar = "__global_count";
     const groupedRowCountVar = "__grouped_count";
-
-    function tryGettingCount({
-        tableRes,
-    }: {
-        tableRes: SparqlTableResult,
-    }): CountPayload {
-        const firstRow = tableRes.results.bindings[0];
-        if (!firstRow) throw new Error("No rows!");
-
-        const maybeGlobalCount = firstRow[globalRowCountVar];
-        if (!maybeGlobalCount) throw new Error("global count does not exist!");
-
-        const globalCount = Number(maybeGlobalCount.value);
-
-        const maybeGroupedCount = firstRow[groupedRowCountVar];
-        if (!maybeGroupedCount) throw new Error("grouped count does not exist!");
-
-        const groupedCount = Number(maybeGroupedCount.value);
-        return { globalCount, groupedCount };
-    }
+    const propNameVar = "__propName";
+    const propValVar = "__propVal";
 
     return useQuery({
         queryKey: ["count", args],
-        queryFn: async () => {
-            const query = formatUniversalPaginatorQueryCounter({
+        queryFn: async (): Promise<CountPayload> => {
+            const query = formatPaginatedCounterQuery({
                 queryToWrap: baseQuery,
+                globalLimit: counterLimit,
                 globalRowCountVar,
                 groupedRowCountVar,
                 idVars,
-                globalLimit: counterLimit,
+                propNameVar,
+                propValVar,
             });
-            const tableRes = await queryCallback({ query });
-            return tryGettingCount({ tableRes });
+            const resultingTable = await queryCallback({ query });
+            return tableToCountPayload({
+                resultingTable,
+                globalRowCountVar,
+                groupedRowCountVar
+            });
         },
         retry: false,
     });
@@ -319,21 +318,47 @@ function MainBody({
     );
 }
 
-function MainComponent({
-    idVars,
+function useLogErrors({
     baseQuery,
+    idVars,
+    pagination,
     queryCallback,
-    counterLimit,
     rawRowLimit,
-    pagination: providedPagination,
-    onPaginationChange,
-    renderHeader,
-}: Props): React.ReactNode {
+    counterLimit,
+}: Props & { pagination: NonNullable<Props["pagination"]> }) {
+    const rowsQuery = useRows({ baseQuery, idVars, pagination, queryCallback, rawRowLimit });
+    const countQuery = useCount({ baseQuery, counterLimit, idVars, queryCallback });
+
+    useEffect(() => {
+        if (!rowsQuery.error) return;
+        console.error(`[MultiCardinalTableServer] [rowsQuery] ${rowsQuery.error}`);
+    }, [rowsQuery.error]);
+
+    useEffect(() => {
+        if (!countQuery.error) return;
+        console.error(`[MultiCardinalTableServer] [countQuery] ${rowsQuery.error}`);
+    }, [countQuery.error]);
+}
+
+function MainComponent(props: Props): React.ReactNode {
+    const {
+        idVars,
+        baseQuery,
+        queryCallback,
+        counterLimit,
+        rawRowLimit,
+        pagination: providedPagination,
+        onPaginationChange,
+        renderHeader,
+    } = props;
+
     const [pagination, setPagination] = useControllableState<PaginationState>({
         prop: providedPagination,
         defaultProp: defaultPagination,
         onChange: onPaginationChange,
     });
+
+    useLogErrors({ ...props, pagination, onPaginationChange: setPagination });
 
     const rowsQuery = useRows({ baseQuery, idVars, queryCallback, pagination, rawRowLimit });
 

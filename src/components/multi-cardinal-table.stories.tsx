@@ -3,7 +3,7 @@ import { defaultColumn } from './multi-cardinal-table';
 import { MultiCardinalTableServer } from './MultiCardinalTableServer';
 import { useState, useRef } from 'react';
 import type { MulticardinalRow } from '@/multi-cardinal-table-util';
-import { expect, waitForElementToBeRemoved } from 'storybook/test';
+import { expect, waitFor, waitForElementToBeRemoved } from 'storybook/test';
 import type { SparqlTableResult } from '@/sparql_queries';
 import type { PaginationState } from '@tanstack/react-table';
 
@@ -30,16 +30,6 @@ function withRows(rows: { [key: string]: string }[]): SparqlTableResult {
   }
 }
 
-// Source - https://stackoverflow.com/a/43053803
-// Retrieved 2026-07-06, License - CC BY-SA 4.0
-function cartesian <T>(...a: T[][]): T[][] {
-  // NOTE: the solution comment mentions the N = 1 case being broken and thus we handle this
-  // explicitly
-  if (a.length === 1) return a[0].map((it) => [it]);
-  // NOTE: Casting to any because it should work
-  return a.reduce((a, b) => a.flatMap(d => b.map(e => [d, e].flat())) as any) as any;
-}
-
 function inferPagination(query: string): PaginationState | null {
   const reRes = query.match(/LIMIT\s+(\d+)\s+OFFSET\s+(\d+)/);
 
@@ -55,18 +45,19 @@ function inferPagination(query: string): PaginationState | null {
 
 
 function withGroupedRows(groupedRows: MulticardinalRow[]): SparqlTableResult {
+    // HACK: Harcoded
+    const propNameVar =  "__propName";
+    const propValVar = "__propVal";
+
     return withRows(groupedRows.flatMap(({
         idValues,
         restValues,
     }) => {
-        const entries = Object.entries(restValues);
-        const entryProduct = cartesian(...entries.map(([_, v]) => v));
-        return entryProduct.map((restValuesArr) => {
-            return {
-                ...idValues,
-              ...Object.fromEntries(entries.map(([k], i) => [k, restValuesArr[i]] as const)),
-            };
-        });
+        return Object.entries(restValues).flatMap(([k, vArr]) => vArr.map((v) => ({
+          ...idValues,
+          [propNameVar]: k,
+          [propValVar]: v,
+        })));
     }));
 }
 
@@ -349,10 +340,13 @@ export const CanOverpageOnPartialSizeInformation: Story = {
         const nextPageButton = canvas.getByText(">");
         const lastPageButton = canvas.getByText(">>");
 
-        await step("Assert initial state", () => {
+        await step("Assert initial state", async () => {
+            // NOTE: Await count query result
+            await waitFor(() => !currentPageNumber.parentElement?.innerHTML.includes("?"));
+
             expect(nextPageButton).not.toBeDisabled();
 
-            // NOTE: Should not be disabled because
+            // NOTE: Should not be disabled because the count is not known
             expect(lastPageButton).not.toBeDisabled();
 
             expect(currentPageNumber).toBeInTheDocument();
@@ -546,7 +540,7 @@ export const SlowSuccessfulQuery: Story = {
     expect(spinner).toBeInTheDocument();
 
     await waitForElementToBeRemoved(spinner);
-    const tableItem = canvas.queryByText("query successful");
+    const tableItem = await canvas.findByText("query successful");
     expect(tableItem).toBeInTheDocument();
   },
 };
@@ -599,7 +593,7 @@ export const SlowQueryFailThenSucceed: Story = {
 
             await waitForElementToBeRemoved(spinner0);
 
-            const errorMsg = canvas.queryByText("error", { exact: false });
+            const errorMsg = await canvas.findByText("error", { exact: false });
             expect(errorMsg).toBeInTheDocument();
         });
 
