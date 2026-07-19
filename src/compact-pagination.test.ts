@@ -3,6 +3,7 @@ import {
   formatPaginatedQuery,
   formatPaginatedCounterQuery,
   tableToMulticardinalRow,
+  tableToCountPayload,
 } from "./compact-pagination";
 import { isQueryValid } from "./query-util";
 import { queryStore, ttlStringToStore } from "./test-util";
@@ -240,7 +241,7 @@ describe("tableToMulticardinalRow", () => {
 });
 
 describe("pagination query tests", async () => {
-  test("basic test", () => {
+  describe("basic test", () => {
     const ttl = `
     @base <https://example.com/resource/>.
     @prefix voc: <https://example.com/vocabulary/> .
@@ -290,54 +291,84 @@ describe("pagination query tests", async () => {
       ?this voc:price ?price .
     } ORDER BY ?productType ?color ?buildType ?price`;
 
-    expect(queryToWrap).toBeValidSparqlQuery();
-
     const idCols = ["productType", "color"];
     const restCols = ["price", "buildType"];
 
-    const newQuery = formatPaginatedQuery({
-      globalLimit: 10000,
-      groupLimit: 100,
-      groupOffset: 0,
-      idVars: idCols,
-      propNameVar,
-      propValVar,
-      queryToWrap,
+    test("sanity check", () => {
+      expect(queryToWrap).toBeValidSparqlQuery();
     });
 
-    const resultingTable = queryStore(store, newQuery);
+    test("row retrieval", () => {
+      const newQuery = formatPaginatedQuery({
+        globalLimit: 10000,
+        groupLimit: 100,
+        groupOffset: 0,
+        idVars: idCols,
+        propNameVar,
+        propValVar,
+        queryToWrap,
+      });
 
-    const groupedRows = tableToMulticardinalRow({ resultingTable, propNameVar, propValVar });
+      const resultingTable = queryStore(store, newQuery);
 
-    const expectedRows: MulticardinalRow[] = [
-      {
-        idCols,
-        idValues: { productType: "https://example.com/vocabulary/Phone", color: "black" },
-        restCols,
-        restValues: { price: ["899", "999"], buildType: ["refurbished"] },
-      },
-      {
-        idCols,
-        idValues: { productType: "https://example.com/vocabulary/Watch", color: "black" },
-        restCols,
-        restValues: { price: ["7999"], buildType: ["new"] },
-      },
-      {
-        idCols,
-        idValues: { productType: "https://example.com/vocabulary/Watch", color: "blue" },
-        restCols,
-        restValues: { price: ["4999", "9999"], buildType: ["new"] },
-      },
-    ];
+      const groupedRows = tableToMulticardinalRow({ resultingTable, propNameVar, propValVar });
 
-    const sortedResult = groupedRows.toSorted((a, b) => {
-      const mainKey = a.idValues["productType"].localeCompare(b.idValues["productType"]);
-      return (mainKey === 0) ? a.idValues["color"].localeCompare(b.idValues["color"]) : mainKey;
+      const expectedRows: MulticardinalRow[] = [
+        {
+          idCols,
+          idValues: { productType: "https://example.com/vocabulary/Phone", color: "black" },
+          restCols,
+          restValues: { price: ["899", "999"], buildType: ["refurbished"] },
+        },
+        {
+          idCols,
+          idValues: { productType: "https://example.com/vocabulary/Watch", color: "black" },
+          restCols,
+          restValues: { price: ["7999"], buildType: ["new"] },
+        },
+        {
+          idCols,
+          idValues: { productType: "https://example.com/vocabulary/Watch", color: "blue" },
+          restCols,
+          restValues: { price: ["4999", "9999"], buildType: ["new"] },
+        },
+      ];
+
+      const sortedResult = groupedRows.toSorted((a, b) => {
+        const mainKey = a.idValues["productType"].localeCompare(b.idValues["productType"]);
+        return (mainKey === 0) ? a.idValues["color"].localeCompare(b.idValues["color"]) : mainKey;
+      });
+
+      // NOTE: This comparison is kinda shaky because the order of some properties (like idCols,
+      // restCols) is not defined. Future changes may break tests even if the rows encode the same
+      // content.
+      expect(sortedResult).toEqual(expectedRows);
     });
 
-    // NOTE: This comparison is kinda shaky because the order of some properties (like idCols,
-    // restCols) is not defined. Future changes may break tests even if the rows encode the same
-    // content.
-    expect(sortedResult).toEqual(expectedRows);
+    test("counting", () => {
+      const globalRowCountVar = "__global_count";
+      const groupedRowCountVar = "__grouped_count";
+
+      const counterQuery = formatPaginatedCounterQuery({
+        queryToWrap,
+        globalLimit: 10_000,
+        globalRowCountVar,
+        groupedRowCountVar,
+        idVars: idCols,
+        propNameVar,
+        propValVar,
+      });
+
+      expect(counterQuery).toBeValidSparqlQuery();
+
+      const resultingTable = queryStore(store, counterQuery);
+      const countPayload = tableToCountPayload({
+        resultingTable,
+        globalRowCountVar,
+        groupedRowCountVar,
+      });
+
+      expect(countPayload).toEqual({ groupedCount: 3, globalCount: 8 });
+    });
   });
 });

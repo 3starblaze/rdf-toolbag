@@ -99,8 +99,11 @@ export function formatPaginatedCounterQuery({
 }) {
   const { preamble, main } = splitQueryPreamble(queryToWrap);
 
+  const selectedVars = [...idVars, propNameVar, propValVar];
+
+  // NOTE: Match global rows with limit
   const limitedSubquery: string = [
-    `SELECT ${fmtVars(idVars)} WHERE {`,
+    `SELECT DISTINCT ${fmtVars(selectedVars)} WHERE {`,
     fmtSubquery(main),
     lineAwareIndent(
       formatPropConstraints({ query: queryToWrap, idVars, propNameVar, propValVar })
@@ -108,15 +111,21 @@ export function formatPaginatedCounterQuery({
     `} LIMIT ${globalLimit}`,
   ].join("\n");
 
-  // NOTE: Limited subquery first selects "DISTINCT *" tuples and then keeps only id vars. This way
-  // we can use COUNT(*) and COUNT(DISTINCT *) to get expected results.
+  // NOTE: Only select idVars so that counting works via COUNT(*) and COUNT(DISTINCT *)
+  // NOTE: COUNT doesn't work with multiple vars which is why we need this selection
+  const idVarsSelection: string = [
+    `SELECT ${fmtVars(idVars)} WHERE {`,
+    lineAwareIndent(limitedSubquery),
+    `}`,
+  ].join("\n");
+
   const query = [
     preamble,
     "SELECT",
     `(COUNT(*) AS ?${globalRowCountVar})`,
     `(COUNT(DISTINCT *) AS ?${groupedRowCountVar})`,
     "WHERE {",
-    fmtSubquery(limitedSubquery),
+    fmtSubquery(idVarsSelection),
     "}",
   ].join("\n");
 
@@ -170,4 +179,33 @@ export function tableToMulticardinalRow({
     });
 
   return res;
+}
+
+interface CountPayload {
+  globalCount: number,
+  groupedCount: number,
+}
+
+export function tableToCountPayload({
+  resultingTable,
+  globalRowCountVar,
+  groupedRowCountVar,
+}: {
+  resultingTable: SparqlTableResult,
+  globalRowCountVar: string,
+  groupedRowCountVar: string,
+}): CountPayload {
+  const firstRow = resultingTable.results.bindings[0];
+  if (!firstRow) throw new Error("No rows!");
+
+  const maybeGlobalCount = firstRow[globalRowCountVar];
+  if (!maybeGlobalCount) throw new Error("global count does not exist!");
+
+  const globalCount = Number(maybeGlobalCount.value);
+
+  const maybeGroupedCount = firstRow[groupedRowCountVar];
+  if (!maybeGroupedCount) throw new Error("grouped count does not exist!");
+
+  const groupedCount = Number(maybeGroupedCount.value);
+  return { globalCount, groupedCount };
 }
