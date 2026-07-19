@@ -5,7 +5,7 @@ import {
   tableToMulticardinalRow,
 } from "./compact-pagination";
 import { isQueryValid } from "./query-util";
-import { loadSWAPIStore, queryStore } from "./test-util";
+import { queryStore, ttlStringToStore } from "./test-util";
 import type { SparqlTableResult } from "./sparql_queries";
 import type { MulticardinalRow } from "./multi-cardinal-table-util";
 
@@ -240,36 +240,104 @@ describe("tableToMulticardinalRow", () => {
 });
 
 describe("pagination query tests", async () => {
-  const store = await loadSWAPIStore();
+  test("basic test", () => {
+    const ttl = `
+    @base <https://example.com/resource/>.
+    @prefix voc: <https://example.com/vocabulary/> .
+    <watch/1>
+      voc:productType voc:Watch;
+      voc:color "blue";
+      voc:price "9999";
+      voc:buildType "new" .
 
-  test("basic example", async () => {
-    const expectedLength = 37;
+    <watch/2>
+      voc:productType voc:Watch;
+      voc:color "blue";
+      voc:notes "this is a budget-friendly option" ;
+      voc:price "4999";
+      voc:buildType "new" .
 
-    const query = `PREFIX voc:   <https://swapi.co/vocabulary/>
-    PREFIX rdfs:  <http://www.w3.org/2000/01/rdf-schema#>
-    SELECT * WHERE {
-      ?Starship a voc:Starship .
-      ?Starship rdfs:label ?StarshipName .
-      ?Starship voc:starshipClass ?StarshipClass .
-    } LIMIT 100
+    <watch/3>
+      voc:productType voc:Watch;
+      voc:color "black";
+      voc:price "7999";
+      voc:buildType "new" .
+
+    <rice-cooker>
+      voc:notes "this is for internal use only";
+      voc:color "gray" .
+
+    <phone/1>
+      voc:productType voc:Phone;
+      voc:color "black";
+      voc:price "999";
+      voc:buildType "refurbished" .
+
+    <phone/1>
+      voc:productType voc:Phone;
+      voc:color "black";
+      voc:price "899";
+      voc:buildType "refurbished" .
 `;
+    const store = ttlStringToStore(ttl);
 
-    expect(query).toBeValidSparqlQuery();
+    // NOTE: Ordering results so that it's easier to assert the results
+    const queryToWrap = `PREFIX voc: <https://example.com/vocabulary/>
+    SELECT ?productType ?color ?buildType ?price WHERE {
+      ?this voc:productType ?productType .
+      ?this voc:color ?color .
+      ?this voc:buildType ?buildType .
+      ?this voc:price ?price .
+    } ORDER BY ?productType ?color ?buildType ?price`;
+
+    expect(queryToWrap).toBeValidSparqlQuery();
+
+    const idCols = ["productType", "color"];
+    const restCols = ["price", "buildType"];
 
     const newQuery = formatPaginatedQuery({
-      queryToWrap: query,
-      globalLimit: 1000,
-      groupLimit: 50,
+      globalLimit: 10000,
+      groupLimit: 100,
       groupOffset: 0,
-      idVars: ["Starship", "StarshipClass"],
+      idVars: idCols,
       propNameVar,
       propValVar,
+      queryToWrap,
     });
 
-    expect(newQuery).toBeValidSparqlQuery();
+    const resultingTable = queryStore(store, newQuery);
 
-    const res = queryStore(store, newQuery);
+    const groupedRows = tableToMulticardinalRow({ resultingTable, propNameVar, propValVar });
 
-    expect(res.results.bindings).toHaveLength(expectedLength);
+    const expectedRows: MulticardinalRow[] = [
+      {
+        idCols,
+        idValues: { productType: "https://example.com/vocabulary/Phone", color: "black" },
+        restCols,
+        restValues: { price: ["899", "999"], buildType: ["refurbished"] },
+      },
+      {
+        idCols,
+        idValues: { productType: "https://example.com/vocabulary/Watch", color: "black" },
+        restCols,
+        restValues: { price: ["7999"], buildType: ["new"] },
+      },
+      {
+        idCols,
+        idValues: { productType: "https://example.com/vocabulary/Watch", color: "blue" },
+        restCols,
+        restValues: { price: ["4999", "9999"], buildType: ["new"] },
+      },
+    ];
+
+    const sortedResult = groupedRows.toSorted((a, b) => {
+      const mainKey = a.idValues["productType"].localeCompare(b.idValues["productType"]);
+      return (mainKey === 0) ? a.idValues["color"].localeCompare(b.idValues["color"]) : mainKey;
+    });
+
+    // NOTE: This comparison is kinda shaky because the order of some properties (like idCols,
+    // restCols) is not defined. Future changes may break tests even if the rows encode the same
+    // content.
+    expect(sortedResult).toEqual(expectedRows);
   });
 });

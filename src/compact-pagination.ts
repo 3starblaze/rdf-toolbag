@@ -1,7 +1,7 @@
 import type { MulticardinalRow } from "./multi-cardinal-table-util";
 import { findVars, splitQueryPreamble } from "./query-util";
 import type { SparqlTableResult } from "./sparql_queries";
-import { Data, Option, MutableHashMap, MutableHashSet, HashMap } from "effect";
+import { Data, Option, MutableHashMap } from "effect";
 
 const indentation = "  ";
 const indent = (line: string) => `${indentation}${line}`;
@@ -33,6 +33,9 @@ function formatPropConstraints({
   return [
     `VALUES ?${propNameVar} { ${valueVars.map((it) => `"${it}"`).join(" ")} }`,
     `BIND(${makeIfExpr(valueVars)} AS ?${propValVar})`,
+    // NOTE: `valueVars` may contain vars that will never appear in results and we need to filter
+    // those rows out to reduce noise.
+    `FILTER ( BOUND(?${propValVar}) )`,
   ].join("\n");
 }
 
