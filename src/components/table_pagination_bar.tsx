@@ -208,7 +208,10 @@ export function ServerSidePaginationBar<T>({
                     <SelectContent>
                         <SelectGroup>
                             {pageSizeOptions.map((pageSize) => (
-                                <SelectItem value={pageSize.toString()}>{pageSize}</SelectItem>
+                                <SelectItem
+                                    key={pageSize}
+                                    value={pageSize.toString()}
+                                >{pageSize}</SelectItem>
                             ))}
                         </SelectGroup>
                     </SelectContent>
