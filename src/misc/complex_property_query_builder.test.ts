@@ -1,6 +1,8 @@
 import { expect, test, describe } from "vitest";
 import { formatQuery, sparqlVarRe, type VarInfo } from "./complex_property_query_builder";
 import type { ComplexPropertySelection } from "@/components/complex_property_selector";
+import { Parser } from "@traqula/parser-sparql-1-1";
+import { AstTransformer } from '@traqula/rules-sparql-1-1';
 
 function expectExpectedVarsToBeInQuery(
     expectedVarInfos: VarInfo[],
@@ -12,8 +14,62 @@ function expectExpectedVarsToBeInQuery(
     expect(foundVars).toIncludeAllMembers(expectedVars);
 }
 
+/**
+ * Assert that bgp (basic graph patterns) appear before optional patterns.
+ *
+ * This has to be checked because some endpoints throw 500 when bgp are after optional.
+ */
+function expectCorrectOptionalPosition(query: string) {
+    const parser = new Parser();
+    const ast = parser.parse(query);
+    const transformer = new AstTransformer();
+
+    let visitCount = 0;
+
+    transformer.visitNodeSpecific(ast, {}, {
+        pattern: {
+            group: {
+                visitor: ({ patterns }) => {
+                    visitCount++;
+                    const bgps = patterns
+                        .map((it, i) => [it, i] as const)
+                        .filter(([it]) => it.subType === "bgp");
+                    const optionals = patterns
+                        .map((it, i) => [it, i] as const)
+                        .filter(([it]) => it.subType === "optional");
+
+                    // NOTE: if bgps or optionals are missing the order is guaranteed to be correct
+                    if (bgps.length === 0 || optionals.length === 0) return;
+
+                    const maxBgpIndex = Math.max(...bgps.map(([_, i]) => i));
+                    const minOptionalIndex = Math.min(...optionals.map(([_, i]) => i));
+
+                    expect(maxBgpIndex).toBeLessThan(minOptionalIndex);
+                },
+            },
+        },
+    });
+
+    // NOTE: Sanity check, SELECT queries should always be visited at least once
+    expect(visitCount).toBeGreaterThan(0);
+}
+
 function expectNoDuplicateVarInfo(varInfos: VarInfo[]) {
     expect(varInfos.length).toEqual((new Set(varInfos.map((item) => item.varName))).size);
+}
+
+function makeCommonAssertions({
+   expectedVarInfos,
+    query,
+    varInfos
+}: {
+    varInfos: VarInfo[],
+    expectedVarInfos: VarInfo[],
+    query: string,
+}) {
+    expectExpectedVarsToBeInQuery(expectedVarInfos, query);
+    expectNoDuplicateVarInfo(varInfos);
+    expectCorrectOptionalPosition(query);
 }
 
 describe("formatQuery", () => {
@@ -62,12 +118,10 @@ describe("formatQuery", () => {
 
         const { query, varInfos } = formatQuery(sampleSelection);
 
-        expectExpectedVarsToBeInQuery(expectedVarInfos, query);
-
         // NOTE: asserting one constraint that should appear
         expect(query).toMatch(`?this <${sampleSelection.dataProps[0]?.name}> ?p0`);
 
-        expectNoDuplicateVarInfo(varInfos);
+        makeCommonAssertions({ query, expectedVarInfos, varInfos });
     });
     test("more realistic test", () => {
         const sampleSelection = {
@@ -131,14 +185,13 @@ describe("formatQuery", () => {
 
         const { query, varInfos } = formatQuery(sampleSelection);
 
-        expectExpectedVarsToBeInQuery(expectedVarInfos, query);
-
         // NOTE: asserting some constraints that should appear
         expect(query).toMatch(`?this <http://dbpedia.org/property/dateOfBirth> ?dateOfBirth`);
         expect(query).toMatch(`?this <http://dbpedia.org/ontology/birthPlace> ?birthPlace`);
 
         expect(varInfos).toIncludeAllMembers(expectedVarInfos);
-        expectNoDuplicateVarInfo(varInfos);
+
+        makeCommonAssertions({ query, expectedVarInfos, varInfos });
     });
     test("potential varName collisions", () => {
         const sampleSelection = {
@@ -161,8 +214,8 @@ describe("formatQuery", () => {
         ];
 
         const { query, varInfos } = formatQuery(sampleSelection);
-        expectExpectedVarsToBeInQuery(expectedVarInfos, query);
-        expectNoDuplicateVarInfo(varInfos);
+
+        makeCommonAssertions({ query, expectedVarInfos, varInfos });
     });
     test("prefixed var is handled correctly", () => {
         const sampleSelection = {
@@ -190,8 +243,6 @@ describe("formatQuery", () => {
             { varName: "prefLabel123", path: ["http://www.w3.org/2004/02/skos/core#prefLabel123"] },
         ];
 
-        expectExpectedVarsToBeInQuery(expectedVarInfos, query);
-
-        expectNoDuplicateVarInfo(varInfos);
+        makeCommonAssertions({ query, expectedVarInfos, varInfos });
     });
 });

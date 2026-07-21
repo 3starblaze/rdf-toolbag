@@ -1,4 +1,5 @@
 import type { ComplexPropertySelection } from "@/components/complex_property_selector";
+import { reorderOptional } from "@/query-util";
 import { HashSet, Data, HashMap, Option } from "effect";
 
 // NOTE: technically there are more items that only can appear after the first character (not
@@ -233,7 +234,7 @@ export function formatQuery(selection: ComplexPropertySelection): {
         "}",
     ];
 
-    const query = lines.join("\n");
+    const query = reorderOptional(lines.join("\n"));
 
     return { query, varInfos };
 }

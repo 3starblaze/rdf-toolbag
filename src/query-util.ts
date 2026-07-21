@@ -137,3 +137,45 @@ export function isQueryValid(query: string) {
     return false;
   }
 }
+
+/**
+ * Move optional patterns below basic graph patterns.
+ *
+ * This is needed because some SPARQL engines (e.g. Virtuoso) return 500 when optional attributes
+ * appear above basic graph patterns, even if that's valid syntax.
+ **/
+export function reorderOptional(query: string): string {
+  const parser = new Parser();
+  const transformer = new AstTransformer();
+  const generator = new Generator();
+
+  const ast = parser.parse(query);
+
+  const newAst = transformer.transformNodeSpecific<"unsafe", typeof ast>(ast, {}, {
+    pattern: {
+      group: {
+        transform: (op) => {
+          const targetSubtypes = ["bgp", "optional"];
+
+          const groupedPatterns = Map.groupBy(
+            op.patterns,
+            ({ subType }) => targetSubtypes.includes(subType) ? subType : "rest"
+          );
+
+          const bgpPatterns = groupedPatterns.get("bgp") || [];
+          const optionalPatterns = groupedPatterns.get("optional") || [];
+          const restPatterns = groupedPatterns.get("rest") || [];
+
+          const transformed: typeof op = {
+            ...op,
+            patterns: [...bgpPatterns, ...optionalPatterns, ...restPatterns],
+          }
+
+          return transformed;
+        },
+      },
+    },
+  });
+
+  return generator.generate(newAst)
+}

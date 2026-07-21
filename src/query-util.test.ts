@@ -3,6 +3,7 @@ import {
   rewriteQueryWithPrefixes,
   findVars,
   isQueryValid,
+  reorderOptional,
 } from './query-util';
 
 describe("rewriteQueryWithPrefixes", () => {
@@ -136,5 +137,63 @@ describe("isQueryValid", () => {
   test("invalid query", () => {
     const query = "SELECT * WHERE ?s ?p ?o";
     expect(isQueryValid(query)).toBeFalse();
+  });
+});
+
+describe("reorderOptional", () => {
+  test("basic test", () => {
+    const query = `PREFIX kbv: <https://id.kb.se/vocab/>
+PREFIX : <https://id.kb.se/marc/>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+SELECT * WHERE {
+  OPTIONAL {
+    ?this kbv:label ?label .
+  }
+  OPTIONAL {
+    ?this :fieldref ?fieldref .
+  }
+  ?this rdf:type kbv:Note .
+  OPTIONAL {
+    ?this :headingOrSubdivisionTerm ?headingOrSubdivisionTerm .
+  }
+  OPTIONAL {
+    ?this kbv:scopeNote ?scopeNote .
+  }
+  OPTIONAL {
+    ?this kbv:hasNote ?hasNote .
+  }
+  FILTER(?label != "H3299A")
+} LIMIT 100`;
+
+    const expectedQuery = `PREFIX kbv: <https://id.kb.se/vocab/>
+PREFIX : <https://id.kb.se/marc/>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+SELECT * WHERE {
+  ?this rdf:type kbv:Note .
+  OPTIONAL {
+    ?this kbv:label ?label .
+  }
+  OPTIONAL {
+    ?this :fieldref ?fieldref .
+  }
+  OPTIONAL {
+    ?this :headingOrSubdivisionTerm ?headingOrSubdivisionTerm .
+  }
+  OPTIONAL {
+    ?this kbv:scopeNote ?scopeNote .
+  }
+  OPTIONAL {
+    ?this kbv:hasNote ?hasNote .
+  }
+  FILTER ( ( ?label != "H3299A" ) )
+}
+LIMIT 100`;
+
+    expect(query).toBeValidSparqlQuery();
+    expect(expectedQuery).toBeValidSparqlQuery();
+
+    const newQuery = reorderOptional(query);
+
+    expect(newQuery).toEqual(expectedQuery);
   });
 });
