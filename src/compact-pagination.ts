@@ -60,7 +60,21 @@ export function formatPaginatedQuery({
 
   const selectedVars = [...idVars, propNameVar, propValVar];
 
-  const keyConstraintSubquery = `SELECT DISTINCT ${fmtVars(idVars)}
+  // NOTE: Candidates are key column value sets that are retrieved during pagination.
+  const varToCandidateVarName = (varName: string) => `__candidate_${varName}`;
+
+  // NOTE: Checking for equality is not enough -- BOUND() checks are required to allow unbound
+  // variables to be used as keys.
+  const candidateFilters = idVars.map((k) => {
+    const newK = varToCandidateVarName(k);
+    return `FILTER( (?${k} = ?${newK}) || (!BOUND(?${k}) && !BOUND(?${newK})))`;
+  });
+
+  const selection = idVars
+    .map((it) => `(?${it} AS ?${varToCandidateVarName(it)})`)
+    .join(" ");
+
+  const keyConstraintSubquery = `SELECT DISTINCT ${selection}
 WHERE {
 ${lineAwareIndent(main)}
 }
@@ -73,6 +87,7 @@ OFFSET ${groupOffset}`;
     fmtSubquery(keyConstraintSubquery),
     fmtSubquery(main),
     formatPropConstraints({ idVars, propNameVar, propValVar, query }),
+    ...candidateFilters,
     `} LIMIT ${globalLimit}`,
   ].join("\n");
 
@@ -152,7 +167,11 @@ export function tableToMulticardinalRow({
   const collectingMap = MutableHashMap.fromIterable<readonly string[], BindingItem[]>([]);
 
   resultingTable.results.bindings.forEach((it) => {
-    const mapKey = Data.array(idCols.map((idCol) => it[idCol].value));
+    const mapKey = Data.array(idCols.map((idCol) => {
+      // NOTE: Typescript not strict enough, merging "undefined" so that we get proper type hints.
+      const maybeObj = it[idCol] as typeof it[string] | undefined;
+      return maybeObj?.value ?? null;
+    }));
     collectingMap.pipe(
       MutableHashMap.modifyAt(mapKey, (items) => {
         const current = Option.getOrElse(items, () => []);

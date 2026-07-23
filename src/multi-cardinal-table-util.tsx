@@ -10,8 +10,10 @@ export interface MulticardinalRow {
     idCols: string[],
     /**
      * Id column values.
+     *
+     * If the value is null, it's unbound.
      */
-    idValues: { [idCol: string]: string },
+    idValues: { [idCol: string]: string | null },
     /**
      * Remaining column names.
     */
