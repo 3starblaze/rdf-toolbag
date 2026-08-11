@@ -4,7 +4,7 @@ import { Button } from "./ui/button";
 import { ChevronDown } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
 import { cn } from "@/lib/utils";
-import { QueryClient, QueryClientProvider, skipToken, useQuery } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, skipToken, useQuery, type UseQueryResult } from "@tanstack/react-query";
 
 export interface ComplexPropertySelection {
     rdfType: string,
@@ -17,53 +17,110 @@ export interface ComplexPropertySelection {
     }[],
 }
 
-export type PropFetcher = (rdfType: string | null) => Promise<{ value: string, label: string }[]>;
+interface PropFetchTarget {
+    targetItem: "dataProp" | "objectProp",
+    propIndex: number,
+}
+
+interface RdfTypeFetchTarget {
+    targetItem: "rdfType",
+}
+
+type FetchTarget = PropFetchTarget | RdfTypeFetchTarget;
+
+interface BaseFetcherContext {
+    thisSelection: ComplexPropertySelection,
+    fetchTarget: FetchTarget,
+    /** Parent information that's provided if `thisSelection` is not root selection. */
+    parentContext: BaseFetcherContext | null,
+}
+
+export type SuggestionsFetcher = (ctx: BaseFetcherContext) => Promise<{
+    value: string,
+    label: string
+}[]>;
 
 export function makeDefaultSelection(): ComplexPropertySelection {
     return { rdfType: "", dataProps: [], objectProps: [] };
 }
 
+function useSuggestionsQuery(
+    fetchFn: SuggestionsFetcher | null,
+    context: BaseFetcherContext,
+): UseQueryResult<{ label: string, value: string }[], Error> {
+    return useQuery({
+        queryKey: ["ComplexPropertySelector", "objectProp", context],
+        queryFn: fetchFn
+            ? (() => fetchFn(context))
+            : skipToken,
+    });
+}
+
+function PropCombobox({
+    suggestionsFetcher,
+    propIndex,
+    thisSelection,
+    setName,
+    targetItem,
+    parentContext,
+}: {
+    suggestionsFetcher: SuggestionsFetcher | null,
+    propIndex: number,
+    thisSelection: ComplexPropertySelection,
+    setName: (newName: string) => void,
+    targetItem: "objectProp" | "dataProp",
+    parentContext?: BaseFetcherContext,
+}) {
+    const suggestionsQueryResult = useSuggestionsQuery(suggestionsFetcher, {
+        fetchTarget: { targetItem, propIndex },
+        parentContext: parentContext ?? null,
+        thisSelection,
+    });
+
+    let value: string;
+
+    switch (targetItem) {
+        case "dataProp":
+            value = thisSelection.dataProps[propIndex].name
+            break;
+        case "objectProp":
+            value = thisSelection.objectProps[propIndex].name;
+            break;
+    }
+
+    return (
+        <SingleStringCombobox
+            suggestionsQueryResult={suggestionsQueryResult}
+            value={value}
+            onValueChange={setName}
+        />
+    );
+}
+
 // FIXME: A lot of duplication with PropertySelector
-function ComplexPropertySelectorFragment({
-    value: controlledValue,
-    defaultValue,
+function ObjectPropsSelector({
+    thisSelection,
+    suggestionsFetcher,
     onValueChange,
-    dataPropFetcher,
-    objectPropFetcher,
-    rdfTypeFetcher,
-    rdfType,
     addButtonContent = "+",
+    parentContext,
     /**
      * @see ComplexPropertySelector
      */
     recursionDepth = 0,
 }: {
-    value?: ComplexPropertySelection["objectProps"],
-    onValueChange?: (newValue: ComplexPropertySelection["objectProps"]) => void,
-    dataPropFetcher?: PropFetcher,
-    objectPropFetcher?: PropFetcher,
-    rdfTypeFetcher?: () => Promise<{ value: string, label: string }[]>,
+    thisSelection: ComplexPropertySelection,
+    onValueChange: (newValue: ComplexPropertySelection["objectProps"]) => void,
+    suggestionsFetcher: SuggestionsFetcher | null,
     rdfType: string,
     defaultValue?: ComplexPropertySelection["objectProps"],
     addButtonContent: string,
     recursionDepth?: number,
+    parentContext?: BaseFetcherContext,
 }) {
-    const [value, setValue] = useControllableState<ComplexPropertySelection["objectProps"]>({
-        prop: controlledValue,
-        defaultProp: defaultValue || [],
-        onChange: onValueChange,
-    });
+    const value = thisSelection.objectProps;
 
-    const nulledRdfType = (rdfType === "") ? null : rdfType;
-
-    const objPropQuery = useQuery({
-        queryKey: ["ComplexPropertySelector", "objectProp", nulledRdfType],
-        queryFn: objectPropFetcher
-            ? (() => objectPropFetcher(nulledRdfType))
-            : skipToken,
-    });
-
-    return (
+    const selector = (
         <div className="max-w-prose flex flex-col gap-2">
             <div className="flex flex-col gap-1">
                 {value.map((item, i) => (
@@ -75,19 +132,21 @@ function ComplexPropertySelectorFragment({
                             key={item.name}
                             className="flex gap-2"
                         >
-                            <SingleStringCombobox
-                                suggestionsQueryResult={objPropQuery}
-                                value={item.name}
-                                onValueChange={(newItemName) => setValue([
-                                    ...value.slice(0, i),
-                                    { ...value[i], name: newItemName },
-                                    ...value.slice(i + 1),
+                            <PropCombobox
+                                targetItem="objectProp"
+                                suggestionsFetcher={suggestionsFetcher}
+                                propIndex={i}
+                                thisSelection={thisSelection}
+                                setName={(newName) => onValueChange([
+                                    ...value.slice(0, i - 1),
+                                    { ...item, name: newName },
+                                    ...value.slice(i)
                                 ])}
                             />
                             <Button
                                 className="cursor-pointer"
                                 variant="destructive"
-                                onClick={() => setValue([
+                                onClick={() => onValueChange([
                                     ...value.slice(0, i),
                                     ...value.slice(i + 1),
                                 ])}
@@ -106,15 +165,15 @@ function ComplexPropertySelectorFragment({
                         )}>
                             <ComplexPropertySelectorBase
                                 selection={value[i].selection}
-                                onSelectionChange={(newSelection) => setValue([
+                                onSelectionChange={(newSelection) => onValueChange([
                                     ...value.slice(0, i),
                                     { ...value[i], selection: newSelection },
                                     ...value.slice(i + 1),
                                 ])}
-                                dataPropFetcher={dataPropFetcher}
-                                objectPropFetcher={objectPropFetcher}
-                                rdfTypeFetcher={rdfTypeFetcher}
+                                suggestionsFetcher={suggestionsFetcher ?? undefined}
                                 recursionDepth={recursionDepth + 1}
+                                // FIXME: populate parentContext
+                                parentContext={parentContext}
                             />
                         </CollapsibleContent>
                     </Collapsible>
@@ -124,7 +183,7 @@ function ComplexPropertySelectorFragment({
                 className="cursor-pointer"
                 variant="outline"
                 onClick={() => {
-                    setValue([
+                    onValueChange([
                         ...value,
                         { name: "", selection: makeDefaultSelection() },
                     ])
@@ -133,6 +192,13 @@ function ComplexPropertySelectorFragment({
                 {addButtonContent}
             </Button>
         </div >
+    );
+
+    return (
+        <div>
+            <p>Properties (object)</p>
+            {selector}
+        </div>
     );
 }
 
@@ -143,25 +209,85 @@ export interface ComplexPropertySelectorProps {
     onSelectionChange?: (selection: ComplexPropertySelection) => void,
     /** Initial selection value for uncontrolled state. */
     defaultSelection?: ComplexPropertySelection,
-    /** Data property suggestion function. */
-    dataPropFetcher?: PropFetcher,
-    /** Object property suggestion function. */
-    objectPropFetcher?: PropFetcher,
-    /** Type suggestion function. */
-    rdfTypeFetcher?: () => Promise<{ value: string, label: string }[]>,
+    /** Fetch suggestions for rdfType and props. */
+    suggestionsFetcher?: SuggestionsFetcher,
+    /** See BaseFetcherContext */
+    parentContext?: BaseFetcherContext,
     /**
      * Recursion index that is used to apply style properly.
      */
     recursionDepth?: number,
 }
 
+function RdfTypeSelector({
+    thisSelection,
+    onValueChange,
+    parentContext,
+    suggestionsFetcher,
+}: {
+    thisSelection: ComplexPropertySelection,
+    onValueChange: (val: string) => void,
+    suggestionsFetcher: SuggestionsFetcher | null,
+    parentContext: BaseFetcherContext | null,
+}) {
+    const rdfTypeQuery = useSuggestionsQuery(suggestionsFetcher, {
+        thisSelection,
+        fetchTarget: { targetItem: "rdfType" },
+        parentContext,
+    });
+
+    return (
+        <div>
+            <p>Type</p>
+            <SingleStringCombobox
+                suggestionsQueryResult={rdfTypeQuery}
+                value={thisSelection.rdfType}
+                onValueChange={onValueChange}
+                placeholder="Enter type"
+            />
+        </div>
+    );
+}
+
+function DataPropsSelector({
+    thisSelection,
+    suggestionsFetcher,
+    setSelection,
+} : {
+    thisSelection: ComplexPropertySelection,
+    suggestionsFetcher: SuggestionsFetcher | null,
+    setSelection: (newValue: ComplexPropertySelection) => void,
+}) {
+    const suggestionsQueryResult = useSuggestionsQuery(suggestionsFetcher, {
+        // FIXME: Use correct index and isolate per property
+        fetchTarget: { targetItem: "dataProp", propIndex: 0 },
+        thisSelection,
+        // FIXME: Use context
+        parentContext: null,
+    });
+
+    return (
+        <div>
+            <p>Properties (data)</p>
+            <PropertySelector
+                value={thisSelection.dataProps.map(({ name }) => name)}
+                onValueChange={(newDataProps) => setSelection({
+                    ...thisSelection,
+                    dataProps: newDataProps.map((name) => ({ name })),
+                })}
+                suggestionsQueryResult={suggestionsQueryResult}
+                addButtonContent="Add data property"
+            />
+        </div>
+    );
+}
+
 function ComplexPropertySelectorBase({
     selection: controlledSelection,
     onSelectionChange,
-    rdfTypeFetcher,
     defaultSelection,
-    dataPropFetcher,
-    objectPropFetcher,
+    suggestionsFetcher,
+    parentContext,
     recursionDepth = 0,
 }: ComplexPropertySelectorProps) {
     const [selection, setSelection] = useControllableState<ComplexPropertySelection>({
@@ -170,63 +296,33 @@ function ComplexPropertySelectorBase({
         onChange: onSelectionChange,
     });
 
-    const rdfTypeQuery = useQuery({
-        queryKey: ["RdfTypeQuery"],
-        queryFn: rdfTypeFetcher ?? skipToken,
-    })
-
-    const nulledRdfType = (selection.rdfType === "") ? null : selection.rdfType;
-
-    const dataPropQuery = useQuery({
-        queryKey: ["ComplexPropertySelector", "dataProp", nulledRdfType],
-        queryFn: dataPropFetcher
-               ? (() => dataPropFetcher(nulledRdfType))
-               : skipToken,
-    });
-
     return (
         <div className="flex flex-col gap-4">
-            <div>
-                <p>Type</p>
-                <SingleStringCombobox
-                    key={selection.rdfType}
-                    suggestionsQueryResult={rdfTypeQuery}
-                    value={selection.rdfType}
-                    onValueChange={(newRdfType) => setSelection({
-                        ...selection,
-                        rdfType: newRdfType ?? "",
-                    })}
-                    placeholder="Enter type"
-                />
-            </div>
-            <div>
-                <p>Properties (data)</p>
-                <PropertySelector
-                    value={selection.dataProps.map(({ name }) => name)}
-                    onValueChange={(newDataProps) => setSelection({
-                        ...selection,
-                        dataProps: newDataProps.map((name) => ({ name })),
-                    })}
-                    suggestionsQueryResult={dataPropQuery}
-                    addButtonContent="Add data property"
-                />
-            </div>
-            <div>
-                <p>Properties (object)</p>
-                <ComplexPropertySelectorFragment
-                    value={selection.objectProps}
-                    onValueChange={(newValue) => setSelection({
-                        ...selection,
-                        objectProps: newValue,
-                    })}
-                    recursionDepth={recursionDepth}
-                    addButtonContent="Add object property"
-                    dataPropFetcher={dataPropFetcher}
-                    objectPropFetcher={objectPropFetcher}
-                    rdfTypeFetcher={rdfTypeFetcher}
-                    rdfType={selection.rdfType}
-                />
-            </div>
+            <RdfTypeSelector
+                thisSelection={selection}
+                parentContext={parentContext ?? null}
+                onValueChange={(rdfType) => setSelection({
+                    ...selection,
+                    rdfType,
+                })}
+                suggestionsFetcher={suggestionsFetcher ?? null}
+            />
+            <DataPropsSelector
+                suggestionsFetcher={suggestionsFetcher ?? null}
+                setSelection={setSelection}
+                thisSelection={selection}
+            />
+            <ObjectPropsSelector
+                suggestionsFetcher={suggestionsFetcher ?? null}
+                thisSelection={selection}
+                onValueChange={(newValue) => setSelection({
+                    ...selection,
+                    objectProps: newValue,
+                })}
+                recursionDepth={recursionDepth}
+                addButtonContent="Add object property"
+                rdfType={selection.rdfType}
+            />
         </div>
     );
 }

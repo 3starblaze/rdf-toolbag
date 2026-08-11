@@ -68,41 +68,48 @@ export const Prefilled: Story = {
 
 export const WithPropSuggestions: Story = {
   args: {
-    rdfTypeFetcher: async () => {
-      return [
-        { value: 'http://typeAlpha', label: ":typeAlpha" },
-        { value: 'http://typeBeta', label: ":typeBeta" },
-        { value: 'http://typeGamma', label: ":typeGamma" },
-      ];
-    },
-    dataPropFetcher: async (rdfType) => {
-      const finalName = rdfType?.split("//").slice(-1)[0] ?? "noClass";
+      suggestionsFetcher: async ({ fetchTarget, thisSelection }) => {
+          const {rdfType} = thisSelection;
 
-      const fmtItem = (i: number) => ({
-        value: `http://${finalName}/suggestedData${i}`,
-        label: `${finalName}:suggestedData${i}`,
-      });
+          switch (fetchTarget.targetItem) {
+              case "rdfType":
+                  return [
+                      { value: 'http://typeAlpha', label: ":typeAlpha" },
+                      { value: 'http://typeBeta', label: ":typeBeta" },
+                      { value: 'http://typeGamma', label: ":typeGamma" },
+                  ];
+              case "dataProp":
+                  return (() => {
+                      const finalName = rdfType.split("//").slice(-1)[0] ?? "noClass";
 
-      return [
-        fmtItem(0),
-        fmtItem(1),
-        fmtItem(2),
-      ];
-    },
-    objectPropFetcher: async (rdfType) => {
-      const finalName = rdfType ?? "noClass";
+                      const fmtItem = (i: number) => ({
+                          value: `http://${finalName}/suggestedData${i}`,
+                          label: `${finalName}:suggestedData${i}`,
+                      });
 
-      const fmtItem = (i: number) => ({
-        value: `http://${finalName}/suggestedObj${i}`,
-        label: `${finalName}:suggestedObj${i}`,
-      });
+                      return [
+                          fmtItem(0),
+                          fmtItem(1),
+                          fmtItem(2),
+                      ];
+                  })();
+              case "objectProp":
+                  return (() => {
+                      const finalName = rdfType ?? "noClass";
 
-      return [
-        fmtItem(0),
-        fmtItem(1),
-        fmtItem(2),
-      ];
-    },
+                      const fmtItem = (i: number) => ({
+                          value: `http://${finalName}/suggestedObj${i}`,
+                          label: `${finalName}:suggestedObj${i}`,
+                      });
+
+                      return [
+                          fmtItem(0),
+                          fmtItem(1),
+                          fmtItem(2),
+                      ];
+                  })();
+          }
+      },
   },
   render: syncedRender,
 };
@@ -283,7 +290,8 @@ export const DataPropLabelsAreShown: Story = {
             ],
             objectProps: [],
         },
-        dataPropFetcher: async () => {
+        suggestionsFetcher: async ({ fetchTarget }) => {
+            if (fetchTarget.targetItem !== "dataProp") return [];
             return [
                 { label: "data_label", value: "data_value" },
             ];
@@ -304,7 +312,8 @@ export const ObjectPropLabelsAreShown: Story = {
                 { name: "cool_value", selection: makeDefaultSelection() },
             ],
         },
-        objectPropFetcher: async () => {
+        suggestionsFetcher: async ({ fetchTarget }) => {
+            if (fetchTarget.targetItem !== "objectProp") return [];
             return [
                 { label: "cool_label", value: "cool_value" },
             ];
