@@ -1,11 +1,17 @@
 import { useEffect, useState } from "react";
-import { Button } from "./ui/button";
 import { Combobox, ComboboxContent, ComboboxList, ComboboxItem, ComboboxInput, ComboboxEmpty, ComboboxStatus } from "./ui/combobox";
 import {
     useControllableState
 } from "@radix-ui/react-use-controllable-state";
 import { type UseQueryResult } from "@tanstack/react-query";
 import { Spinner } from "./ui/spinner";
+import {
+    DestroyItemButton,
+    MultiItemAddButton,
+    MultiItemRow,
+    MultiItemSelectorBase,
+    MultiItemSelectorList,
+} from "./MultiItemList";
 
 export function SingleStringCombobox({
     value,
@@ -138,13 +144,10 @@ export function PropertySelector({
     }
 
     return (
-        <div className="max-w-prose flex flex-col gap-2">
-            <div className="flex flex-col gap-1">
+        <MultiItemSelectorBase>
+            <MultiItemSelectorList>
                 {selectedProperties.map((item, i) => (
-                    <div
-                        key={`${i}-${item}`}
-                        className="flex gap-2"
-                    >
+                    <MultiItemRow key={`${i}-${item}`}>
                         <SingleStringCombobox
                             value={item}
                             onValueChange={(val) => setSelectedProperties([
@@ -154,27 +157,21 @@ export function PropertySelector({
                             ])}
                             suggestionsQueryResult={repackageQueryResult(item)}
                         />
-                        <Button
-                            className="cursor-pointer"
-                            variant="destructive"
+                        <DestroyItemButton
                             onClick={() => setSelectedProperties([
                                 ...selectedProperties.slice(0, i),
                                 ...selectedProperties.slice(i + 1),
                             ])}
-                        >
-                            -
-                        </Button>
-                    </div>
+                        />
+                    </MultiItemRow>
                 ))}
-            </div>
-            <Button
-                className="cursor-pointer"
-                variant="outline"
+            </MultiItemSelectorList>
+            <MultiItemAddButton
                 onClick={() => setSelectedProperties((old) => [...old, ""])}
             >
                 {addButtonContent}
-            </Button>
-        </div>
+            </MultiItemAddButton>
+        </MultiItemSelectorBase>
     );
 }
 
@@ -253,7 +250,6 @@ export function SyncSingleStringCombobox({
     );
 }
 
-// HACK: A lot of duplication with PropertySelector
 /**
  * Like PropertySelector but for synchronous suggestions.
  */
@@ -288,13 +284,10 @@ export function SyncPropertySelector({
     };
 
     return (
-        <div className="max-w-prose flex flex-col gap-2">
-            <div className="flex flex-col gap-1">
+        <MultiItemSelectorBase>
+            <MultiItemSelectorList>
                 {selectedProperties.map((item, i) => (
-                    <div
-                        key={`${i}-${item}`}
-                        className="flex gap-2"
-                    >
+                    <MultiItemRow key={`${i}-${item}`}>
                         <SyncSingleStringCombobox
                             value={item}
                             onValueChange={(val) => setSelectedProperties([
@@ -304,26 +297,20 @@ export function SyncPropertySelector({
                             ])}
                             suggestions={[...valueToSuggestion(item), ...unselectedSuggestions]}
                         />
-                        <Button
-                            className="cursor-pointer"
-                            variant="destructive"
+                        <DestroyItemButton
                             onClick={() => setSelectedProperties([
                                 ...selectedProperties.slice(0, i),
                                 ...selectedProperties.slice(i + 1),
                             ])}
-                        >
-                            -
-                        </Button>
-                    </div>
+                        />
+                    </MultiItemRow>
                 ))}
-            </div>
-            <Button
-                className="cursor-pointer"
-                variant="outline"
+            </MultiItemSelectorList>
+            <MultiItemAddButton
                 onClick={() => setSelectedProperties((old) => [...old, ""])}
             >
                 {addButtonContent}
-            </Button>
-        </div>
+            </MultiItemAddButton>
+        </MultiItemSelectorBase>
     );
 }
