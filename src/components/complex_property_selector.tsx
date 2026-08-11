@@ -1,10 +1,10 @@
 import { useControllableState } from "@radix-ui/react-use-controllable-state";
-import { SingleStringCombobox, PropertySelector } from "./property_selector";
-import { Button } from "./ui/button";
+import { SingleStringCombobox } from "./property_selector";
 import { ChevronDown } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
 import { cn } from "@/lib/utils";
 import { QueryClient, QueryClientProvider, skipToken, useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { DestroyItemButton, MultiItemAddButton, MultiItemRow, MultiItemSelectorBase, MultiItemSelectorList } from "./MultiItemList";
 
 export interface ComplexPropertySelection {
     rdfType: string,
@@ -97,12 +97,10 @@ function PropCombobox({
     );
 }
 
-// FIXME: A lot of duplication with PropertySelector
 function ObjectPropsSelector({
     thisSelection,
     suggestionsFetcher,
     onValueChange,
-    addButtonContent = "+",
     parentContext,
     /**
      * @see ComplexPropertySelector
@@ -114,90 +112,76 @@ function ObjectPropsSelector({
     suggestionsFetcher: SuggestionsFetcher | null,
     rdfType: string,
     defaultValue?: ComplexPropertySelection["objectProps"],
-    addButtonContent: string,
     recursionDepth?: number,
     parentContext?: BaseFetcherContext,
 }) {
     const value = thisSelection.objectProps;
 
-    const selector = (
-        <div className="max-w-prose flex flex-col gap-2">
-            <div className="flex flex-col gap-1">
-                {value.map((item, i) => (
-                    <Collapsible
-                        key={item.name}
-                        className="flex flex-col group gap-2"
-                    >
-                        <div
-                            key={item.name}
-                            className="flex gap-2"
-                        >
-                            <PropCombobox
-                                targetItem="objectProp"
-                                suggestionsFetcher={suggestionsFetcher}
-                                propIndex={i}
-                                thisSelection={thisSelection}
-                                setName={(newName) => onValueChange([
-                                    ...value.slice(0, i - 1),
-                                    { ...item, name: newName },
-                                    ...value.slice(i)
-                                ])}
-                            />
-                            <Button
-                                className="cursor-pointer"
-                                variant="destructive"
-                                onClick={() => onValueChange([
-                                    ...value.slice(0, i),
-                                    ...value.slice(i + 1),
-                                ])}
-                            >
-                                -
-                            </Button>
-                            <CollapsibleTrigger className="cursor-pointer">
-                                <ChevronDown
-                                    className="size-4 group-data-[state=open]:rotate-180 transition-transform"
-                                />
-                            </CollapsibleTrigger>
-                        </div>
-                        <CollapsibleContent className={cn(
-                            "text-gray-700 ml-4 p-2",
-                            (recursionDepth % 2 === 0) ? "bg-gray-100" : "bg-white",
-                        )}>
-                            <ComplexPropertySelectorBase
-                                selection={value[i].selection}
-                                onSelectionChange={(newSelection) => onValueChange([
-                                    ...value.slice(0, i),
-                                    { ...value[i], selection: newSelection },
-                                    ...value.slice(i + 1),
-                                ])}
-                                suggestionsFetcher={suggestionsFetcher ?? undefined}
-                                recursionDepth={recursionDepth + 1}
-                                // FIXME: populate parentContext
-                                parentContext={parentContext}
-                            />
-                        </CollapsibleContent>
-                    </Collapsible>
-                ))}
-            </div>
-            <Button
-                className="cursor-pointer"
-                variant="outline"
-                onClick={() => {
-                    onValueChange([
-                        ...value,
-                        { name: "", selection: makeDefaultSelection() },
-                    ])
-                }}
-            >
-                {addButtonContent}
-            </Button>
-        </div >
-    );
+    const addItem = () => {
+        onValueChange([
+            ...value,
+            { name: "", selection: makeDefaultSelection() },
+        ])
+    }
 
     return (
         <div>
             <p>Properties (object)</p>
-            {selector}
+            <MultiItemSelectorBase>
+                <MultiItemSelectorList>
+                    {value.map((item, i) => (
+                        <Collapsible
+                            key={item.name}
+                            className="flex flex-col group gap-2"
+                        >
+                            <MultiItemRow>
+                                <PropCombobox
+                                    targetItem="objectProp"
+                                    suggestionsFetcher={suggestionsFetcher}
+                                    propIndex={i}
+                                    thisSelection={thisSelection}
+                                    setName={(newName) => onValueChange([
+                                        ...value.slice(0, i - 1),
+                                        { ...item, name: newName },
+                                        ...value.slice(i)
+                                    ])}
+                                />
+                                <DestroyItemButton
+                                    onClick={() => onValueChange([
+                                        ...value.slice(0, i),
+                                        ...value.slice(i + 1),
+                                    ])}
+                                />
+                                <CollapsibleTrigger className="cursor-pointer">
+                                    <ChevronDown
+                                        className="size-4 group-data-[state=open]:rotate-180 transition-transform"
+                                    />
+                                </CollapsibleTrigger>
+                            </MultiItemRow>
+                            <CollapsibleContent className={cn(
+                                "text-gray-700 ml-4 p-2",
+                                (recursionDepth % 2 === 0) ? "bg-gray-100" : "bg-white",
+                            )}>
+                                <ComplexPropertySelectorBase
+                                    selection={value[i].selection}
+                                    onSelectionChange={(newSelection) => onValueChange([
+                                        ...value.slice(0, i),
+                                        { ...value[i], selection: newSelection },
+                                        ...value.slice(i + 1),
+                                    ])}
+                                    suggestionsFetcher={suggestionsFetcher ?? undefined}
+                                    recursionDepth={recursionDepth + 1}
+                                    // FIXME: populate parentContext
+                                    parentContext={parentContext}
+                                />
+                            </CollapsibleContent>
+                        </Collapsible>
+                    ))}
+                </MultiItemSelectorList>
+                <MultiItemAddButton onClick={addItem}>
+                    Add object property
+                </MultiItemAddButton>
+            </MultiItemSelectorBase>
         </div>
     );
 }
@@ -258,26 +242,61 @@ function DataPropsSelector({
     suggestionsFetcher: SuggestionsFetcher | null,
     setSelection: (newValue: ComplexPropertySelection) => void,
 }) {
-    const suggestionsQueryResult = useSuggestionsQuery(suggestionsFetcher, {
-        // FIXME: Use correct index and isolate per property
-        fetchTarget: { targetItem: "dataProp", propIndex: 0 },
-        thisSelection,
-        // FIXME: Use context
-        parentContext: null,
-    });
+    function addDataProp() {
+        setSelection({
+            ...thisSelection,
+            dataProps: [...thisSelection.dataProps, { name: "" }],
+        })
+    }
+
+    function setDataPropName(newName: string, i: number) {
+        setSelection({
+            ...thisSelection,
+            dataProps: [
+                ...thisSelection.dataProps.slice(0, i),
+                { ...thisSelection.dataProps[i], name: newName },
+                ...thisSelection.dataProps.slice(i+1),
+            ],
+        });
+    }
+
+    function deleteDataProp(i: number) {
+        setSelection({
+            ...thisSelection,
+            dataProps: [
+                ...thisSelection.dataProps.slice(0, i),
+                ...thisSelection.dataProps.slice(i+1),
+            ],
+        });
+    }
 
     return (
         <div>
             <p>Properties (data)</p>
-            <PropertySelector
-                value={thisSelection.dataProps.map(({ name }) => name)}
-                onValueChange={(newDataProps) => setSelection({
-                    ...thisSelection,
-                    dataProps: newDataProps.map((name) => ({ name })),
-                })}
-                suggestionsQueryResult={suggestionsQueryResult}
-                addButtonContent="Add data property"
-            />
+            <MultiItemSelectorBase>
+                <MultiItemSelectorList>
+                    {thisSelection.dataProps.map((dataProp, i) => (
+                        <div
+                            key={dataProp.name}
+                            className="flex gap-2"
+                        >
+                            <PropCombobox
+                                targetItem="dataProp"
+                                suggestionsFetcher={suggestionsFetcher}
+                                propIndex={i}
+                                thisSelection={thisSelection}
+                                setName={(newName) => setDataPropName(newName, i)}
+                            />
+                            <DestroyItemButton
+                                onClick={() => deleteDataProp(i)}
+                            />
+                        </div>
+                    ))}
+                </MultiItemSelectorList>
+                <MultiItemAddButton onClick={addDataProp}>
+                    Add data property
+                </MultiItemAddButton>
+            </MultiItemSelectorBase>
         </div>
     );
 }
@@ -320,7 +339,6 @@ function ComplexPropertySelectorBase({
                     objectProps: newValue,
                 })}
                 recursionDepth={recursionDepth}
-                addButtonContent="Add object property"
                 rdfType={selection.rdfType}
             />
         </div>
