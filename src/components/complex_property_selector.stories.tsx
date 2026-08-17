@@ -2,7 +2,9 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import ComplexPropertySelector, { makeDefaultSelection, type ComplexPropertySelection } from './complex_property_selector';
 import { expect } from 'storybook/test';
 import { useArgs } from 'storybook/preview-api';
-import { useState } from 'react';
+import { useState, type ComponentProps } from 'react';
+import type { Canvas } from 'storybook/internal/types';
+import { getFetchTargetValue, getThisSelection, type SuggestionsFetcherContext } from '@/suggestions-fetcher-util';
 
 const meta = {
   title: "Components/ComplexPropertySelector",
@@ -68,10 +70,10 @@ export const Prefilled: Story = {
 
 export const WithPropSuggestions: Story = {
   args: {
-      suggestionsFetcher: async ({ fetchTarget, thisSelection }) => {
-          const {rdfType} = thisSelection;
+      suggestionsFetcher: async (ctx) => {
+          const {rdfType} = getThisSelection(ctx);
 
-          switch (fetchTarget.targetItem) {
+          switch (ctx.fetchTarget.targetItem) {
               case "rdfType":
                   return [
                       { value: 'http://typeAlpha', label: ":typeAlpha" },
@@ -323,3 +325,131 @@ export const ObjectPropLabelsAreShown: Story = {
       expect(await canvas.findAllByDisplayValue("cool_label")).not.toHaveLength(0);
     },
 };
+
+type SuggestionsFetcher = ComponentProps<typeof ComplexPropertySelector>["suggestionsFetcher"]
+
+function findCombobox(canvas: Canvas, value: string) {
+    return canvas.getAllByRole("combobox").find((el) => (el as any).value === value)
+}
+
+export const ContextfulSuggestions: Story = {
+    args: {},
+    play: async ({ canvasElement, mount, userEvent, step }) => {
+        // NOTE: Testing that contextful suggestions
+        // NOTE: This test does not check for the order of suggestion function invokation
+
+        // Array of contexts that are gathered during suggestion function invokation
+        let callLog: SuggestionsFetcherContext[] = [];
+
+        const defaultSelection = {
+            rdfType: "someType",
+            dataProps: [],
+            objectProps: [{
+                name: "nestedPropA",
+                selection: {
+                    rdfType: "nestedType",
+                    dataProps: [],
+                    objectProps: [{
+                        name: "nestedPropB",
+                        selection: {
+                            rdfType: "finalNested",
+                            dataProps: [{ name: "finalNestedData" }],
+                            objectProps: [{
+                                name: "finalNestedObj",
+                                selection: { rdfType: "", dataProps: [], objectProps: []},
+                            }],
+                        },
+                    }],
+                },
+            }],
+        } satisfies ComplexPropertySelection;
+
+        const suggestionsFetcher: SuggestionsFetcher = async (ctx) => {
+            callLog.push(ctx);
+            return [];
+        }
+        const canvas = await mount(
+            <ComplexPropertySelector {...{ defaultSelection, suggestionsFetcher }} />
+        );
+
+        // NOTE: Open all collapsible things within the component
+        async function expandAllCollapsibles() {
+            const selector = '[data-state="closed"] [data-slot="collapsible-trigger"]';
+
+            let toOpen = [...canvasElement.querySelectorAll(selector)];
+
+            // NOTE: Looping because nested collapsible get mounted after parent collapsible is
+            // opened
+            while (toOpen.length > 0) {
+                await Promise.all(toOpen.map((it) => userEvent.click(it)));
+                toOpen = [...canvasElement.querySelectorAll(selector)];
+            }
+        }
+
+        await step("Expand all collapsibles", async () => {
+            await expandAllCollapsibles();
+        });
+
+        const combobox = (val: string) => {
+            const res = findCombobox(canvas, "finalNested");
+            if (!res) throw `unexpected missing combobox "${val}"`;
+            return res;
+        }
+
+        await step("Ensure suggestion calls", async () => {
+            await userEvent.click(combobox("finalNested"));
+            await userEvent.click(combobox("finalNestedData"));
+            await userEvent.click(combobox("finalNestedObject"));
+        })
+
+        const defaultSelectionJson = JSON.stringify(defaultSelection);
+        // NOTE: rootSelection should always be the same
+        expect(
+            callLog.filter((ctx) => JSON.stringify(ctx.rootSelection) !== defaultSelectionJson),
+        ).toHaveLength(0);
+
+        // NOTE: Even though testing the context is more important, we are starting with
+        // `getFetchTargetValue` conversion so that test failures are easier to detect.
+        await step("Checking fetch target values", () => {
+            const callLogItems = callLog.map(getFetchTargetValue);
+
+            expect(callLogItems).toContainEqual("finalNested");
+            expect(callLogItems).toContainEqual({
+                name: "finalNestedData",
+            } satisfies ComplexPropertySelection["dataProps"][number]);
+            expect(callLogItems).toContainEqual({
+                name: "finalNestedObj",
+                selection: { rdfType: "", dataProps: [], objectProps: [] },
+            } satisfies ComplexPropertySelection["objectProps"][number]);
+        });
+
+        // NOTE: Same tests as before but now we are testing the context
+        await step("Checking contexts", () => {
+            const rootSelection = defaultSelection;
+            expect(callLog).toContainEqual({
+                rootSelection,
+                parentFetchTargets: [
+                    { targetItem: "objectProp", propIndex: 0 },
+                    { targetItem: "objectProp", propIndex: 0 },
+                ],
+                fetchTarget: { targetItem: "rdfType" }
+            } satisfies SuggestionsFetcherContext);
+            expect(callLog).toContainEqual({
+                rootSelection,
+                parentFetchTargets: [
+                    { targetItem: "objectProp", propIndex: 0 },
+                    { targetItem: "objectProp", propIndex: 0 },
+                ],
+                fetchTarget: { targetItem: "dataProp", propIndex: 0 },
+            } satisfies SuggestionsFetcherContext);
+            expect(callLog).toContainEqual({
+                rootSelection,
+                parentFetchTargets: [
+                    { targetItem: "objectProp", propIndex: 0 },
+                    { targetItem: "objectProp", propIndex: 0 },
+                ],
+                fetchTarget: { targetItem: "objectProp", propIndex: 0 },
+            } satisfies SuggestionsFetcherContext)
+        });
+    }
+}
