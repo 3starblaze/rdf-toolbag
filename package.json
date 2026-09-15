@@ -1,6 +1,6 @@
 {
   "name": "multicardinal-table",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "type": "module",
   "main": "./dist/multicardinal-table.js",
   "files": [
