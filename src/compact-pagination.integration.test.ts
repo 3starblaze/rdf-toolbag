@@ -620,10 +620,7 @@ SELECT * WHERE{
         expect(queryToWrap).toBeValidSparqlQuery();
       });
 
-
-      // NOTE: During paginated query execution Jena does not select ?this for some reason which is
-      // why the test is disabled for it. Will be addressed later.
-      (name === "Jena" ? test.todo : test)("row retrieval", async () => {
+      test("row retrieval", async () => {
         const newQuery = formatPaginatedQuery({
           globalLimit: 1_000,
           groupLimit: 5,

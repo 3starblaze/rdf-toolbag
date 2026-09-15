@@ -119,12 +119,20 @@ OFFSET ${groupOffset}`;
     return splitQueryPreamble(orderedWithPrefix).main;
   }
 
+  const propConstraints = formatPropConstraints({ idVars, propNameVar, propValVar, query });
+
+  const valuesConstraints = propConstraints.filter((it) => it.includes("VALUES"));
+  const restConstraints = propConstraints.filter((it) => !it.includes("VALUES"));
+
   const resWithoutOrder = [
     preamble,
     `SELECT DISTINCT ${fmtVars(selectedVars)} {`,
+    // NOTE: Query does not work properly for Jena-based engines if the VALUES clause is not the
+    // first item
+    ...valuesConstraints,
     fmtSubquery(getKeyConstraintSubquery()),
     fmtSubquery(main),
-    ...formatPropConstraints({ idVars, propNameVar, propValVar, query }),
+    ...restConstraints,
     `} LIMIT ${globalLimit}`,
   ].join("\n");
 
