@@ -1,14 +1,16 @@
 # Multicardinal table
 
-![Multicardinal table displaying data from Academy Sampo dataset](./readme-assets/multicardinal-table.png)
-
-Multicardinal table displaying data from Academy Sampo dataset.
-
 ## Introduction
 
-This repository provides multicardinal table component -- table that can have cells with multiple values. Given a base query and function to perform sparql queries, multicardinal table will provide a paginated view with count information.   
+This repository provides multicardinal table component -- table that can have cells with multiple values. Given a base query and function to perform sparql queries, multicardinal table will provide a paginated view with count information. In the example below multicardinal table demonstrates data from Academy Sampo dataset, using two columns as keys and having multiple values in `HasFamilyRelation` column cells.
+
+![Multicardinal table displaying data from Academy Sampo dataset](./readme-assets/multicardinal-table.png)
 
 Additionally, this repository exports a complex property selector that provides a UI that accepts RDF types and properties which are then converted into SPARQL query that can be paginated. The table does not require this selector but it can serve as a starting point for more user-friendly SPARQL query interfaces that do not require extensive knowledge of SPARQL syntax.
+
+Multicardinal table has been integrated in [ViziQuer](https://viziquer.lumii.lv/) to provide an interface for querying datasets in which users do not need to know SPARQL. ViziQuer offers this functionality via interactive schema views that are available for several RDF datasets. An example of a schema can be seen below.
+
+![ViziQuer schema of Nobel Prize dataset](./readme-assets/vq-schema.png)
 
 ## Dev Notes
 
