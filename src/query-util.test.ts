@@ -4,6 +4,7 @@ import {
   findVars,
   isQueryValid,
   reorderOptional,
+  dropUselessOptionals,
 } from './query-util';
 
 describe("rewriteQueryWithPrefixes", () => {
@@ -185,5 +186,58 @@ LIMIT 100`;
     const newQuery = reorderOptional(query);
 
     expect(newQuery).toEqual(expectedQuery);
+  });
+});
+
+describe("dropUselessOptionals", () => {
+  test("Optional key with two steps", () => {
+    const query = `
+    PREFIX : <https://dblp.org/rdf/schema#>
+    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+    PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+    SELECT DISTINCT ?this ?createdBy__label
+      WHERE {
+        ?this rdf:type :Publication .
+        OPTIONAL { ?this :numberOfCreators ?numberOfCreators . }
+        OPTIONAL { ?this rdfs:label ?label . }
+        OPTIONAL { ?this :title ?title . }
+        OPTIONAL { ?this :yearOfPublication ?yearOfPublication . }
+        OPTIONAL { ?this :publishedIn ?publishedIn . }
+        OPTIONAL { ?this :hasSignature ?hasSignature . }
+        OPTIONAL { ?this :createdBy ?createdBy . }
+        OPTIONAL { ?createdBy rdfs:label ?createdBy__label . }
+    }`;
+
+    const newQuery = dropUselessOptionals(query);
+
+
+    function withAnySpace(expected: string) {
+      const src = expected
+        // NOTE: escape some regex symbols
+        .replaceAll("{", "\\{")
+        .replaceAll("}", "\\}")
+        .replaceAll("?", "\\?")
+        .replaceAll(":", "\\:")
+        // NOTE: turn literal space into any whitespace
+        .replaceAll(" ", "\\s+");
+      return new RegExp(src);
+    }
+
+    expect(newQuery).toMatch(withAnySpace("?this rdf:type :Publication ."));
+    expect(newQuery).toMatch(withAnySpace("OPTIONAL { ?this :createdBy ?createdBy . }"));
+    expect(newQuery).toMatch(withAnySpace("OPTIONAL { ?createdBy rdfs:label ?createdBy__label . }"));
+
+    const blacklist = `
+        OPTIONAL { ?this :numberOfCreators ?numberOfCreators . }
+        OPTIONAL { ?this rdfs:label ?label . }
+        OPTIONAL { ?this :title ?title . }
+        OPTIONAL { ?this :yearOfPublication ?yearOfPublication . }
+        OPTIONAL { ?this :publishedIn ?publishedIn . }
+        OPTIONAL { ?this :hasSignature ?hasSignature . }`
+      .trim()
+      .split("\n")
+      .map((it) => it.trim());
+
+    blacklist.forEach((it) => expect(newQuery).not.toMatch(withAnySpace(it)));
   });
 });
