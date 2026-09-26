@@ -10,6 +10,25 @@ import {
 import { Parser } from '@traqula/parser-sparql-1-1';
 import { AstTransformer} from '@traqula/rules-sparql-1-1';
 
+// NOTE: Root of the query also is included in the count
+function countQueries(q: string) {
+  const parser = new Parser();
+  const ast = parser.parse(q);
+  const transformer = new AstTransformer();
+
+  let count = 0;
+
+  transformer.visitNode(ast, {
+    query: {
+      visitor(it) {
+        if (it.subType === "select") count++;
+      },
+    }
+  });
+
+  return count;
+}
+
 describe("rewriteQueryWithPrefixes", () => {
   test("no prefixes initially", () => {
     const query = `SELECT * WHERE {
@@ -293,28 +312,56 @@ FILTER ( BOUND(?__propVal) )
 
     expect(newQuery).toBeValidSparqlQuery();
 
-    // NOTE: Root of the query also is included in the count
-    function countQueries(q: string) {
-      const parser = new Parser();
-      const ast = parser.parse(q);
-      const transformer = new AstTransformer();
-
-      let count = 0;
-
-      transformer.visitNode(ast, {
-        query: {
-          visitor(it) {
-            if (it.subType === "select") count++;
-          },
-        }
-      });
-
-      return count;
-    }
-
     // NOTE: Root + 2x nested subquery for keys + main content subquery
     expect(countQueries(query)).toEqual(4);
     // NOTE: Root + flattened key subquery
     expect(countQueries(newQuery)).toEqual(2);
+  });
+
+  test("Leaky subquery is not projected", () => {
+    // NOTE: The last subquery cannot be safely projected because we risk leaking "?this"
+    const query = `PREFIX voc: <https://example.com/vocabulary/>
+SELECT DISTINCT ?productType ?color ?__propName ?__propVal WHERE {
+  VALUES ?__propName {
+    "buildType"
+    "price"
+    "this"
+  }
+  {
+    SELECT DISTINCT ?productType ?color WHERE {
+      SELECT ?productType ?color ?buildType ?price WHERE {
+        ?this voc:productType ?productType .
+        ?this voc:color ?color .
+        ?this voc:buildType ?buildType .
+        ?this voc:price ?price .
+      }
+      ORDER BY ASC ( ?productType ) ASC ( ?color ) ASC ( ?buildType ) ASC ( ?price )
+    }
+    ORDER BY ASC ( ?productType ) ASC ( ?color ) ASC ( ?buildType ) ASC ( ?price )
+    LIMIT 100
+  }
+  {
+    SELECT ?productType ?color ?buildType ?price WHERE {
+      ?this voc:productType ?productType .
+      ?this voc:color ?color .
+      ?this voc:buildType ?buildType .
+      ?this voc:price ?price .
+    }
+    ORDER BY ASC ( ?productType ) ASC ( ?color ) ASC ( ?buildType ) ASC ( ?price )
+  }
+  BIND( IF( ( ?__propName = "buildType" ) , ?buildType , IF( ( ?__propName = "price" ) , ?price , IF( ( ?__propName = "this" ) , ?this , "N/A" ) ) ) AS ?__propVal )
+  FILTER ( BOUND( ?__propVal ) )
+}
+ORDER BY ASC ( ?productType ) ASC ( ?color ) ASC ( ?buildType ) ASC ( ?price )
+    LIMIT 10000`;
+
+    const newQuery = flattenUselessSubqueries(query);
+
+    expect(newQuery).toBeValidSparqlQuery();
+
+    // NOTE: Root + 2x nested subquery for keys + main content subquery
+    expect(countQueries(query)).toEqual(4);
+    // NOTE: Root + flattened key subquery + main content subquery
+    expect(countQueries(newQuery)).toEqual(3);
   });
 });

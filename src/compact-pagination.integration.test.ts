@@ -1,8 +1,8 @@
 import { expect, test, describe } from "vitest";
 import type { QueryStoreProvider } from "./test-util/QueryStore";
 import {
-  formatPaginatedQuery,
-  formatPaginatedCounterQuery,
+  formatPaginatedQuery as rawFormatPaginatedQuery,
+  formatPaginatedCounterQuery as rawFormatPaginatedCounterQuery,
   tableToMulticardinalRow,
   tableToCountPayload,
 } from "./compact-pagination";
@@ -11,6 +11,7 @@ import type { SparqlTableResult } from "./sparql_queries";
 import { OxigraphQueryStoreProvider } from "./test-util/OxigraphQueryStore";
 import { QLeverQueryStoreProvider } from "./test-util/QLeverQueryStore";
 import { JenaQueryStoreProvider } from "./test-util/JenaQueryStore";
+import { dropUselessOptionals, flattenUselessSubqueries } from "./query-util";
 
 function makeMulticardinalRowSorter(keys: string[]) {
   function singleCompare(a: MulticardinalRow, b: MulticardinalRow, key: string): number {
@@ -85,9 +86,13 @@ const propValVar = "__propVal";
 function testIntegration({
   name,
   queryStoreProvider,
+  formatPaginatedQuery,
+  formatPaginatedCounterQuery,
 }: {
   name: string,
   queryStoreProvider: QueryStoreProvider,
+  formatPaginatedQuery: typeof rawFormatPaginatedQuery,
+  formatPaginatedCounterQuery: typeof rawFormatPaginatedCounterQuery,
 }) {
   describe(name, async () => {
     describe("basic test", async () => {
@@ -697,6 +702,56 @@ SELECT * WHERE{
   });
 }
 
-testIntegration({ name: "Oxigraph", queryStoreProvider: OxigraphQueryStoreProvider });
-testIntegration({ name: "QLever", queryStoreProvider: QLeverQueryStoreProvider });
-testIntegration({ name: "Jena", queryStoreProvider: JenaQueryStoreProvider });
+const optimizer = (query: string): string => {
+  return dropUselessOptionals(flattenUselessSubqueries(query));
+}
+
+const optimizedQuery: typeof rawFormatPaginatedQuery = (args) => {
+  const unoptimizedQuery = rawFormatPaginatedQuery(args);
+  return optimizer(unoptimizedQuery);
+};
+
+const optimizedCounter: typeof rawFormatPaginatedCounterQuery = (args) => {
+  const unoptimizedQuery = rawFormatPaginatedCounterQuery(args);
+  return optimizer(unoptimizedQuery);
+}
+
+
+const providers: { name: string, queryStoreProvider: QueryStoreProvider }[] = [
+  { name: "Oxigraph", queryStoreProvider: OxigraphQueryStoreProvider },
+  { name: "QLever", queryStoreProvider: QLeverQueryStoreProvider },
+  { name: "Jena", queryStoreProvider: JenaQueryStoreProvider },
+];
+
+const queryFormatters: {
+  name: string,
+  formatPaginatedQuery: typeof rawFormatPaginatedQuery,
+  formatPaginatedCounterQuery: typeof rawFormatPaginatedCounterQuery,
+}[] = [
+  {
+    name: "raw",
+    formatPaginatedCounterQuery: rawFormatPaginatedCounterQuery,
+    formatPaginatedQuery: rawFormatPaginatedQuery,
+  },
+  {
+    name: "optimized",
+    formatPaginatedCounterQuery: optimizedCounter,
+    formatPaginatedQuery: optimizedQuery,
+  },
+];
+
+type TestItem = Parameters<typeof testIntegration>[0];
+
+// NOTE: Cartesian product of all providers and query formatters
+const tests: TestItem[] = providers.flatMap((provider) => {
+  return queryFormatters.map((formatter): TestItem => ({
+    name: `${provider.name} (${formatter.name})`,
+    queryStoreProvider: provider.queryStoreProvider,
+    formatPaginatedQuery: formatter.formatPaginatedQuery,
+    formatPaginatedCounterQuery: formatter.formatPaginatedCounterQuery,
+  }));
+});
+
+for (const test of tests) {
+  testIntegration(test);
+}

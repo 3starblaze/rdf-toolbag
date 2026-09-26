@@ -429,34 +429,86 @@ export function flattenUselessSubqueries(query: string): string {
   if (ast.type !== "query") return query;
   if (ast.subType !== "select") return query;
 
-  function canFlatten(fragment: QuerySelect): boolean {
+  function isSubset(a: Set<unknown>, b: Set<unknown>): boolean {
+    if (a.size === 0) return true;
+    return [...a.values()].every((it) => b.has(it));
+  }
+
+  function canFlatten(
+    fragment: QuerySelect,
+    parentSelect: QuerySelect | null,
+  ): boolean {
     if (fragment.solutionModifiers.group) {
       return false;
     }
     if (fragment.solutionModifiers.limitOffset) {
       return false;
     }
+
+    // NOTE: If variables are projected, we cannot flatten for sure -- extra variables may leak
+    if (!fragment.variables.every((it) => it.type === "wildcard")) {
+      // NOTE: Root query has to be kept
+      if (!parentSelect) return false;
+
+      // TODO: Handle patterns
+      // NOTE: Only handling terms because it is easier.
+      if (!parentSelect.variables.every((it) => it.type === "term")
+        && !fragment.variables.every((it) => it.type === "term")) return false;
+
+      // NOTE: Only optimize the cases where a query (that might be a subquery) contains only a
+      // single subquery. This is done by flattening groups and asserting that we find a single child
+      // that is a subquery.
+      function plainSubqueryInQuery(rootPatterns: Pattern[]): boolean {
+        if (rootPatterns.length !== 1) return false;
+        const pattern = rootPatterns[0];
+        if (pattern.type === "query") return true;
+        if (pattern.subType === "group") return plainSubqueryInQuery(pattern.patterns);
+        return false;
+      }
+
+      // TODO: Handle additional (perhaps simple) case:
+      // -- if no sibling is constraining an unprojected variable from the subquery, it is safe to
+      // flatten. This is a useful case to consider for compact pagination's base subquery.
+      if (!plainSubqueryInQuery(parentSelect.where.patterns)) return false;
+
+      const parentVars = parentSelect.variables
+        .filter((it) => it.type === "term")
+        .map((it) => it.value);
+
+      const thisVars = fragment.variables
+        .filter((it) => it.type === "term")
+        .map((it) => it.value);
+
+      // NOTE: Not sure if this check is needed if `plainSubqueryInQuery` assertion is done but for
+      // more general cases it may be needed.
+      if (isSubset(new Set(parentVars), new Set(thisVars))) return true;
+
+      return false;
+    }
+
     // FIXME: inherit order
-    // FIXME: flattening without checking projected vars can be risky
     return true;
   }
 
-  function processPatterns(patterns: Pattern[]): Pattern[] {
+  function processPatterns(
+    patterns: Pattern[],
+    parentSelect: QuerySelect | null,
+  ): Pattern[] {
     return patterns.flatMap((it) => {
       if (it.type === "pattern" && it.subType === "group") {
-        return processPatterns(it.patterns);
+        return processPatterns(it.patterns, parentSelect);
       }
 
       // NOTE: Looks like queries seem to always be wrapped in groups. Therefore if flattening is
       // applied, group is not kept. However if query is not flattened it should have a group,
       // otherwise invalid query is generated.
       if (it.type === "query") {
-        if (canFlatten(it)) {
-          return processPatterns(it.where.patterns);
+        if (canFlatten(it, parentSelect)) {
+          return processPatterns(it.where.patterns, parentSelect);
         }
         else return F.patternGroup(
           [produce(it, (draft) => {
-            draft.where.patterns = processPatterns(draft.where.patterns);
+            draft.where.patterns = processPatterns(draft.where.patterns, it);
           })],
           F.gen(),
         );
@@ -465,7 +517,7 @@ export function flattenUselessSubqueries(query: string): string {
     });
   }
 
-  const patterns = processPatterns(ast.where.patterns);
+  const patterns = processPatterns(ast.where.patterns, null);
 
   const newAst = structuredClone(ast);
   newAst.where.patterns = patterns;
