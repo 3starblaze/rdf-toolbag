@@ -5,10 +5,12 @@ import {
   type ContextDefinition,
   type Pattern,
   type TripleNesting,
+  type QuerySelect,
 } from '@traqula/rules-sparql-1-1';
 import { Generator } from '@traqula/generator-sparql-1-1';
 import Graph from 'graphology';
 import { dfsFromNode } from "graphology-traversal";
+import { produce } from "immer";
 
 type Ast = ReturnType<InstanceType<(typeof Parser)>["parse"]>
 // NOTE: Defining values that are encountered but not added in type definitions
@@ -407,6 +409,66 @@ export function dropUselessOptionals(query: string): string {
 
   const newAst = structuredClone(ast);
   newAst.where.patterns = finalPatterns;
+
+  const newQuery = generator.generate(newAst);
+  return newQuery;
+}
+
+/**
+ * Remove unnecessary subqueries.
+ *
+ * Especially useful in QLever-based endpoints where subqueries are expensive.
+ */
+export function flattenUselessSubqueries(query: string): string {
+  const parser = new Parser();
+  const generator = new Generator();
+  const F = new AstFactory();
+
+  const ast = parser.parse(query);
+
+  if (ast.type !== "query") return query;
+  if (ast.subType !== "select") return query;
+
+  function canFlatten(fragment: QuerySelect): boolean {
+    if (fragment.solutionModifiers.group) {
+      return false;
+    }
+    if (fragment.solutionModifiers.limitOffset) {
+      return false;
+    }
+    // FIXME: inherit order
+    // FIXME: flattening without checking projected vars can be risky
+    return true;
+  }
+
+  function processPatterns(patterns: Pattern[]): Pattern[] {
+    return patterns.flatMap((it) => {
+      if (it.type === "pattern" && it.subType === "group") {
+        return processPatterns(it.patterns);
+      }
+
+      // NOTE: Looks like queries seem to always be wrapped in groups. Therefore if flattening is
+      // applied, group is not kept. However if query is not flattened it should have a group,
+      // otherwise invalid query is generated.
+      if (it.type === "query") {
+        if (canFlatten(it)) {
+          return processPatterns(it.where.patterns);
+        }
+        else return F.patternGroup(
+          [produce(it, (draft) => {
+            draft.where.patterns = processPatterns(draft.where.patterns);
+          })],
+          F.gen(),
+        );
+      }
+      return it;
+    });
+  }
+
+  const patterns = processPatterns(ast.where.patterns);
+
+  const newAst = structuredClone(ast);
+  newAst.where.patterns = patterns;
 
   const newQuery = generator.generate(newAst);
   return newQuery;

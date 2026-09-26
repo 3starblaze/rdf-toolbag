@@ -5,7 +5,10 @@ import {
   isQueryValid,
   reorderOptional,
   dropUselessOptionals,
+  flattenUselessSubqueries,
 } from './query-util';
+import { Parser } from '@traqula/parser-sparql-1-1';
+import { AstTransformer} from '@traqula/rules-sparql-1-1';
 
 describe("rewriteQueryWithPrefixes", () => {
   test("no prefixes initially", () => {
@@ -239,5 +242,79 @@ describe("dropUselessOptionals", () => {
       .map((it) => it.trim());
 
     blacklist.forEach((it) => expect(newQuery).not.toMatch(withAnySpace(it)));
+  });
+});
+
+describe("flattenUselessSubqueries", () => {
+  test("Double subquery + subquery", () => {
+    const query = `PREFIX : <https://dblp.org/rdf/schema#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+SELECT DISTINCT ?this ?__propName ?__propVal {
+VALUES ?__propName { "numberOfCreators" "label" "title" "yearOfPublication" "publishedIn" "hasSignature" "createdBy" "createdBy__label" }
+  {
+  SELECT DISTINCT ?this
+  WHERE {
+    SELECT ?this WHERE {
+      ?this rdf:type :Publication .
+      OPTIONAL { ?this :numberOfCreators ?numberOfCreators . }
+      OPTIONAL { ?this rdfs:label ?label . }
+      OPTIONAL { ?this :title ?title . }
+      OPTIONAL { ?this :yearOfPublication ?yearOfPublication . }
+      OPTIONAL { ?this :publishedIn ?publishedIn . }
+      OPTIONAL { ?this :hasSignature ?hasSignature . }
+      OPTIONAL { ?this :createdBy ?createdBy . }
+      OPTIONAL { ?createdBy rdfs:label ?createdBy__label . }
+    } ORDER BY ?this
+  }
+  ORDER BY ?this
+  LIMIT 10
+  OFFSET 0
+  }
+  {
+
+  SELECT * WHERE {
+    ?this rdf:type :Publication .
+    OPTIONAL { ?this :numberOfCreators ?numberOfCreators . }
+    OPTIONAL { ?this rdfs:label ?label . }
+    OPTIONAL { ?this :title ?title . }
+    OPTIONAL { ?this :yearOfPublication ?yearOfPublication . }
+    OPTIONAL { ?this :publishedIn ?publishedIn . }
+    OPTIONAL { ?this :hasSignature ?hasSignature . }
+    OPTIONAL { ?this :createdBy ?createdBy . }
+    OPTIONAL { ?createdBy rdfs:label ?createdBy__label . }
+  }
+  }
+BIND(IF(?__propName = "numberOfCreators", ?numberOfCreators, IF(?__propName = "label", ?label, IF(?__propName = "title", ?title, IF(?__propName = "yearOfPublication", ?yearOfPublication, IF(?__propName = "publishedIn", ?publishedIn, IF(?__propName = "hasSignature", ?hasSignature, IF(?__propName = "createdBy", ?createdBy, IF(?__propName = "createdBy__label", ?createdBy__label, "N/A")))))))) AS ?__propVal)
+FILTER ( BOUND(?__propVal) )
+} LIMIT 100000`;
+
+    const newQuery = flattenUselessSubqueries(query);
+
+    expect(newQuery).toBeValidSparqlQuery();
+
+    // NOTE: Root of the query also is included in the count
+    function countQueries(q: string) {
+      const parser = new Parser();
+      const ast = parser.parse(q);
+      const transformer = new AstTransformer();
+
+      let count = 0;
+
+      transformer.visitNode(ast, {
+        query: {
+          visitor(it) {
+            if (it.subType === "select") count++;
+          },
+        }
+      });
+
+      return count;
+    }
+
+    // NOTE: Root + 2x nested subquery for keys + main content subquery
+    expect(countQueries(query)).toEqual(4);
+    // NOTE: Root + flattened key subquery
+    expect(countQueries(newQuery)).toEqual(2);
   });
 });
