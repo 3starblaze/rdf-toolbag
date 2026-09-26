@@ -220,14 +220,9 @@ export function reorderOptional(query: string): string {
   return flattenOptionalPatterns(newQuery);
 }
 
-/**
- * Simplify SELECT query by removing `OPTIONAL { ... }` that will never be used.
- *
- * In some endpoints this can improve query performance drastically.
- **/
 export function dropUselessOptionals(query: string): string {
   const parser = new Parser();
-  const F = new AstFactory();
+  const transformer = new AstTransformer();
   const generator = new Generator();
 
   const ast = parser.parse(query);
@@ -235,8 +230,30 @@ export function dropUselessOptionals(query: string): string {
   if (ast.type !== "query") return query;
   if (ast.subType !== "select") return query;
 
+  const finalAst = transformer.transformNode<"unsafe", typeof ast>(ast, {
+    query: {
+      transform: (it) => {
+        if (it.subType !== "select") return it;
+        return dropUselessOptionalsNonRecursive(it);
+      }
+    },
+  });
+
+  const newQuery = generator.generate(finalAst);
+
+  return newQuery;
+}
+
+/**
+ * Simplify SELECT query by removing `OPTIONAL { ... }` that will never be used.
+ *
+ * In some endpoints this can improve query performance drastically.
+ **/
+function dropUselessOptionalsNonRecursive(select: QuerySelect): QuerySelect {
+  const F = new AstFactory();
+
   // NOTE: Nothing is useless when everything is selected
-  if (ast.variables.length === 1 && ast.variables[0].type === "wildcard") return query;
+  if (select.variables.length === 1 && select.variables[0].type === "wildcard") return select;
 
   // NOTE: Simplified structure that is used for gathering BGP{...} and OPIONAL{BGP{...}}
   interface SimplePattern {
@@ -272,13 +289,13 @@ export function dropUselessOptionals(query: string): string {
   let simplePatterns: SimplePattern[] | null;
 
   try {
-    simplePatterns = flattenPatterns(ast.where.patterns, false);
+    simplePatterns = flattenPatterns(select.where.patterns, false);
   } catch (e) {
     if (e === "unexpected") simplePatterns = null;
     else throw(e);
   }
 
-  if (!simplePatterns) return query;
+  if (!simplePatterns) return select;
 
   interface GraphTriple {
     from: string,
@@ -381,7 +398,7 @@ export function dropUselessOptionals(query: string): string {
   }
 
   // FIXME: Handle pattern binds
-  const keyVars = ast.variables.flatMap((it) => (it.type === "term") ? it.value : []);
+  const keyVars = select.variables.flatMap((it) => (it.type === "term") ? it.value : []);
 
   let reachableVars: string[] = [];
 
@@ -407,11 +424,9 @@ export function dropUselessOptionals(query: string): string {
     return it.optional ? F.patternOptional([bgp], F.gen()) : bgp;
   });
 
-  const newAst = structuredClone(ast);
-  newAst.where.patterns = finalPatterns;
-
-  const newQuery = generator.generate(newAst);
-  return newQuery;
+  return produce(select, (draft) => {
+    draft.where.patterns = finalPatterns;
+  });
 }
 
 /**

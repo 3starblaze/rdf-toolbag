@@ -9,6 +9,7 @@ import {
 } from './query-util';
 import { Parser } from '@traqula/parser-sparql-1-1';
 import { AstTransformer} from '@traqula/rules-sparql-1-1';
+import { Generator } from '@traqula/generator-sparql-1-1';
 
 // NOTE: Root of the query also is included in the count
 function countQueries(q: string) {
@@ -363,5 +364,95 @@ ORDER BY ASC ( ?productType ) ASC ( ?color ) ASC ( ?buildType ) ASC ( ?price )
     expect(countQueries(query)).toEqual(4);
     // NOTE: Root + flattened key subquery + main content subquery
     expect(countQueries(newQuery)).toEqual(3);
+  });
+});
+
+describe("flattenUselessSubqueries + dropUselessOptionals", () => {
+  test("DBLP query example", () => {
+    const initialQuery = `PREFIX : <https://dblp.org/rdf/schema#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+SELECT DISTINCT ?this ?createdBy__label ?__propName ?__propVal {
+VALUES ?__propName { "numberOfCreators" "label" "title" "yearOfPublication" "publishedIn" "hasSignature" "createdBy" "createdBy__label" }
+  {
+  SELECT DISTINCT ?this ?createdBy__label
+  WHERE {
+    SELECT ?this ?createdBy__label WHERE {
+      ?this rdf:type :Publication .
+      OPTIONAL { ?this :numberOfCreators ?numberOfCreators . }
+      OPTIONAL { ?this rdfs:label ?label . }
+      OPTIONAL { ?this :title ?title . }
+      OPTIONAL { ?this :yearOfPublication ?yearOfPublication . }
+      OPTIONAL { ?this :publishedIn ?publishedIn . }
+      OPTIONAL { ?this :hasSignature ?hasSignature . }
+      OPTIONAL { ?this :createdBy ?createdBy . }
+      OPTIONAL { ?createdBy rdfs:label ?createdBy__label . }
+    } ORDER BY ?this
+  }
+  ORDER BY ?this
+  LIMIT 10
+  OFFSET 0
+  }
+  {
+
+  SELECT * WHERE {
+    ?this rdf:type :Publication .
+    OPTIONAL { ?this :numberOfCreators ?numberOfCreators . }
+    OPTIONAL { ?this rdfs:label ?label . }
+    OPTIONAL { ?this :title ?title . }
+    OPTIONAL { ?this :yearOfPublication ?yearOfPublication . }
+    OPTIONAL { ?this :publishedIn ?publishedIn . }
+    OPTIONAL { ?this :hasSignature ?hasSignature . }
+    OPTIONAL { ?this :createdBy ?createdBy . }
+    OPTIONAL { ?createdBy rdfs:label ?createdBy__label . }
+  }
+  }
+BIND(IF(?__propName = "numberOfCreators", ?numberOfCreators, IF(?__propName = "label", ?label, IF(?__propName = "title", ?title, IF(?__propName = "yearOfPublication", ?yearOfPublication, IF(?__propName = "publishedIn", ?publishedIn, IF(?__propName = "hasSignature", ?hasSignature, IF(?__propName = "createdBy", ?createdBy, IF(?__propName = "createdBy__label", ?createdBy__label, "N/A")))))))) AS ?__propVal)
+FILTER ( BOUND(?__propVal) )
+    } LIMIT 100000`;
+
+    const expectedQuery = `PREFIX : <https://dblp.org/rdf/schema#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+SELECT DISTINCT ?this ?createdBy__label ?__propName ?__propVal {
+VALUES ?__propName { "numberOfCreators" "label" "title" "yearOfPublication" "publishedIn" "hasSignature" "createdBy" "createdBy__label" }
+  {
+  SELECT DISTINCT ?this ?createdBy__label
+  WHERE {
+    ?this rdf:type :Publication .
+    OPTIONAL { ?this :createdBy ?createdBy . }
+    OPTIONAL { ?createdBy rdfs:label ?createdBy__label . }
+  }
+  ORDER BY ?this
+  LIMIT 10
+  OFFSET 0
+  }
+  ?this rdf:type :Publication .
+  OPTIONAL { ?this :numberOfCreators ?numberOfCreators . }
+  OPTIONAL { ?this rdfs:label ?label . }
+  OPTIONAL { ?this :title ?title . }
+  OPTIONAL { ?this :yearOfPublication ?yearOfPublication . }
+  OPTIONAL { ?this :publishedIn ?publishedIn . }
+  OPTIONAL { ?this :hasSignature ?hasSignature . }
+  OPTIONAL { ?this :createdBy ?createdBy . }
+  OPTIONAL { ?createdBy rdfs:label ?createdBy__label . }
+  BIND(IF(?__propName = "numberOfCreators", ?numberOfCreators, IF(?__propName = "label", ?label, IF(?__propName = "title", ?title, IF(?__propName = "yearOfPublication", ?yearOfPublication, IF(?__propName = "publishedIn", ?publishedIn, IF(?__propName = "hasSignature", ?hasSignature, IF(?__propName = "createdBy", ?createdBy, IF(?__propName = "createdBy__label", ?createdBy__label, "N/A")))))))) AS ?__propVal)
+  FILTER ( BOUND(?__propVal) )
+    } LIMIT 100000`;
+
+    expect(initialQuery).toBeValidSparqlQuery();
+    expect(expectedQuery).toBeValidSparqlQuery();
+
+    const actualQuery = dropUselessOptionals(flattenUselessSubqueries(initialQuery));
+
+    const parser = new Parser();
+    const generator = new Generator();
+
+    const actualString = generator.generate(parser.parse(actualQuery));
+    const expectedString = generator.generate(parser.parse(expectedQuery));
+
+    // NOTE: Comparing regenerated query strings instead of ASTS because query strings are easier
+    // to understand
+    expect(actualString).toEqual(expectedString);
   });
 });
