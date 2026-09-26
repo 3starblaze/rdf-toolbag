@@ -31,4 +31,6 @@ export {
 export {
     rewriteQueryWithPrefixes,
     reorderOptional,
+    dropUselessOptionals,
+    flattenUselessSubqueries,
 } from "@/query-util";
