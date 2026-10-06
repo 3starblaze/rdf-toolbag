@@ -2,16 +2,38 @@ import { queryOptions } from "@tanstack/react-query";
 import N3 from "n3";
 import { splitQueryPreamble } from "./query-util";
 
+export interface RDFTermIRI {
+    type: "uri",
+    // NOTE: IRI
+    value: string
+}
+
+export interface RDFTermLiteral {
+    type: "literal",
+    value: string,
+    "xml:lang"?: string,
+    // Refer to https://www.w3.org/TR/xmlschema-2/#built-in-datatypes
+    // NOTE: IRI
+    datatype?: string,
+}
+
+export interface RdfTermBnode {
+    type: "bnode",
+    value: string,
+}
+
+export type RdfTerm = RDFTermIRI | RDFTermLiteral | RdfTermBnode;
+
+// NOTE: See https://www.w3.org/TR/sparql11-results-json/ for specification
 export interface SparqlTableResult {
     head: {
         vars: string[],
+        // NOTE: This exists in spec but its type is not defined and I have never seen that in use.
+        //link?: string[],
     },
     results: {
         bindings: {
-            [key: string]: {
-                type: string,
-                value: string,
-            }
+            [key: string]: RdfTerm,
         }[],
     },
 }

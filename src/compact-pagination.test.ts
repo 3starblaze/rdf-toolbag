@@ -2,10 +2,9 @@ import { expect, test, describe } from "vitest";
 import {
   formatPaginatedQuery,
   formatPaginatedCounterQuery,
-  tableToMulticardinalRow,
+  tableToMulticardinalTable,
 } from "./compact-pagination";
-import type { SparqlTableResult } from "./sparql_queries";
-import type { MulticardinalRow } from "./multi-cardinal-table-util";
+import type { SparqlTableResult, RdfTerm } from "./sparql_queries";
 
 function expectPrefixesToNotBeNested(query: string) {
     const lines = query.split("\n");
@@ -207,9 +206,9 @@ SELECT DISTINCT * WHERE{
   });
 });
 
-describe("tableToMulticardinalRow", () => {
+describe("tableToMulticardinalTable", () => {
   test("basic example", () => {
-    const v = (value: string) => ({ value, type: "literal" });
+    const v = (value: string): RdfTerm => ({ value, type: "literal" });
 
     const row = (a: string, b: string, c: string, d: string) => ({
       productType: v(a),
@@ -236,32 +235,40 @@ describe("tableToMulticardinalRow", () => {
       },
     };
 
-    const rows = tableToMulticardinalRow({ propNameVar, propValVar, resultingTable });
+    const result = tableToMulticardinalTable({ propNameVar, propValVar, resultingTable });
 
     const idCols = ["productType", "color"];
     const restCols = ["price", "buildType"];
 
-    const expectedRows: MulticardinalRow[] = [
-      {
-        idCols,
-        idValues: { productType: "watch", color: "blue" },
-        restCols,
-        restValues: { price: ["9999", "4999"], buildType: ["new"] },
-      },
-      {
-        idCols,
-        idValues: { productType: "watch", color: "black" },
-        restCols,
-        restValues: { price: ["7999"], buildType: ["new"] },
-      },
-      {
-        idCols,
-        idValues: { productType: "phone", color: "black" },
-        restCols,
-        restValues: { price: ["999", "899"], buildType: ["refurbished"] },
-      },
-    ];
+    expect(result.idCols).toEqual(idCols);
+    expect(result.restCols).toEqual(restCols);
+    expect(result.rows).toHaveLength(3);
 
-    expect(rows).toEqual(expectedRows);
+    expect(result.rows[0].idValues).toEqual({
+      productType: v("watch"),
+      color: v("blue"),
+    });
+    expect(result.rows[0].restValues).toEqual({
+      price: [v("9999"), v("4999")],
+      buildType: [v("new")],
+    });
+
+    expect(result.rows[1].idValues).toEqual({
+      productType: v("watch"),
+      color: v("black"),
+    });
+    expect(result.rows[1].restValues).toEqual({
+      price: [v("7999")],
+      buildType: [v("new")],
+    });
+
+    expect(result.rows[2].idValues).toEqual({
+      productType: v("phone"),
+      color: v("black"),
+    });
+    expect(result.rows[2].restValues).toEqual({
+      price: [v("999"), v("899")],
+      buildType: [v("refurbished")],
+    });
   });
 });

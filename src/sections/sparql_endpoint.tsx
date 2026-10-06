@@ -10,8 +10,6 @@ import { defaultQuery } from "@/sparql_queries";
 import { Button } from "@/components/ui/button";
 import ExamineSparql from "@/components/examine_sparql";
 import DefaultConstructQuery from "./default_construct_query";
-import SampleMulticardinalQuery from "./multicardinal_query_table/index";
-import DeduplicationView from "./deduplication_view";
 import PaginatedDeduplicationView from "./paginated_deduplication_view";
 import PropertyQueryBuilder from "./property_query_builder";
 
@@ -73,16 +71,6 @@ function ContentSection({
             title: "Sample construct query",
             value: "sample-construct-query",
             content: (<DefaultConstructQuery url={url} />),
-        },
-        {
-            title: "Sample multicardinal query",
-            value: "sample-multicardinal-query",
-            content: (<SampleMulticardinalQuery url={url} />),
-        },
-        {
-            title: "Deduplication View",
-            value: "deduplication-view",
-            content: (<DeduplicationView url={url} />),
         },
         {
             title: "Paginated deduplication view",

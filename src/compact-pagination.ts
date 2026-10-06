@@ -1,6 +1,6 @@
-import type { MulticardinalRow } from "./multi-cardinal-table-util";
+import type { MulticardinalTableData } from "./multi-cardinal-table-util";
 import { findVars, splitQueryPreamble } from "./query-util";
-import type { SparqlTableResult } from "./sparql_queries";
+import type { RdfTerm, SparqlTableResult } from "./sparql_queries";
 import { Data, Option, MutableHashMap } from "effect";
 import { Parser } from '@traqula/parser-sparql-1-1';
 import { type SolutionModifierOrder } from '@traqula/rules-sparql-1-1';
@@ -207,7 +207,7 @@ export function formatPaginatedCounterQuery({
   return finalQuery;
 }
 
-export function tableToMulticardinalRow({
+export function tableToMulticardinalTable({
   propNameVar,
   propValVar,
   resultingTable,
@@ -215,7 +215,7 @@ export function tableToMulticardinalRow({
   resultingTable: SparqlTableResult,
   propNameVar: string,
   propValVar: string,
-}): MulticardinalRow[] {
+}): MulticardinalTableData {
   const vars = resultingTable.head.vars;
   if (!vars.includes(propNameVar)) throw new Error(`Could not find ${propNameVar}`);
   if (!vars.includes(propValVar)) throw new Error(`Could not find ${propValVar}`);
@@ -224,40 +224,44 @@ export function tableToMulticardinalRow({
 
   type BindingItem = SparqlTableResult["results"]["bindings"][number]
 
-  const collectingMap = MutableHashMap.fromIterable<readonly string[], BindingItem[]>([]);
+  const collectingMap = MutableHashMap.fromIterable<readonly string[], { item: BindingItem, idTerms: (RdfTerm | null)[] }[]>([]);
 
   resultingTable.results.bindings.forEach((it) => {
-    const mapKey = Data.array(idCols.map((idCol) => {
-      // NOTE: Typescript not strict enough, merging "undefined" so that we get proper type hints.
+    const idTerms = idCols.map((idCol) => {
       const maybeObj = it[idCol] as typeof it[string] | undefined;
-      return maybeObj?.value ?? null;
-    }));
+      return maybeObj ?? null;
+    });
+    const mapKey = Data.array(idTerms.map((term) => term?.value ?? null));
     collectingMap.pipe(
       MutableHashMap.modifyAt(mapKey, (items) => {
         const current = Option.getOrElse(items, () => []);
-        return Option.some([...current, it]);
+        return Option.some([...current, { item: it, idTerms }]);
       })
     );
   });
 
-  const res: MulticardinalRow[] = collectingMap
+  const resRows: MulticardinalTableData["rows"] = collectingMap
     .pipe(MutableHashMap.keys)
     .map((k) => {
       const items = collectingMap.pipe(MutableHashMap.get(k), Option.getOrThrow);
-      const propToVal = items.map((it) => [it[propNameVar].value, it[propValVar].value] as const);
+      const propToVal = items.map(({ item }) => [item[propNameVar].value, item[propValVar]] as const);
 
-      const propMap = new Map<string, string[]>();
+      const propMap = new Map<string, RdfTerm[]>();
       propToVal.forEach(([prop, val]) => propMap.set(prop, [...propMap.get(prop) ?? [], val]));
 
       return {
-        idCols,
-        idValues: Object.fromEntries(idCols.map((col, i) => [col, k[i]] as const)),
-        restCols: [...propMap.keys()],
+        idValues: Object.fromEntries(idCols.map((col, i) => [col, items[0].idTerms[i]] as const)),
         restValues: Object.fromEntries(propMap),
       };
     });
 
-  return res;
+  const restCols = [...new Set(resultingTable.results.bindings.map((it) => it[propNameVar].value))];
+
+  return {
+    idCols,
+    restCols,
+    rows: resRows,
+  };
 }
 
 interface CountPayload {

@@ -3,18 +3,46 @@ import type { QueryStoreProvider } from "./test-util/QueryStore";
 import {
   formatPaginatedQuery as rawFormatPaginatedQuery,
   formatPaginatedCounterQuery as rawFormatPaginatedCounterQuery,
-  tableToMulticardinalRow,
+  tableToMulticardinalTable,
   tableToCountPayload,
 } from "./compact-pagination";
-import type { MulticardinalRow } from "./multi-cardinal-table-util";
-import type { SparqlTableResult } from "./sparql_queries";
+import type { MulticardinalTableData } from "./multi-cardinal-table-util";
+import type { SparqlTableResult, RdfTerm } from "./sparql_queries";
 import { OxigraphQueryStoreProvider } from "./test-util/OxigraphQueryStore";
 import { QLeverQueryStoreProvider } from "./test-util/QLeverQueryStore";
 import { JenaQueryStoreProvider } from "./test-util/JenaQueryStore";
 import { dropUselessOptionals, flattenUselessSubqueries } from "./query-util";
+import { produce } from "immer";
 
-function makeMulticardinalRowSorter(keys: string[]) {
-  function singleCompare(a: MulticardinalRow, b: MulticardinalRow, key: string): number {
+type Row = MulticardinalTableData["rows"][number];
+
+function lit(v: string | number): RdfTerm {
+  if (typeof v === "number") {
+    return {
+      type: "literal",
+      value: v.toString(),
+      datatype: "http://www.w3.org/2001/XMLSchema#integer",
+    };
+  }
+  return { type: "literal", value: v };
+}
+
+function uri(v: string): RdfTerm {
+  return { type: "uri", value: v };
+}
+
+function normalizeDatatype(src: RdfTerm): RdfTerm {
+  // NOTE: Sometimes there are different int representations
+  if (src.type === "literal" && src.datatype === "http://www.w3.org/2001/XMLSchema#int") {
+    return produce(src, (draft) => {
+      draft.datatype = "http://www.w3.org/2001/XMLSchema#integer";
+    });
+  }
+  return src;
+}
+
+function makeRowSorter(keys: string[]) {
+  function singleCompare(a: Row, b: Row, key: string): number {
     const v0 = a.idValues[key];
     const v1 = b.idValues[key];
 
@@ -22,12 +50,12 @@ function makeMulticardinalRowSorter(keys: string[]) {
     if (v0 === null) return -1;
     if (v1 === null) return 1;
 
-    return v0.localeCompare(v1);
+    return (v0?.value || "").localeCompare(v1?.value || "");
   }
 
   function compareRecursive(
-    a: MulticardinalRow,
-    b: MulticardinalRow,
+    a: Row,
+    b: Row,
     [currentKey, ...restKeys]: string[],
   ): number {
     if (currentKey === undefined) return 0;
@@ -35,7 +63,7 @@ function makeMulticardinalRowSorter(keys: string[]) {
     return (res === 0) ? compareRecursive(a, b, restKeys) : res;
   }
 
-  return (a: MulticardinalRow, b: MulticardinalRow) => compareRecursive(a, b, keys);
+  return (a: Row, b: Row) => compareRecursive(a, b, keys);
 }
 
 function expectEquivalentRows({
@@ -43,25 +71,27 @@ function expectEquivalentRows({
   expectedRows,
   idCols,
 }: {
-  actualRows: MulticardinalRow[],
-  expectedRows: MulticardinalRow[],
+  actualRows: Row[],
+  expectedRows: Row[],
   idCols: string[],
 }) {
   // NOTE: Make a normalized representation so that `.toEqual` actually works and it's easier
   // to catch issues.
-  function normalizeRow(row: MulticardinalRow): MulticardinalRow {
+  function normalizeRow(row: Row) {
     return {
-      idCols: row.idCols.toSorted(),
-      idValues: row.idValues,
-      restCols: row.restCols.toSorted(),
+      idValues: Object.fromEntries(
+        Object.entries(row.idValues)
+          .map(([k, v]) => [k, v ? normalizeDatatype(v) : null] as const)
+      ),
       restValues: Object.fromEntries(
         Object.entries(row.restValues)
-          .map(([k, v]) => [k, v.toSorted()] as const satisfies unknown[])
+          .map(([k, v]) => [k, v.toSorted((a, b) => (a?.value || "").localeCompare(b?.value || ""))] as const satisfies unknown[])
+          .map(([k, v]) => [k, v.map(normalizeDatatype)] as const)
       ),
     }
   }
 
-  const sorter = makeMulticardinalRowSorter(idCols);
+  const sorter = makeRowSorter(idCols);
 
   const a = actualRows.toSorted(sorter).map(normalizeRow);
   const b = expectedRows.toSorted(sorter).map(normalizeRow);
@@ -146,7 +176,6 @@ function testIntegration({
     } ORDER BY ?productType ?color ?buildType ?price`;
 
       const idCols = ["productType", "color"];
-      const restCols = ["price", "buildType"];
 
       const expectedCountPayload = { groupedCount: 3, globalCount: 8 };
 
@@ -169,26 +198,23 @@ function testIntegration({
 
         expectTableCountToMatchCountPayload({ resultingTable, expectedCountPayload });
 
-        const actualRows = tableToMulticardinalRow({ resultingTable, propNameVar, propValVar });
+        const tableData = tableToMulticardinalTable({ resultingTable, propNameVar, propValVar });
+        const actualRows = tableData.rows;
 
-        const expectedRows: MulticardinalRow[] = [
+        const lit = (v: string): RdfTerm => ({ type: "literal", value: v });
+
+        const expectedRows: Row[] = [
           {
-            idCols,
-            idValues: { productType: "https://example.com/vocabulary/Phone", color: "black" },
-            restCols,
-            restValues: { price: ["899", "999"], buildType: ["refurbished"] },
+            idValues: { productType: uri("https://example.com/vocabulary/Phone"), color: lit("black") },
+            restValues: { price: [lit("899"), lit("999")], buildType: [lit("refurbished")] },
           },
           {
-            idCols,
-            idValues: { productType: "https://example.com/vocabulary/Watch", color: "black" },
-            restCols,
-            restValues: { price: ["7999"], buildType: ["new"] },
+            idValues: { productType: uri("https://example.com/vocabulary/Watch"), color: lit("black") },
+            restValues: { price: [lit("7999")], buildType: [lit("new")] },
           },
           {
-            idCols,
-            idValues: { productType: "https://example.com/vocabulary/Watch", color: "blue" },
-            restCols,
-            restValues: { price: ["4999", "9999"], buildType: ["new"] },
+            idValues: { productType: uri("https://example.com/vocabulary/Watch"), color: lit("blue") },
+            restValues: { price: [lit("4999"), lit("9999")], buildType: [lit("new")] },
           },
         ];
 
@@ -305,7 +331,6 @@ SELECT * WHERE{
 } ORDER BY ?comment ?StudentNation ?prefLabel`
       const store = await queryStoreProvider.storeFromTtl({ ttl });
       const idCols = ["comment"];
-      const restCols = ["StudentNation", "prefLabel"];
 
       const expectedCountPayload = { groupedCount: 2, globalCount: 62 };
 
@@ -328,91 +353,88 @@ SELECT * WHERE{
 
         expectTableCountToMatchCountPayload({ expectedCountPayload, resultingTable });
 
-        const actualRows = tableToMulticardinalRow({ resultingTable, propNameVar, propValVar });
+        const tableData = tableToMulticardinalTable({ resultingTable, propNameVar, propValVar });
+        const actualRows = tableData.rows;
 
-        const expectedRows: MulticardinalRow[] = [
+        const expectedRows: Row[] = [
           {
-            idCols,
             idValues: { comment: null },
-            restCols,
             restValues: {
               StudentNation: [
-                'http://ldf.fi/yoma/nations/sn1',
-                'http://ldf.fi/yoma/nations/sn11',
-                'http://ldf.fi/yoma/nations/sn12',
-                'http://ldf.fi/yoma/nations/sn13',
-                'http://ldf.fi/yoma/nations/sn14',
-                'http://ldf.fi/yoma/nations/sn15',
-                'http://ldf.fi/yoma/nations/sn16',
-                'http://ldf.fi/yoma/nations/sn17',
-                'http://ldf.fi/yoma/nations/sn19',
-                'http://ldf.fi/yoma/nations/sn2',
-                'http://ldf.fi/yoma/nations/sn20',
-                'http://ldf.fi/yoma/nations/sn21',
-                'http://ldf.fi/yoma/nations/sn3',
-                'http://ldf.fi/yoma/nations/sn5',
-                'http://ldf.fi/yoma/nations/sn6',
-                'http://ldf.fi/yoma/nations/sn7',
+                lit('http://ldf.fi/yoma/nations/sn1'),
+                lit('http://ldf.fi/yoma/nations/sn11'),
+                lit('http://ldf.fi/yoma/nations/sn12'),
+                lit('http://ldf.fi/yoma/nations/sn13'),
+                lit('http://ldf.fi/yoma/nations/sn14'),
+                lit('http://ldf.fi/yoma/nations/sn15'),
+                lit('http://ldf.fi/yoma/nations/sn16'),
+                lit('http://ldf.fi/yoma/nations/sn17'),
+                lit('http://ldf.fi/yoma/nations/sn19'),
+                lit('http://ldf.fi/yoma/nations/sn2'),
+                lit('http://ldf.fi/yoma/nations/sn20'),
+                lit('http://ldf.fi/yoma/nations/sn21'),
+                lit('http://ldf.fi/yoma/nations/sn3'),
+                lit('http://ldf.fi/yoma/nations/sn5'),
+                lit('http://ldf.fi/yoma/nations/sn6'),
+                lit('http://ldf.fi/yoma/nations/sn7'),
               ],
               prefLabel: [
-                'Austraalinen osakunta',
-                'Boreaalinen osakunta',
-                'Borealiska nationen',
-                'Eteläpohjalainen osakunta',
-                'Hämäläinen osakunta',
-                'Itägötanmaalainen osakunta',
-                'Länsisuomalainen osakunta',
-                'Nordösterbottniska avdelningen',
-                'Nylands nation',
-                'Pohjalainen osakunta',
-                'Pohjoispohjalainen osakunta',
-                'Ruotsalainen (yhd.) osakunta vuodesta 1798',
-                'Ruotsalainen osakunta',
-                'Satakunda nation',
-                'Satakuntalainen osakunta',
-                'Savokarelska avdelningen 1833–52',
-                'Savokarjalainen osakunta 1833–52',
-                'Smålandilainen osakunta',
-                'Smålands nation',
-                'Sveagotiska nationen',
-                'Sveagotiska nationen 1798–',
-                'Sydösterbottniska avdelningen',
-                'Tavastehus nation',
-                'Turkulainen osakunta',
-                'Uusmaalainen osakunta',
-                'Viborgska nationen',
-                'Viipurilainen osakunta',
-                'Västfinska nationen',
-                'Åbo nation',
-                'Österbottniska nationen'
+                lit('Austraalinen osakunta'),
+                lit('Boreaalinen osakunta'),
+                lit('Borealiska nationen'),
+                lit('Eteläpohjalainen osakunta'),
+                lit('Hämäläinen osakunta'),
+                lit('Itägötanmaalainen osakunta'),
+                lit('Länsisuomalainen osakunta'),
+                lit('Nordösterbottniska avdelningen'),
+                lit('Nylands nation'),
+                lit('Pohjalainen osakunta'),
+                lit('Pohjoispohjalainen osakunta'),
+                lit('Ruotsalainen (yhd.) osakunta vuodesta 1798'),
+                lit('Ruotsalainen osakunta'),
+                lit('Satakunda nation'),
+                lit('Satakuntalainen osakunta'),
+                lit('Savokarelska avdelningen 1833–52'),
+                lit('Savokarjalainen osakunta 1833–52'),
+                lit('Smålandilainen osakunta'),
+                lit('Smålands nation'),
+                lit('Sveagotiska nationen'),
+                lit('Sveagotiska nationen 1798–'),
+                lit('Sydösterbottniska avdelningen'),
+                lit('Tavastehus nation'),
+                lit('Turkulainen osakunta'),
+                lit('Uusmaalainen osakunta'),
+                lit('Viborgska nationen'),
+                lit('Viipurilainen osakunta'),
+                lit('Västfinska nationen'),
+                lit('Åbo nation'),
+                lit('Österbottniska nationen')
               ]
               ,
             },
           },
           {
-            idCols,
-            idValues: { comment: "Aineistossa mainittu ruotsalainen osakunta" },
-            restCols,
+            idValues: { comment: lit("Aineistossa mainittu ruotsalainen osakunta") },
             restValues: {
               StudentNation: [
-                'http://ldf.fi/yoma/nations/sn23',
-                'http://ldf.fi/yoma/nations/sn24',
-                'http://ldf.fi/yoma/nations/sn25',
-                'http://ldf.fi/yoma/nations/sn26',
-                'http://ldf.fi/yoma/nations/sn27',
-                'http://ldf.fi/yoma/nations/sn28',
-                'http://ldf.fi/yoma/nations/sn29',
-                'http://ldf.fi/yoma/nations/sn30',
+                lit('http://ldf.fi/yoma/nations/sn23'),
+                lit('http://ldf.fi/yoma/nations/sn24'),
+                lit('http://ldf.fi/yoma/nations/sn25'),
+                lit('http://ldf.fi/yoma/nations/sn26'),
+                lit('http://ldf.fi/yoma/nations/sn27'),
+                lit('http://ldf.fi/yoma/nations/sn28'),
+                lit('http://ldf.fi/yoma/nations/sn29'),
+                lit('http://ldf.fi/yoma/nations/sn30'),
               ],
               prefLabel: [
-                'Lundin Itägötanmaalainen osakunta',
-                'Lundin Smålandilainen osakunta',
-                'Uppsalan Länsigötanmaalainen osakunta',
-                'Uppsalan Pohjalainen osakunta',
-                'Uppsalan Smålandilainen osakunta',
-                'Uppsalan Suomalainen osakunta',
-                'Uppsalan Västmanland-Dala osakunta',
-                'Uppsalan Västmanlantilainen osakunta'
+                lit('Lundin Itägötanmaalainen osakunta'),
+                lit('Lundin Smålandilainen osakunta'),
+                lit('Uppsalan Länsigötanmaalainen osakunta'),
+                lit('Uppsalan Pohjalainen osakunta'),
+                lit('Uppsalan Smålandilainen osakunta'),
+                lit('Uppsalan Suomalainen osakunta'),
+                lit('Uppsalan Västmanland-Dala osakunta'),
+                lit('Uppsalan Västmanlantilainen osakunta')
               ],
             },
           },
@@ -503,7 +525,6 @@ SELECT * WHERE{
     } GROUP BY ?TransactionRegion ORDER BY DESC(?TotalAmount)`;
       const store = await queryStoreProvider.storeFromTtl({ ttl });
       const idCols = ["TransactionRegion"];
-      const restCols = ["TotalAmount"];
 
       const expectedCountPayload = { groupedCount: 4, globalCount: 4 };
 
@@ -530,20 +551,17 @@ SELECT * WHERE{
           resultingTable,
         });
 
-        const actualRows = tableToMulticardinalRow({ resultingTable, propNameVar, propValVar });
+        const tableData = tableToMulticardinalTable({ resultingTable, propNameVar, propValVar });
+        const actualRows = tableData.rows;
 
-        const expectedRows: MulticardinalRow[] = [
+        const expectedRows: Row[] = [
           {
-            idCols,
-            idValues: { TransactionRegion: "Africa" },
-            restCols,
-            restValues: { TotalAmount: ["1400"] },
+            idValues: { TransactionRegion: lit("Africa") },
+            restValues: { TotalAmount: [lit(1400)] },
           },
           {
-            idCols,
-            idValues: { TransactionRegion: "Europe" },
-            restCols,
-            restValues: { TotalAmount: ["1000"] },
+            idValues: { TransactionRegion: lit("Europe") },
+            restValues: { TotalAmount: [lit(1000)] },
           },
         ];
 
@@ -619,7 +637,6 @@ SELECT * WHERE{
     } ORDER BY DESC(?score) ?priorityLevel ?index`;
 
       const idCols = ["score", "priorityLevel"];
-      const restCols = ["index", "this"];
 
       test("sanity check", () => {
         expect(queryToWrap).toBeValidSparqlQuery();
@@ -645,31 +662,35 @@ SELECT * WHERE{
           resultingTable,
         });
 
-        // NOTE: sort restCols for deterministic order
-        const actualRows = tableToMulticardinalRow({ resultingTable, propNameVar, propValVar })
-          .map((it) => ({ ...it, restCols: it.restCols.toSorted() }));
+        const tableData = tableToMulticardinalTable({ resultingTable, propNameVar, propValVar });
+        const actualRows = tableData.rows;
 
         const row = (
-          score: string,
-          priorityLevel: string,
-          thisVal: string[],
-          index: string[],
-        ) => ({
-          idCols,
-          restCols,
+          score: RdfTerm,
+          priorityLevel: RdfTerm,
+          thisVal: (RdfTerm | null)[],
+          index: (RdfTerm | null)[],
+        ): Row => ({
           idValues: { score, priorityLevel },
-          restValues: { this: thisVal, index },
-        }) satisfies MulticardinalRow;
+          restValues: {
+            this: thisVal.filter((v): v is RdfTerm => v !== null),
+            index: index.filter((v): v is RdfTerm => v !== null),
+          },
+        });
 
-        const expectedRows: MulticardinalRow[] = [
-          row("2000", "A", [prefixed("a2")], ["8"]),
-          row("1000", "A", [prefixed("a0")], ["0"]),
-          row("1000", "B", ["bA", "b2", "bZ"].map(prefixed), ["-1", "7", "100"]),
-          row("1000", "C", [prefixed("c2")], ["6"]),
-          row("300", "A", [prefixed("a1")], ["4"]),
+        const expectedRows: Row[] = [
+          row(lit(2000), lit("A"), [uri(prefixed("a2"))], [lit(8)]),
+          row(lit(1000), lit("A"), [uri(prefixed("a0"))], [lit(0)]),
+          row(lit(1000), lit("B"), ["bA", "b2", "bZ"].map(prefixed).map(uri), [lit(-1), lit(7), lit(100)]),
+          row(lit(1000), lit("C"), [uri(prefixed("c2"))], [lit(6)]),
+          row(lit(300), lit("A"), [uri(prefixed("a1"))], [lit(4)]),
         ];
 
-        expect(actualRows).toEqual(expectedRows);
+        expectEquivalentRows({
+          actualRows,
+          expectedRows,
+          idCols,
+        });
       });
 
       test("counting", async () => {

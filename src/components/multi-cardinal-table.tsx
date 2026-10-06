@@ -14,13 +14,15 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import type { MulticardinalRow } from "@/multi-cardinal-table-util";
+import { type MulticardinalTableData } from "@/multi-cardinal-table-util";
 import { defaultPagination, PaginationBar } from "./table_pagination_bar";
 import PaginatedTable from "./paginated_table";
 import { useControllableState } from "@radix-ui/react-use-controllable-state";
 import { ColumnResizer } from "./column_resizer";
 import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
+
+type Row = MulticardinalTableData["rows"][number];
 
 // NOTE: Exported, just in case this data is needed
 export const defaultColumn = {
@@ -36,26 +38,27 @@ function getColumns(
     restCols: string[],
     renderHeader?: (colName: string) => ReactNode,
 ) {
-    const idColumns: ColumnDef<MulticardinalRow>[] = idCols.map((idCol) => ({
+    const idColumns: ColumnDef<Row>[] = idCols.map((idCol) => ({
         id: idCol,
         accessorFn: (row) => row.idValues[idCol],
         ...(renderHeader && { header: () => renderHeader(idCol) }),
         cell: ({ getValue }) => {
+            const val = getValue<Row["idValues"][string]>();
             return (
-                <div className="text-ellipsis overflow-hidden">{getValue<string>()}</div>
+                <div className="text-ellipsis overflow-hidden">{val?.value || ""}</div>
             )
         },
     }));
 
-    const valueColumns: ColumnDef<MulticardinalRow>[] = restCols.map((restCol) => ({
+    const valueColumns: ColumnDef<Row>[] = restCols.map((restCol) => ({
         id: restCol,
         accessorFn: (row) => row.restValues[restCol],
         ...(renderHeader && { header: () => renderHeader(restCol) }),
         cell: ({ getValue }) => {
-            const val = getValue<string[] | undefined>() ?? [];
+            const val = getValue<Row["restValues"][string] | undefined>() ?? [];
 
             if (val.length === 1) {
-                return <p className="text-ellipsis overflow-hidden">{val[0]}</p>
+                return <p className="text-ellipsis overflow-hidden">{val[0]?.value || ""}</p>
             }
 
             return (
@@ -65,7 +68,7 @@ function getColumns(
                             key={i}
                             className="list-disc ml-4"
                         >
-                            <p className="text-ellipsis overflow-hidden">{item}</p>
+                            <p className="text-ellipsis overflow-hidden">{item?.value || ""}</p>
                         </li>
                     ))}
                 </ul>
@@ -81,11 +84,15 @@ function getColumns(
  */
 export default function MultiCardinalTable({
     rows,
+    idCols,
+    restCols,
     pagination: providedPagination,
     onPaginationChange,
     renderHeader,
 }: {
-    rows: MulticardinalRow[],
+    rows: Row[],
+    idCols: string[],
+    restCols: string[],
     pagination?: PaginationState,
     onPaginationChange?: (state: PaginationState) => void,
     renderHeader?: (colName: string) => ReactNode,
@@ -96,9 +103,6 @@ export default function MultiCardinalTable({
         return (<PaginatedTable data={[]} columns={[]} />)
     }
 
-    const firstRow = rows[0];
-    const { idCols, restCols } = firstRow;
-
     const columns = getColumns(idCols, restCols, renderHeader);
 
     const [pagination, setPagination] = useControllableState<PaginationState>({
@@ -107,7 +111,7 @@ export default function MultiCardinalTable({
         onChange: onPaginationChange,
     });
 
-    const table = useReactTable<MulticardinalRow>({
+    const table = useReactTable<Row>({
         data: rows,
         columns,
         getCoreRowModel: getCoreRowModel(),

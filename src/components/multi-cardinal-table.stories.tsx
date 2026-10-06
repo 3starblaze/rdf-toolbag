@@ -2,9 +2,8 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { defaultColumn } from './multi-cardinal-table';
 import { MultiCardinalTableServer } from './MultiCardinalTableServer';
 import { useState, useRef } from 'react';
-import type { MulticardinalRow } from '@/multi-cardinal-table-util';
 import { expect, waitFor, waitForElementToBeRemoved } from 'storybook/test';
-import type { SparqlTableResult } from '@/sparql_queries';
+import type { SparqlTableResult, RdfTerm } from '@/sparql_queries';
 import type { PaginationState } from '@tanstack/react-table';
 
 const meta = {
@@ -24,7 +23,7 @@ function withRows(rows: { [key: string]: string }[]): SparqlTableResult {
     head: { vars: keys },
     results: { bindings: rows.map((row) => {
       const entries = Object.entries(row)
-        .map(([k, v]) => [k, { type: "string", value: v }] as const);
+        .map(([k, v]) => [k, { type: "literal", value: v }] as const);
       return Object.fromEntries(entries);
     }) },
   }
@@ -44,7 +43,7 @@ function inferPagination(query: string): PaginationState | null {
 }
 
 
-function withGroupedRows(groupedRows: MulticardinalRow[]): SparqlTableResult {
+function withGroupedRows(groupedRows: { idValues: { [k: string]: RdfTerm | null }, restValues: { [k: string]: RdfTerm[] } }[]): SparqlTableResult {
     // HACK: Harcoded
     const propNameVar =  "__propName";
     const propValVar = "__propVal";
@@ -53,11 +52,15 @@ function withGroupedRows(groupedRows: MulticardinalRow[]): SparqlTableResult {
         idValues,
         restValues,
     }) => {
-        return Object.entries(restValues).flatMap(([k, vArr]) => vArr.map((v) => ({
-          ...idValues,
-          [propNameVar]: k,
-          [propValVar]: v,
-        })));
+        return Object.entries(restValues).flatMap(([k, vArr]) => vArr.map((v) => {
+          const result: { [k: string]: string } = {};
+          for (const [idKey, idVal] of Object.entries(idValues)) {
+            result[idKey] = (idVal?.value || "");
+          }
+          result[propNameVar] = k;
+          result[propValVar] = v?.value || "";
+          return result;
+        }));
     }));
 }
 
@@ -101,70 +104,62 @@ export const WithData: Story = {
               globalCount: 1000,
             });
 
+            const lit = (v: string): RdfTerm => ({ type: "literal", value: v });
+
             return withGroupedRows([
                 {
-                    idCols: [":key0", ":key1"],
                     idValues: {
-                        ":key0": "AA",
-                        ":key1": "BB",
+                        ":key0": lit("AA"),
+                        ":key1": lit("BB"),
                     },
-                    restCols: [":value0", ":value1", ":value2"],
                     restValues: {
-                        ":value0": ["Something"],
-                        ":value1": ["One thing", "Or another"],
-                        ":value2": ["I'm fine"],
+                        ":value0": [lit("Something")],
+                        ":value1": [lit("One thing"), lit("Or another")],
+                        ":value2": [lit("I'm fine")],
                     },
                 },
                 {
-                    idCols: [":key0", ":key1"],
                     idValues: {
-                        ":key0": "AA",
-                        ":key1": "CC",
+                        ":key0": lit("AA"),
+                        ":key1": lit("CC"),
                     },
-                    restCols: [":value0", ":value1", ":value2"],
                     restValues: {
-                        ":value0": ["This", "one", "has", "a", "few", "items"],
-                        ":value1": ["nothing in the next column"],
+                        ":value0": [lit("This"), lit("one"), lit("has"), lit("a"), lit("few"), lit("items")],
+                        ":value1": [lit("nothing in the next column")],
                         ":value2": [],
                     },
                 },
                 {
-                    idCols: [":key0", ":key1"],
                     idValues: {
-                        ":key0": "AA",
-                        ":key1": "DD",
+                        ":key0": lit("AA"),
+                        ":key1": lit("DD"),
                     },
-                    restCols: [":value0", ":value1", ":value2"],
                     restValues: {
-                        ":value0": ["Something"],
-                        ":value1": ["One thing", "Or another"],
-                        ":value2": ["I'm fine"],
+                        ":value0": [lit("Something")],
+                        ":value1": [lit("One thing"), lit("Or another")],
+                        ":value2": [lit("I'm fine")],
                     },
                 },
                 {
-                    idCols: [":key0", ":key1"],
                     idValues: {
-                        ":key0": "BB",
-                        ":key1": "CC",
+                        ":key0": lit("BB"),
+                        ":key1": lit("CC"),
                     },
-                    restCols: [":value0", ":value1", ":value2"],
                     restValues: {
-                        ":value0": ["Something"],
-                        ":value1": ["One thing", "Or another"],
-                        ":value2": ["I'm fine"],
+                        ":value0": [lit("Something")],
+                        ":value1": [lit("One thing"), lit("Or another")],
+                        ":value2": [lit("I'm fine")],
                     },
                 },
                 {
-                    idCols: [":key0", ":key1"],
                     idValues: {
-                        ":key0": "BB",
-                        ":key1": "DD",
+                        ":key0": lit("BB"),
+                        ":key1": lit("DD"),
                     },
-                    restCols: [":value0", ":value1", ":value2"],
                     restValues: {
-                        ":value0": ["Something"],
-                        ":value1": ["One thing", "Or another"],
-                        ":value2": ["I'm fine"],
+                        ":value0": [lit("Something")],
+                        ":value1": [lit("One thing"), lit("Or another")],
+                        ":value2": [lit("I'm fine")],
                     },
                 },
             ]);
@@ -198,18 +193,18 @@ export const WithPagination: Story = {
 
           const { pageSize, pageIndex } = maybePaginationInfo;
 
-          const rows: MulticardinalRow[] = Array(pageSize)
+          const lit = (v: string): RdfTerm => ({ type: "literal", value: v });
+
+          const rows = Array(pageSize)
               .fill(undefined)
               .map((_, i) => ({
-                  idCols: [":key0", ":key1"],
                   idValues: {
-                      ":key0": `A${pageIndex}`,
-                      ":key1": `B${i}`,
+                      ":key0": lit(`A${pageIndex}`),
+                      ":key1": lit(`B${i}`),
                   },
-                  restCols: [":value0", ":valueConst"],
                   restValues: {
-                      ":value0": ["Something", `page-${pagination.pageIndex}`],
-                      ":valueConst": ["i stay the same"]
+                      ":value0": [lit("Something"), lit(`page-${pagination.pageIndex}`)],
+                      ":valueConst": [lit("i stay the same")]
                   },
               }));
 
@@ -246,16 +241,15 @@ export const CustomColumn: Story = {
         idVars: ["ns3:key0", "ns2:key1"],
         queryCallback: async ({ query }) => {
             if (isCounterQuery(query)) return counterPayload({ globalCount: 1000, groupedCount: 1 });
+            const lit = (v: string): RdfTerm => ({ type: "literal", value: v });
             return withGroupedRows([{
-                idCols: ["ns3:key0", "ns2:key1"],
                 idValues: {
-                    "ns3:key0": `AA`,
-                    "ns2:key1": `BB`,
+                    "ns3:key0": lit(`AA`),
+                    "ns2:key1": lit(`BB`),
                 },
-                restCols: ["ns1:value0", "ns0:valueConst"],
                 restValues: {
-                    "ns1:value0": ["val0", "val1", "val2"],
-                    "ns0:valueConst": ["i stay the same"]
+                    "ns1:value0": [lit("val0"), lit("val1"), lit("val2")],
+                    "ns0:valueConst": [lit("i stay the same")]
                 },
             }]);
         },
@@ -373,70 +367,61 @@ export const Resizable: Story = {
       idVars: [":key0", ":key1"],
       queryCallback: async ({ query }) => {
         if (isCounterQuery(query)) throw new Error("no count");
+        const lit = (v: string): RdfTerm => ({ type: "literal", value: v });
         return withGroupedRows([
             {
-                idCols: [":key0", ":key1"],
                 idValues: {
-                    ":key0": "AA",
-                    ":key1": "BB",
+                    ":key0": lit("AA"),
+                    ":key1": lit("BB"),
                 },
-                restCols: [":value0", ":value1", ":value2"],
                 restValues: {
-                    ":value0": ["Something"],
-                    ":value1": ["One thing", "Or another"],
-                    ":value2": ["I'm fine"],
+                    ":value0": [lit("Something")],
+                    ":value1": [lit("One thing"), lit("Or another")],
+                    ":value2": [lit("I'm fine")],
                 },
             },
             {
-                idCols: [":key0", ":key1"],
                 idValues: {
-                    ":key0": "AA",
-                    ":key1": "CC",
+                    ":key0": lit("AA"),
+                    ":key1": lit("CC"),
                 },
-                restCols: [":value0", ":value1", ":value2"],
                 restValues: {
-                    ":value0": ["This", "one", "has", "a", "few", "items"],
-                    ":value1": ["nothing in the next column"],
+                    ":value0": [lit("This"), lit("one"), lit("has"), lit("a"), lit("few"), lit("items")],
+                    ":value1": [lit("nothing in the next column")],
                     ":value2": [],
                 },
             },
             {
-                idCols: [":key0", ":key1"],
                 idValues: {
-                    ":key0": "AA",
-                    ":key1": "DD",
+                    ":key0": lit("AA"),
+                    ":key1": lit("DD"),
                 },
-                restCols: [":value0", ":value1", ":value2"],
                 restValues: {
-                    ":value0": ["Something"],
-                    ":value1": ["One thing", "Or another"],
-                    ":value2": ["I'm fine"],
+                    ":value0": [lit("Something")],
+                    ":value1": [lit("One thing"), lit("Or another")],
+                    ":value2": [lit("I'm fine")],
                 },
             },
             {
-                idCols: [":key0", ":key1"],
                 idValues: {
-                    ":key0": "BB",
-                    ":key1": "CC",
+                    ":key0": lit("BB"),
+                    ":key1": lit("CC"),
                 },
-                restCols: [":value0", ":value1", ":value2"],
                 restValues: {
-                    ":value0": ["Something"],
-                    ":value1": ["One thing", "Or another"],
-                    ":value2": ["I'm fine"],
+                    ":value0": [lit("Something")],
+                    ":value1": [lit("One thing"), lit("Or another")],
+                    ":value2": [lit("I'm fine")],
                 },
             },
             {
-                idCols: [":key0", ":key1"],
                 idValues: {
-                    ":key0": "BB",
-                    ":key1": "DD",
+                    ":key0": lit("BB"),
+                    ":key1": lit("DD"),
                 },
-                restCols: [":value0", ":value1", ":value2"],
                 restValues: {
-                    ":value0": ["Something"],
-                    ":value1": ["One thing", "Or another"],
-                    ":value2": ["I'm fine"],
+                    ":value0": [lit("Something")],
+                    ":value1": [lit("One thing"), lit("Or another")],
+                    ":value2": [lit("I'm fine")],
                 },
             },
         ])
@@ -520,15 +505,14 @@ export const SlowSuccessfulQuery: Story = {
     queryCallback: async ({ query }) => {
         if (isCounterQuery(query)) throw new Error("no count");
         return await delayed(1000, async () => {
+            const lit = (v: string): RdfTerm => ({ type: "literal", value: v });
             const groupedRows = withGroupedRows([{
-                idCols: [":key0", ":key1"],
                 idValues: {
-                    ":key0": "AA",
-                    ":key1": "BB",
+                    ":key0": lit("AA"),
+                    ":key1": lit("BB"),
                 },
-                restCols: [":value0"],
                 restValues: {
-                  ":value0": ["query successful"],
+                  ":value0": [lit("query successful")],
                 },
             }]);
           return groupedRows;
@@ -556,15 +540,15 @@ export const SlowQueryFailThenSucceed: Story = {
     render: (args) => {
         const callCountRef = useRef(0);
 
-        const res: MulticardinalRow[] = [{
-            idCols: [":key0", ":key1"],
+        const lit = (v: string): RdfTerm => ({ type: "literal", value: v });
+
+        const res = [{
             idValues: {
-                ":key0": "AA",
-                ":key1": "BB",
+                ":key0": lit("AA"),
+                ":key1": lit("BB"),
             },
-            restCols: [":value0"],
             restValues: {
-                ":value0": ["query successful"],
+                ":value0": [lit("query successful")],
             },
         }];
 

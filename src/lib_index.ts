@@ -15,9 +15,7 @@ export {
     formatUniversalPaginatorQueryCounter,
 } from "@/sparql_queries";
 export {
-    type MulticardinalRow,
-    tableToRows,
-    deduplicateTable,
+    type MulticardinalTableData,
 } from "@/multi-cardinal-table-util";
 export {
     default as AggregatedTable,

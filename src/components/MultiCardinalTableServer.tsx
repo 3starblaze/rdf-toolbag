@@ -5,7 +5,7 @@ import {
     formatPaginatedCounterQuery,
     formatPaginatedQuery,
     tableToCountPayload,
-    tableToMulticardinalRow,
+    tableToMulticardinalTable,
 } from "@/compact-pagination";
 import {
   QueryClient,
@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/table";
 import { useControllableState } from "@radix-ui/react-use-controllable-state";
 import { defaultPagination, ServerSidePaginationBar } from "./table_pagination_bar";
-import { type MulticardinalRow } from "@/multi-cardinal-table-util";
+import { type MulticardinalTableData } from "@/multi-cardinal-table-util";
 import { cn } from "@/lib/utils";
 import { ColumnResizer } from "./column_resizer";
 import { Spinner } from "./ui/spinner";
@@ -66,31 +66,34 @@ interface Props {
     renderHeader?: (colName: string) => React.ReactNode,
 }
 
+type Row = MulticardinalTableData["rows"][number];
+
 function getColumns(
     idCols: string[],
     restCols: string[],
     renderHeader?: (colName: string) => React.ReactNode,
 ) {
-    const idColumns: ColumnDef<MulticardinalRow>[] = idCols.map((idCol) => ({
+    const idColumns: ColumnDef<Row>[] = idCols.map((idCol) => ({
         id: idCol,
         accessorFn: (row) => row.idValues[idCol],
         ...(renderHeader && { header: () => renderHeader(idCol) }),
         cell: ({ getValue }) => {
+            const val = getValue<Row["idValues"][string]>();
             return (
-                <div className="text-ellipsis overflow-hidden">{getValue<string>()}</div>
+                <div className="text-ellipsis overflow-hidden">{val?.value || ""}</div>
             )
         },
     }));
 
-    const valueColumns: ColumnDef<MulticardinalRow>[] = restCols.map((restCol) => ({
+    const valueColumns: ColumnDef<Row>[] = restCols.map((restCol) => ({
         id: restCol,
         accessorFn: (row) => row.restValues[restCol],
         ...(renderHeader && { header: () => renderHeader(restCol) }),
         cell: ({ getValue }) => {
-            const val = getValue<string[] | undefined>() ?? [];
+            const val = getValue<any[] | undefined>() ?? [];
 
             if (val.length === 1) {
-                return <p className="text-ellipsis overflow-hidden">{val[0]}</p>
+                return <p className="text-ellipsis overflow-hidden">{val[0]?.value || ""}</p>
             }
 
             return (
@@ -100,7 +103,7 @@ function getColumns(
                             key={i}
                             className="list-disc ml-4"
                         >
-                            <p className="text-ellipsis overflow-hidden">{item}</p>
+                            <p className="text-ellipsis overflow-hidden">{item?.value || ""}</p>
                         </li>
                     ))}
                 </ul>
@@ -139,7 +142,7 @@ function useRows(args: Pick<Props, "queryCallback" | "baseQuery" | "idVars" | "r
             });
             const resultingTable = await queryCallback({ query });
 
-            const res = tableToMulticardinalRow({ resultingTable, propNameVar, propValVar });
+            const res = tableToMulticardinalTable({ resultingTable, propNameVar, propValVar });
             return res;
         },
         retry: false,
@@ -190,11 +193,11 @@ function MainHeader({
     pagination,
     rawRowLimit,
 }: {
-    table: TableData<MulticardinalRow>,
+    table: TableData<Row>,
     pagination: NonNullable<Props["pagination"]>,
 } & Pick<Props, "baseQuery" | "idVars" | "queryCallback" | "rawRowLimit">) {
     const rowsQuery = useRows({ baseQuery, idVars, queryCallback, pagination, rawRowLimit });
-    const idCols = rowsQuery.data?.at(0)?.idCols;
+    const idCols = rowsQuery.data?.idCols;
 
     return (
         <TableHeader>
@@ -243,7 +246,7 @@ function MainBody({
     pagination,
     rawRowLimit,
 }: {
-    table: TableData<MulticardinalRow>,
+    table: TableData<Row>,
     pagination: NonNullable<Props["pagination"]>,
 } & Pick<Props, "baseQuery" | "idVars" | "queryCallback" | "rawRowLimit">) {
     const columns = table.getAllColumns();
@@ -267,7 +270,7 @@ function MainBody({
     }
 
     const rowsQuery = useRows({ baseQuery, idVars, queryCallback, pagination, rawRowLimit });
-    const idCols = rowsQuery.data?.at(0)?.idCols;
+    const idCols = rowsQuery.data?.idCols;
 
     return (
         <TableBody>
@@ -364,13 +367,12 @@ function MainComponent(props: Props): React.ReactNode {
 
     const countQuery = useCount({ baseQuery, counterLimit, idVars, queryCallback });
 
-    const rows = rowsQuery.data || [];
+    const tableData = rowsQuery.data;
+    const rows = tableData?.rows || [];
 
-    const firstRow = rows[0] as MulticardinalRow | undefined;
+    const columns = tableData ? getColumns(tableData.idCols, tableData.restCols, renderHeader) : [];
 
-    const columns = firstRow ? getColumns(firstRow.idCols, firstRow.restCols, renderHeader) : [];
-
-    const table = useReactTable<MulticardinalRow>({
+    const table = useReactTable<Row>({
         data: rows,
         columns,
         getCoreRowModel: getCoreRowModel(),
