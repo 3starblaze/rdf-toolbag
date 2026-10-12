@@ -23,6 +23,8 @@ import {
 } from "@/compact-pagination/granular-compact-pagination";
 import { tableToMulticardinalTable } from "@/compact-pagination";
 import { cellsToMulticardinalTable, initialCellRequests, multicardinalTableToCells, type CellRequest, type MCTCell } from "@/compact-pagination/cell";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 interface CountPayload {
     globalCount: number,
@@ -148,6 +150,8 @@ export function useCount(
 function getColumns(
     idCols: string[],
     restCols: string[],
+    cellRequests: CellRequest[],
+    setCellRequests: (newValue: CellRequest[]) => void,
     renderHeader?: (colName: string) => React.ReactNode,
 ) {
     const idColumns: ColumnDef<Row>[] = idCols.map((idCol) => ({
@@ -164,13 +168,31 @@ function getColumns(
 
     const valueColumns: ColumnDef<Row>[] = restCols.map((restCol) => ({
         id: restCol,
-        accessorFn: (row) => row.restValues[restCol],
+        accessorFn: (row) => row,
         ...(renderHeader && { header: () => renderHeader(restCol) }),
         cell: ({ getValue }) => {
-            const val = getValue<any[] | undefined>() ?? [];
+            const row = getValue<Row>();
+            const val = row.restValues[restCol] ?? [];
 
-            if (val.length === 1) {
-                return <p className="text-ellipsis overflow-hidden">{val[0]?.value || ""}</p>
+            // TODO: cleaner equality check
+            function isSameCell(it: CellRequest) {
+              return it.column === restCol && JSON.stringify(it.key) === JSON.stringify(row.idValues);
+            }
+
+            const maybeCellRequest = cellRequests.find((it) => isSameCell(it));
+
+            const suggestIncreasingLimit = maybeCellRequest && maybeCellRequest.limit === val.length;
+
+            function increaseLimit() {
+              if (!maybeCellRequest) return;
+              const newCellRequest = {
+                ...maybeCellRequest,
+                limit: maybeCellRequest.limit * 2,
+              } satisfies CellRequest;
+              setCellRequests([
+                ...cellRequests.filter((it) => !isSameCell(it)),
+                newCellRequest,
+              ]);
             }
 
             return (
@@ -181,8 +203,12 @@ function getColumns(
                             className="list-disc ml-4"
                         >
                             <p className="text-ellipsis overflow-hidden">{item?.value || ""}</p>
+
                         </li>
                     ))}
+                    {suggestIncreasingLimit && (
+                      <Button className="w-fit" onClick={increaseLimit}>+</Button>
+                    )}
                 </ul>
             )
         },
@@ -240,8 +266,8 @@ export function useTable({
 
     let data: Row[];
 
-    if (cellsQuery.data) {
-      data = cellsToMulticardinalTable(cellsQuery.data);
+    if (cellsQuery.data && keyValuesQuery.data) {
+      data = cellsToMulticardinalTable(cellsQuery.data, keyValuesQuery.data);
     } else {
       data = []
         data = keyValuesQuery
@@ -252,7 +278,7 @@ export function useTable({
 
     const restCols = [...new Set(cellsQuery.data.map((it) => it.column))];
     const columns = keyValuesQuery.data
-        ? getColumns(idVars, restCols, renderHeader)
+        ? getColumns(idVars, restCols, cellRequests, setCellRequests, renderHeader)
         : [];
 
     return useReactTable<Row>({

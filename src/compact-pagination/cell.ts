@@ -1,7 +1,7 @@
 import type { MulticardinalTableData } from "@/multi-cardinal-table-util";
 import { findVars } from "@/query-util";
 import type { RdfTerm } from "@/sparql_queries";
-import { Option, MutableHashMap, Data } from "effect";
+import { Option, MutableHashMap, Data, Equal, HashMap } from "effect";
 import { fmtVars, formatTermAsLiteral } from "./util";
 
 type CellKey = MulticardinalTableData["rows"][number]["idValues"];
@@ -129,7 +129,13 @@ function toValueData<T>(value: T): T {
   return value;
 }
 
-export function cellsToMulticardinalTable(cells: MCTCell[]): MulticardinalTableData["rows"] {
+/**
+ * Convert from cells to multicardinal table and sort by `idVals`.
+ **/
+export function cellsToMulticardinalTable(
+  cells: MCTCell[],
+  idVals: CellKey[],
+): MulticardinalTableData["rows"] {
   const collector = MutableHashMap.empty<CellKey, MCTCell[]>();
 
   // NOTE: Group by key
@@ -151,5 +157,11 @@ export function cellsToMulticardinalTable(cells: MCTCell[]): MulticardinalTableD
         idValues: key,
         restValues: Object.fromEntries(cells.map((it) => [it.column, it.values] as const)),
       } satisfies MulticardinalTableData["rows"][number];
+    }).toSorted((a, b) => {
+      // FIXME: Sorting not working as expected
+      const aNew = idVals.findIndex((it) => Equal.equals(toValueData(it), toValueData(a.idValues)));
+      const bNew = idVals.findIndex((it) => Equal.equals(toValueData(it), toValueData(b.idValues)));
+
+      return aNew - bNew;
     });
 }
