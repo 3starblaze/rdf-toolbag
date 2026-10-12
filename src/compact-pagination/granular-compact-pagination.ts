@@ -62,7 +62,7 @@ export function formatPaginatedQuery({
   keyValues,
 }: {
   queryToWrap: string,
-  idVars: string[],  globalLimit: number,
+  idVars: string[],
   propNameVar: string,
   propValVar: string,
   keyValues: MulticardinalTableData["rows"][number]["idValues"][],

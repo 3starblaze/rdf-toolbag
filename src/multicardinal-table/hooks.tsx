@@ -17,8 +17,11 @@ import {
 } from "./shared";
 import {
   formatKeyQuery,
+  formatPaginatedQuery,
   parseKeyQueryResults,
 } from "@/compact-pagination/granular-compact-pagination";
+import { tableToMulticardinalTable } from "@/compact-pagination";
+import type { MulticardinalTableData } from "@/multi-cardinal-table-util";
 
 interface CountPayload {
     globalCount: number,
@@ -41,34 +44,58 @@ export function useKeyValues({
   groupLimit: number,
   groupOffset: number,
 }) {
-  return useQuery({
-    queryKey: ["useKeyValues", { queryToWrap, idVars, groupLimit, groupOffset }],
-      queryFn: async (): Promise<ReturnType<typeof parseKeyQueryResults>> => {
-      const query = formatKeyQuery({
-        queryToWrap,
-        idVars,
-        groupLimit,
-        groupOffset,
-      });
+    return useQuery({
+        queryKey: ["useKeyValues", { queryToWrap, idVars, groupLimit, groupOffset }],
+        queryFn: async (): Promise<ReturnType<typeof parseKeyQueryResults>> => {
+            const query = formatKeyQuery({
+                queryToWrap,
+                idVars,
+                groupLimit,
+                groupOffset,
+            });
 
-      const table = await queryCallback({ query });
-      const res = parseKeyQueryResults({ table, idVars });
+            const table = await queryCallback({ query });
+            const res = parseKeyQueryResults({ table, idVars });
 
-      return res;
-    },
-  })
+            return res;
+        },
+    })
 }
 
-// FIXME
-export function useRows(args: Pick<Props, "queryCallback" | "baseQuery" | "idVars"> & {
+export function useRowsTableData(args: Pick<Props, "queryCallback" | "baseQuery" | "idVars"> & {
     pagination: NonNullable<Props["pagination"]>,
   },
 ) {
+  const { pagination, idVars, queryCallback, baseQuery} = args;
+
+    const keyValuesQuery = useKeyValues({
+        groupLimit: pagination.pageSize,
+        groupOffset: pagination.pageIndex * pagination.pageSize,
+        idVars,
+        queryCallback,
+        queryToWrap: baseQuery,
+    });
+
+    const propNameVar = "__propName";
+    const propValVar = "__propVal";
+
     return useQuery({
         queryKey: ["rows", args],
-        queryFn: async (): Promise<Row[]> => {
-            throw "TODO";
+        queryFn: async (): Promise<MulticardinalTableData> => {
+          if (!keyValuesQuery.data) throw "unexpected";
+
+          const query = formatPaginatedQuery({
+            queryToWrap: baseQuery,
+            idVars,
+            propNameVar,
+            propValVar,
+            keyValues: keyValuesQuery.data,
+          });
+
+          const resultingTable = await queryCallback({ query });
+          return tableToMulticardinalTable({ propNameVar, propValVar, resultingTable });
         },
+        enabled: !!keyValuesQuery.data,
         retry: false,
     });
 }
@@ -93,12 +120,12 @@ export function useLogErrors({
     queryCallback,
     counterLimit,
 }: Props & { pagination: NonNullable<Props["pagination"]> }) {
-    const rowsQuery = useRows({ baseQuery, idVars, pagination, queryCallback });
+    const rowsQuery = useRowsTableData({ baseQuery, idVars, pagination, queryCallback });
     const countQuery = useCount({ baseQuery, counterLimit, idVars, queryCallback });
 
     useEffect(() => {
         if (!rowsQuery.error) return;
-        console.error(`[MultiCardinalTableServer] [rowsQuery] ${rowsQuery.error}`);
+        console.error(`[MultiCardinalTableServer] [useRowsTableData] ${rowsQuery.error}`);
     }, [rowsQuery.error]);
 
     useEffect(() => {
@@ -176,7 +203,7 @@ export function useTable({
         queryToWrap,
     });
 
-    const maybeFullRows = useRows({
+    const maybeFullRows = useRowsTableData({
         baseQuery: queryToWrap,
         idVars,
         pagination,
@@ -186,7 +213,7 @@ export function useTable({
     let data: Row[];
 
     if (maybeFullRows.data) {
-      data = maybeFullRows.data;
+      data = maybeFullRows.data.rows;
     } else {
         data = keyValuesQuery
             .data
@@ -195,7 +222,7 @@ export function useTable({
     }
 
     const columns = keyValuesQuery.data
-        ? getColumns(idVars, [], renderHeader)
+        ? getColumns(idVars, maybeFullRows.data?.restCols ?? [], renderHeader)
         : [];
 
     return useReactTable<Row>({
