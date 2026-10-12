@@ -18,7 +18,7 @@ import { defaultPagination, ServerSidePaginationBar } from "@/components/table_p
 import { cn } from "@/lib/utils";
 import { ColumnResizer } from "@/components/column_resizer";
 import { MulticardinalTableBody } from "./MulticardinalTableBody";
-import { useCount, useLogErrors, useTable } from "./hooks";
+import { useCount, useTable } from "./hooks";
 import { type Props, type Row } from "./shared";
 
 function MainHeader({
@@ -84,8 +84,6 @@ function MainComponent(props: Props): React.ReactNode {
         defaultProp: defaultPagination,
         onChange: onPaginationChange,
     });
-
-    useLogErrors({ ...props, pagination, onPaginationChange: setPagination });
 
     const countQuery = useCount({ baseQuery, counterLimit, idVars, queryCallback });
 

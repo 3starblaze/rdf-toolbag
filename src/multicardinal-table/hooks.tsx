@@ -1,7 +1,8 @@
 import {
+    useQueries,
   useQuery,
 } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
     getCoreRowModel,
     getPaginationRowModel,
@@ -21,7 +22,7 @@ import {
   parseKeyQueryResults,
 } from "@/compact-pagination/granular-compact-pagination";
 import { tableToMulticardinalTable } from "@/compact-pagination";
-import type { MulticardinalTableData } from "@/multi-cardinal-table-util";
+import { cellsToMulticardinalTable, initialCellRequests, multicardinalTableToCells, type CellRequest, type MCTCell } from "@/compact-pagination/cell";
 
 interface CountPayload {
     globalCount: number,
@@ -62,41 +63,72 @@ export function useKeyValues({
     })
 }
 
-export function useRowsTableData(args: Pick<Props, "queryCallback" | "baseQuery" | "idVars"> & {
-    pagination: NonNullable<Props["pagination"]>,
-  },
-) {
-  const { pagination, idVars, queryCallback, baseQuery} = args;
-
-    const keyValuesQuery = useKeyValues({
-        groupLimit: pagination.pageSize,
-        groupOffset: pagination.pageIndex * pagination.pageSize,
+function useCellQueryArgs(args: {
+  baseQuery: string,
+  idVars: string[],
+  cellRequest: CellRequest,
+  queryCallback: QueryCallback,
+}) {
+    const {
+        baseQuery,
         idVars,
+        cellRequest,
         queryCallback,
-        queryToWrap: baseQuery,
-    });
+    } = args;
 
     const propNameVar = "__propName";
     const propValVar = "__propVal";
 
-    return useQuery({
-        queryKey: ["rows", args],
-        queryFn: async (): Promise<MulticardinalTableData> => {
-          if (!keyValuesQuery.data) throw "unexpected";
+    return {
+        queryKey: ["useCell", args],
+        queryFn: async (): Promise<MCTCell> => {
+            const query = formatPaginatedQuery({
+                queryToWrap: baseQuery,
+                idVars,
+                propNameVar,
+                propValVar,
+                cellRequests: [cellRequest],
+            });
 
-          const query = formatPaginatedQuery({
-            queryToWrap: baseQuery,
-            idVars,
-            propNameVar,
-            propValVar,
-            keyValues: keyValuesQuery.data,
-          });
-
-          const resultingTable = await queryCallback({ query });
-          return tableToMulticardinalTable({ propNameVar, propValVar, resultingTable });
+            const resultingTable = await queryCallback({ query });
+            const tableData = tableToMulticardinalTable({ propNameVar, propValVar, resultingTable });
+            const cells = multicardinalTableToCells(tableData, cellRequest.limit);
+            if (cells.length === 0) {
+                return {
+                    column: cellRequest.column,
+                    key: cellRequest.key,
+                    limit: cellRequest.limit,
+                    values: [],
+                };
+            }
+            if (cells.length === 1) return cells[0];
+            else throw "unexpected";
         },
-        enabled: !!keyValuesQuery.data,
         retry: false,
+    } satisfies Parameters<typeof useQuery>[0];
+}
+
+export function useCells(args: {
+  baseQuery: string,
+  idVars: string[],
+  cellRequests: CellRequest[],
+  queryCallback: QueryCallback,
+}) {
+    const {
+        baseQuery,
+        idVars,
+        cellRequests,
+        queryCallback,
+    } = args;
+
+    return useQueries({
+        queries: cellRequests
+            .map((cellRequest) => useCellQueryArgs({ baseQuery, cellRequest, idVars, queryCallback })),
+        combine: (queries) => ({
+            data: queries.map((it) => it.data).filter((it) => it !== undefined),
+            isPending: queries.some((it) => it.isPending),
+            isError: queries.some((it) => it.isError),
+        }),
     });
 }
 
@@ -111,27 +143,6 @@ export function useCount(
         },
         retry: false,
     });
-}
-
-export function useLogErrors({
-    baseQuery,
-    idVars,
-    pagination,
-    queryCallback,
-    counterLimit,
-}: Props & { pagination: NonNullable<Props["pagination"]> }) {
-    const rowsQuery = useRowsTableData({ baseQuery, idVars, pagination, queryCallback });
-    const countQuery = useCount({ baseQuery, counterLimit, idVars, queryCallback });
-
-    useEffect(() => {
-        if (!rowsQuery.error) return;
-        console.error(`[MultiCardinalTableServer] [useRowsTableData] ${rowsQuery.error}`);
-    }, [rowsQuery.error]);
-
-    useEffect(() => {
-        if (!countQuery.error) return;
-        console.error(`[MultiCardinalTableServer] [countQuery] ${rowsQuery.error}`);
-    }, [countQuery.error]);
 }
 
 function getColumns(
@@ -203,26 +214,45 @@ export function useTable({
         queryToWrap,
     });
 
-    const maybeFullRows = useRowsTableData({
+    const [cellRequests, setCellRequests] = useState<CellRequest[]>([]);
+
+    // NOTE: Initialize cell requests on first time
+    useEffect(() => {
+        const limit = 5; // FIXME: fix initial limit
+
+        if (!(cellRequests.length === 0 && keyValuesQuery.data)) return;
+        setCellRequests(
+            initialCellRequests({
+                idVars,
+                keys: keyValuesQuery.data,
+                queryToWrap,
+                limit,
+            })
+        );
+    }, [cellRequests, keyValuesQuery.data]);
+
+    const cellsQuery = useCells({
         baseQuery: queryToWrap,
         idVars,
-        pagination,
         queryCallback,
+        cellRequests,
     });
 
     let data: Row[];
 
-    if (maybeFullRows.data) {
-      data = maybeFullRows.data.rows;
+    if (cellsQuery.data) {
+      data = cellsToMulticardinalTable(cellsQuery.data);
     } else {
+      data = []
         data = keyValuesQuery
             .data
             ?.map((idValues) => ({ idValues, restValues: {} }))
             ?? [];
     }
 
+    const restCols = [...new Set(cellsQuery.data.map((it) => it.column))];
     const columns = keyValuesQuery.data
-        ? getColumns(idVars, maybeFullRows.data?.restCols ?? [], renderHeader)
+        ? getColumns(idVars, restCols, renderHeader)
         : [];
 
     return useReactTable<Row>({
