@@ -263,6 +263,48 @@ describe("dropUselessOptionals", () => {
 
     blacklist.forEach((it) => expect(newQuery).not.toMatch(withAnySpace(it)));
   });
+
+  test("Sibling BIND expressions are optimized", () => {
+    const queryToOptimize = `
+ PREFIX : <https://dblp.org/rdf/schema#>
+ PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+ PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+ SELECT ?this ?__propName ?__propVal WHERE {
+  ?this rdf:type :Publication .
+  OPTIONAL { ?this :numberOfCreators ?numberOfCreators . }
+  OPTIONAL { ?this rdfs:label ?label . }
+  OPTIONAL { ?this :title ?title . }
+  OPTIONAL { ?this :yearOfPublication ?yearOfPublication . }
+  OPTIONAL { ?this :publishedIn ?publishedIn . }
+  OPTIONAL { ?this :hasSignature ?hasSignature . }
+  OPTIONAL { ?this :createdBy ?createdBy . }
+  OPTIONAL { ?createdBy rdfs:label ?createdBy__label . }
+  VALUES ?this {<https://dblp.org/rec/books/acm/0082477>}
+  BIND( "numberOfCreators" AS ?__propName )
+  BIND( ?numberOfCreators AS ?__propVal )
+  } LIMIT 5`;
+
+    const expectedQuery = `
+ PREFIX : <https://dblp.org/rdf/schema#>
+ PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+ PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+ SELECT ?this ?__propName ?__propVal WHERE {
+  ?this rdf:type :Publication .
+  OPTIONAL { ?this :numberOfCreators ?numberOfCreators . }
+  VALUES ?this {<https://dblp.org/rec/books/acm/0082477>}
+  BIND( "numberOfCreators" AS ?__propName )
+  BIND( ?numberOfCreators AS ?__propVal )
+  } LIMIT 5`;
+
+    const parser = new Parser();
+    const generator = new Generator();
+
+    const expectedQueryNormalized = generator.generate(parser.parse(expectedQuery));
+
+    const newQuery = dropUselessOptionals(queryToOptimize);
+
+    expect(newQuery).toEqual(expectedQueryNormalized);
+  });
 });
 
 describe("flattenUselessSubqueries", () => {

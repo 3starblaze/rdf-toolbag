@@ -9,9 +9,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { MultiCardinalTableServer as MulticardinalTableV2 } from "./index";
 import { MultiCardinalTableServer as MulticardinalTableLegacy } from "@/components/MultiCardinalTableServer";
-import { findVars } from "@/query-util";
+import { dropUselessOptionals, findVars, flattenUselessSubqueries } from "@/query-util";
 
 const VERSIONS = {
+    "optimized v2 (multicardinal-table/index.tsx)": MulticardinalTableV2,
     "v2 (multicardinal-table/index.tsx)": MulticardinalTableV2,
     "legacy (components/MultiCardinalTableServer.tsx)": MulticardinalTableLegacy,
 } as const;
@@ -65,11 +66,22 @@ const TableHost = memo(function TableHost({
         [endpoint],
     );
 
+    const optimizedQueryCallback = useCallback(
+        ({ query }: { query: string }) => {
+            const optimizedQuery = dropUselessOptionals(flattenUselessSubqueries(query));
+
+            return requestAsSparqlTableResult(new URL(endpoint), optimizedQuery)
+        },
+        [endpoint],
+    );
+
     const Table = VERSIONS[version];
+
+    const isOptimized = version === "optimized v2 (multicardinal-table/index.tsx)";
 
     return (
         <Table
-            queryCallback={queryCallback}
+            queryCallback={isOptimized ? optimizedQueryCallback : queryCallback}
             baseQuery={baseQuery}
             idVars={idVars}
             rawRowLimit={rawRowLimit}
@@ -80,7 +92,7 @@ const TableHost = memo(function TableHost({
 
 function Playground() {
     const [form, setForm] = useState<FormState>({
-        version: "v2 (multicardinal-table/index.tsx)",
+        version: "optimized v2 (multicardinal-table/index.tsx)",
         endpoint: DEFAULT_ENDPOINT,
         query: DEFAULT_QUERY,
         rawRowLimit: 1000,

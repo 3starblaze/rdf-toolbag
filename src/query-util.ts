@@ -284,12 +284,30 @@ function dropUselessOptionalsNonRecursive(select: QuerySelect): QuerySelect {
     });
   }
 
+  // NOTE: BIND and VALUES are kept verbatim after the triple patterns. We only handle them when they
+  // trail all triple patterns, so that moving them does not change the meaning of the group.
+  const isTriplePattern = (it: Pattern) =>
+    it.type === "pattern" && (it.subType === "bgp" || it.subType === "optional");
+  const isBindOrValues = (it: Pattern) =>
+    (it.type === "pattern" && it.subType === "values") ||
+    (it.type === "pattern" && it.subType === "bind" && it.expression.type === "term");
+
+  const firstExtraIndex = select.where.patterns.findIndex((it) => !isTriplePattern(it));
+  const triplePatterns = firstExtraIndex === -1
+    ? select.where.patterns
+    : select.where.patterns.slice(0, firstExtraIndex);
+  const extraPatterns = firstExtraIndex === -1
+    ? []
+    : select.where.patterns.slice(firstExtraIndex);
+
+  if (!extraPatterns.every(isBindOrValues)) return select;
+
   // NOTE: We are throwing unexpected when we find some edge cases that we are not ready to handle.
   // In this case we avoid optimizing.
   let simplePatterns: SimplePattern[] | null;
 
   try {
-    simplePatterns = flattenPatterns(select.where.patterns, false);
+    simplePatterns = flattenPatterns(triplePatterns, false);
   } catch (e) {
     if (e === "unexpected") simplePatterns = null;
     else throw(e);
@@ -303,10 +321,19 @@ function dropUselessOptionalsNonRecursive(select: QuerySelect): QuerySelect {
     pattern: SimplePattern,
   }
 
+  // NOTE: Variables introduced by BIND and VALUES are always bound, so they count as known
+  const extraVars = extraPatterns.flatMap((it) => {
+    if (it.type !== "pattern") return [];
+    if (it.subType === "bind") return [it.variable.value];
+    if (it.subType === "values") return it.variables.map((variable) => variable.value);
+    return [];
+  });
+
   let knownVars = simplePatterns
     .filter((it) => !it.optional)
     .flatMap((it) => [it.tripleNesting.subject, it.tripleNesting.object])
-    .flatMap((it) => (it.subType === "variable") ? [it.value] : []);
+    .flatMap((it) => (it.subType === "variable") ? [it.value] : [])
+    .concat(extraVars);
 
   function isKnown(val: string) {
     return knownVars.includes(val);
@@ -376,7 +403,8 @@ function dropUselessOptionalsNonRecursive(select: QuerySelect): QuerySelect {
     processRes = processPatterns(toProcess);
   }
 
-  const graph = new Graph<{}, { simplePattern: SimplePattern }, {}>({ type: "mixed" });
+  // NOTE: Multi graph, because the same pair of variables can be connected by several patterns
+  const graph = new Graph<{}, { simplePattern: SimplePattern | null }, {}>({ type: "mixed", multi: true });
 
   for (const pattern of simplePatterns) {
     if (pattern.optional) continue;
@@ -397,12 +425,24 @@ function dropUselessOptionalsNonRecursive(select: QuerySelect): QuerySelect {
     graph.addDirectedEdge(from, to, { simplePattern: pattern });
   }
 
-  // FIXME: Handle pattern binds
+  for (const it of extraPatterns) {
+    if (it.type !== "pattern" || it.subType !== "bind") continue;
+    // NOTE: BIND(term AS ?var) always binds ?var, so it is a node even when there is no edge
+    graph.updateNode(it.variable.value);
+    // NOTE: Literal and IRI sources are constants, so they don't connect to anything
+    if (it.expression.type !== "term" || it.expression.subType !== "variable") continue;
+    // NOTE: If ?var is needed, then the source variable is needed as well
+    graph.updateNode(it.expression.value);
+    graph.addDirectedEdge(it.variable.value, it.expression.value, { simplePattern: null });
+  }
+
   const keyVars = select.variables.flatMap((it) => (it.type === "term") ? it.value : []);
 
   let reachableVars: string[] = [];
 
   for (const keyVar of keyVars) {
+    // NOTE: Variables that are not in any pattern (e.g. only in VALUES) have no edges to traverse
+    if (!graph.hasNode(keyVar)) continue;
     dfsFromNode(graph, keyVar, (node) => {
       // NOTE: We have already traversed traversed this node
       if (reachableVars.includes(node)) return true;
@@ -414,15 +454,18 @@ function dropUselessOptionalsNonRecursive(select: QuerySelect): QuerySelect {
 
   graph.forEachEdge((_, { simplePattern }, source) => {
     // NOTE: non-optional edges are handled already
-    if (simplePattern.optional &&reachableVars.includes(source)) {
+    if (simplePattern?.optional && reachableVars.includes(source)) {
       finalSimplePatterns.push(simplePattern);
     }
   });
 
-  const finalPatterns: Pattern[] = finalSimplePatterns.map((it) => {
-    const bgp = F.patternBgp([it.tripleNesting], F.gen());
-    return it.optional ? F.patternOptional([bgp], F.gen()) : bgp;
-  });
+  const finalPatterns: Pattern[] = [
+    ...finalSimplePatterns.map((it) => {
+      const bgp = F.patternBgp([it.tripleNesting], F.gen());
+      return it.optional ? F.patternOptional([bgp], F.gen()) : bgp;
+    }),
+    ...extraPatterns,
+  ];
 
   return produce(select, (draft) => {
     draft.where.patterns = finalPatterns;
