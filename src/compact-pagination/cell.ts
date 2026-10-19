@@ -66,9 +66,11 @@ export function formatCellQuery({
   propValVar: string,
   baseQuery: string,
 }) {
+  // NOTE: It's important to move VALUES clause as high as possible, otherwise performance might be
+  // heavily degraded.
   return `SELECT ${fmtVars([...idVars, propNameVar, propValVar])} WHERE {
-      {${baseQuery}}
       ${formatValues(idVars, [key])}
+      {${baseQuery}}
       BIND("${column}" AS ?${propNameVar})
       BIND(?${column} AS ?${propValVar})
     } LIMIT ${limit}`;
