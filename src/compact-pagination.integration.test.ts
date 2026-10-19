@@ -11,7 +11,7 @@ import type { SparqlTableResult, RdfTerm } from "./sparql_queries";
 import { OxigraphQueryStoreProvider } from "./test-util/OxigraphQueryStore";
 import { QLeverQueryStoreProvider } from "./test-util/QLeverQueryStore";
 import { JenaQueryStoreProvider } from "./test-util/JenaQueryStore";
-import { dropUselessOptionals, flattenUselessSubqueries } from "./query-util";
+import { optimize } from "./query-util";
 import { produce } from "immer";
 
 type Row = MulticardinalTableData["rows"][number];
@@ -724,7 +724,7 @@ SELECT * WHERE{
 }
 
 const optimizer = (query: string): string => {
-  return dropUselessOptionals(flattenUselessSubqueries(query));
+  return optimize(query);
 }
 
 const optimizedQuery: typeof rawFormatPaginatedQuery = (args) => {

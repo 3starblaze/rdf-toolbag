@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { MultiCardinalTableServer as MulticardinalTableV2 } from "./index";
 import { MultiCardinalTableServer as MulticardinalTableLegacy } from "@/components/MultiCardinalTableServer";
-import { dropUselessOptionals, findVars, flattenUselessSubqueries } from "@/query-util";
+import { findVars, optimize } from "@/query-util";
 
 const VERSIONS = {
     "optimized v2 (multicardinal-table/index.tsx)": MulticardinalTableV2,
@@ -68,7 +68,7 @@ const TableHost = memo(function TableHost({
 
     const optimizedQueryCallback = useCallback(
         ({ query }: { query: string }) => {
-            const optimizedQuery = dropUselessOptionals(flattenUselessSubqueries(query));
+            const optimizedQuery = optimize(query);
 
             return requestAsSparqlTableResult(new URL(endpoint), optimizedQuery)
         },

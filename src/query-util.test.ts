@@ -6,6 +6,7 @@ import {
   reorderOptional,
   dropUselessOptionals,
   flattenUselessSubqueries,
+  optimize,
 } from './query-util';
 import { Parser } from '@traqula/parser-sparql-1-1';
 import { AstTransformer} from '@traqula/rules-sparql-1-1';
@@ -414,7 +415,7 @@ ORDER BY ASC ( ?productType ) ASC ( ?color ) ASC ( ?buildType ) ASC ( ?price )
   });
 });
 
-describe("flattenUselessSubqueries + dropUselessOptionals", () => {
+describe("optimize", () => {
 
   test("DBLP query example", () => {
     const initialQuery = `PREFIX : <https://dblp.org/rdf/schema#>
@@ -491,7 +492,7 @@ VALUES ?__propName { "numberOfCreators" "label" "title" "yearOfPublication" "pub
     expect(initialQuery).toBeValidSparqlQuery();
     expect(expectedQuery).toBeValidSparqlQuery();
 
-    const actualQuery = dropUselessOptionals(flattenUselessSubqueries(initialQuery));
+    const actualQuery = optimize(initialQuery);
 
     expect(normalizeQuery(actualQuery)).toEqual(normalizeQuery(expectedQuery));
   });
@@ -534,7 +535,128 @@ SELECT ?this ?__propName ?__propVal WHERE {
  BIND( ?createdBy__label AS ?__propVal )
 } LIMIT 5`;
 
-    const newQuery = dropUselessOptionals(flattenUselessSubqueries(initialQuery));
+    const newQuery = optimize(initialQuery);
+    expect(normalizeQuery(newQuery)).toEqual(normalizeQuery(expectedQuery));
+  });
+
+  test("union", () => {
+    const initialQuery = `
+PREFIX : <https://dblp.org/rdf/schema#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+SELECT ?this ?__propName ?__propVal WHERE {
+  {
+    SELECT ?this ?__propName ?__propVal WHERE {
+        {SELECT * WHERE {
+          ?this rdf:type :Publication .
+          OPTIONAL {
+            ?this :numberOfCreators ?numberOfCreators .
+          }
+          OPTIONAL {
+            ?this rdfs:label ?label .
+          }
+          OPTIONAL {
+            ?this :title ?title .
+          }
+          OPTIONAL {
+            ?this :yearOfPublication ?yearOfPublication .
+          }
+          OPTIONAL {
+            ?this :publishedIn ?publishedIn .
+          }
+          OPTIONAL {
+            ?this :hasSignature ?hasSignature .
+          }
+          OPTIONAL {
+            ?this :createdBy ?createdBy .
+          }
+          OPTIONAL {
+            ?createdBy rdfs:label ?createdBy__label .
+          }
+        }}
+      VALUES ?this {
+        <https://dblp.org/rec/books/acm/0082477>
+      }
+      BIND( "numberOfCreators" AS ?__propName )
+      BIND( ?numberOfCreators AS ?__propVal )
+    }
+    LIMIT 5
+  }
+  UNION {
+    SELECT ?this ?__propName ?__propVal WHERE {
+          {SELECT * WHERE {
+          ?this rdf:type :Publication .
+          OPTIONAL {
+            ?this :numberOfCreators ?numberOfCreators .
+          }
+          OPTIONAL {
+            ?this rdfs:label ?label .
+          }
+          OPTIONAL {
+            ?this :title ?title .
+          }
+          OPTIONAL {
+            ?this :yearOfPublication ?yearOfPublication .
+          }
+          OPTIONAL {
+            ?this :publishedIn ?publishedIn .
+          }
+          OPTIONAL {
+            ?this :hasSignature ?hasSignature .
+          }
+          OPTIONAL {
+            ?this :createdBy ?createdBy .
+          }
+          OPTIONAL {
+            ?createdBy rdfs:label ?createdBy__label .
+          }
+        }}
+      VALUES ?this {
+        <https://dblp.org/rec/books/acm/17/CohenO17>
+      }
+      BIND( "numberOfCreators" AS ?__propName )
+      BIND( ?numberOfCreators AS ?__propVal )
+    }
+    LIMIT 5
+  }
+    }`;
+
+    const expectedQuery = `
+PREFIX : <https://dblp.org/rdf/schema#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+SELECT ?this ?__propName ?__propVal WHERE {
+    {
+    SELECT ?this ?__propName ?__propVal WHERE {
+     ?this rdf:type :Publication .
+      OPTIONAL {
+        ?this :numberOfCreators ?numberOfCreators .
+      }
+      VALUES ?this {
+        <https://dblp.org/rec/books/acm/0082477>
+      }
+      BIND( "numberOfCreators" AS ?__propName )
+      BIND( ?numberOfCreators AS ?__propVal )
+    }
+    LIMIT 5
+  }
+  UNION {
+    SELECT ?this ?__propName ?__propVal WHERE {
+      ?this rdf:type :Publication .
+      OPTIONAL {
+        ?this :numberOfCreators ?numberOfCreators .
+      }
+      VALUES ?this {
+        <https://dblp.org/rec/books/acm/17/CohenO17>
+      }
+      BIND( "numberOfCreators" AS ?__propName )
+      BIND( ?numberOfCreators AS ?__propVal )
+    }
+    LIMIT 5
+  }
+}`;
+
+    const newQuery = optimize(initialQuery);
     expect(normalizeQuery(newQuery)).toEqual(normalizeQuery(expectedQuery));
   });
 });

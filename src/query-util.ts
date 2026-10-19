@@ -598,6 +598,17 @@ export function flattenUselessSubqueries(query: string): string {
         return processPatterns(it.patterns, parentSelect);
       }
 
+      // NOTE: Each UNION block is independent of its siblings, so every branch is optimized on its
+      // own. Branch patterns never carry parent overrides, because the parent is not a plain subquery.
+      if (it.type === "pattern" && it.subType === "union") {
+        return produce(it, (draft) => {
+          draft.patterns = it.patterns.flatMap((branch) =>
+            processPatterns([branch], parentSelect)
+              .flatMap((res) => (res.type === "parentOverride" ? [] : res)),
+          );
+        });
+      }
+
       // NOTE: Looks like queries seem to always be wrapped in groups. Therefore if flattening is
       // applied, group is not kept. However if query is not flattened it should have a group,
       // otherwise invalid query is generated.
@@ -637,4 +648,11 @@ export function flattenUselessSubqueries(query: string): string {
 
   const newQuery = generator.generate(newAst);
   return newQuery;
+}
+
+/**
+ * Apply all query optimizations that keep the query's results unchanged.
+ */
+export function optimize(query: string): string {
+  return dropUselessOptionals(flattenUselessSubqueries(query));
 }
