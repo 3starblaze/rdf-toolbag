@@ -11,6 +11,7 @@ import { Generator } from '@traqula/generator-sparql-1-1';
 import Graph from 'graphology';
 import { dfsFromNode } from "graphology-traversal";
 import { produce } from "immer";
+import { valueEqual } from './func-util';
 
 type Ast = ReturnType<InstanceType<(typeof Parser)>["parse"]>
 // NOTE: Defining values that are encountered but not added in type definitions
@@ -492,6 +493,16 @@ export function flattenUselessSubqueries(query: string): string {
     return [...a.values()].every((it) => b.has(it));
   }
 
+  function sameVars(
+    a: QuerySelect["variables"],
+    b: QuerySelect["variables"],
+  ): boolean {
+    return valueEqual(
+      a.map(({ loc, ...rest }) => rest),
+      b.map(({ loc, ...rest }) => rest),
+    );
+  }
+
   function canFlatten(
     fragment: QuerySelect,
     parentSelect: QuerySelect | null,
@@ -499,7 +510,10 @@ export function flattenUselessSubqueries(query: string): string {
     if (fragment.solutionModifiers.group) {
       return false;
     }
-    if (fragment.solutionModifiers.limitOffset) {
+
+    if (fragment.solutionModifiers.limitOffset
+      && !sameVars(fragment.variables, parentSelect?.variables ?? [])
+    ) {
       return false;
     }
 
@@ -548,10 +562,37 @@ export function flattenUselessSubqueries(query: string): string {
     return true;
   }
 
+  interface ParentOverride {
+    type: "parentOverride",
+    subType: "setLimit",
+    value: number,
+  }
+
+  function usePatterns(
+    patternRes: (Pattern | ParentOverride)[],
+    parentSelect: QuerySelect,
+  ): QuerySelect {
+    return produce(parentSelect, (draft) => {
+      const mergeablePatterns = patternRes.filter((it) => it.type !== "parentOverride");
+      const overrides = patternRes.filter((it) => it.type === "parentOverride");
+      draft.where.patterns = mergeablePatterns;
+
+      overrides.forEach((it) => {
+        if (it.subType === "setLimit") {
+          draft.solutionModifiers.limitOffset = F.solutionModifierLimitOffset(
+            it.value,
+            draft.solutionModifiers.limitOffset?.offset,
+            F.gen(),
+          );
+        }
+      })
+    });
+  }
+
   function processPatterns(
     patterns: Pattern[],
-    parentSelect: QuerySelect | null,
-  ): Pattern[] {
+    parentSelect: QuerySelect,
+  ): (Pattern | ParentOverride)[] {
     return patterns.flatMap((it) => {
       if (it.type === "pattern" && it.subType === "group") {
         return processPatterns(it.patterns, parentSelect);
@@ -562,12 +603,29 @@ export function flattenUselessSubqueries(query: string): string {
       // otherwise invalid query is generated.
       if (it.type === "query") {
         if (canFlatten(it, parentSelect)) {
-          return processPatterns(it.where.patterns, parentSelect);
+          const finalLimit = Math.min(...[
+            it.solutionModifiers.limitOffset?.limit,
+            parentSelect?.solutionModifiers.limitOffset?.limit
+          ].filter((it) => it !== undefined));
+
+          const newParentSelect = produce(parentSelect, (draft) => {
+            if (!draft) return;
+
+            // NOTE: If subquery can be flattened, inherit smallest limit
+            draft.solutionModifiers.limitOffset = F.solutionModifierLimitOffset(
+              finalLimit === Infinity ? undefined : finalLimit,
+              draft.solutionModifiers.limitOffset?.offset,
+              F.gen(),
+            );
+          });
+
+          return [
+            ...processPatterns(it.where.patterns, newParentSelect),
+            { type: "parentOverride", subType: "setLimit", value: finalLimit },
+          ];
         }
         else return F.patternGroup(
-          [produce(it, (draft) => {
-            draft.where.patterns = processPatterns(draft.where.patterns, it);
-          })],
+          [usePatterns(processPatterns(it.where.patterns, it), it)],
           F.gen(),
         );
       }
@@ -575,10 +633,7 @@ export function flattenUselessSubqueries(query: string): string {
     });
   }
 
-  const patterns = processPatterns(ast.where.patterns, null);
-
-  const newAst = structuredClone(ast);
-  newAst.where.patterns = patterns;
+  const newAst = usePatterns(processPatterns(ast.where.patterns, ast), ast);
 
   const newQuery = generator.generate(newAst);
   return newQuery;

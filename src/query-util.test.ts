@@ -30,6 +30,16 @@ function countQueries(q: string) {
   return count;
 }
 
+// NOTE: This is used to compare queries as string. If there's extra whitespace the normalized query
+// string shouldn't be affected by that.
+/** Normalize query to whatever string generator emits.  */
+function normalizeQuery(query: string) {
+  const parser = new Parser();
+  const generator = new Generator();
+
+  return generator.generate(parser.parse(query));
+}
+
 describe("rewriteQueryWithPrefixes", () => {
   test("no prefixes initially", () => {
     const query = `SELECT * WHERE {
@@ -284,7 +294,7 @@ describe("dropUselessOptionals", () => {
   BIND( ?numberOfCreators AS ?__propVal )
   } LIMIT 5`;
 
-    const expectedQuery = `
+    const expectedQuery = normalizeQuery(`
  PREFIX : <https://dblp.org/rdf/schema#>
  PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
  PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
@@ -294,16 +304,11 @@ describe("dropUselessOptionals", () => {
   VALUES ?this {<https://dblp.org/rec/books/acm/0082477>}
   BIND( "numberOfCreators" AS ?__propName )
   BIND( ?numberOfCreators AS ?__propVal )
-  } LIMIT 5`;
-
-    const parser = new Parser();
-    const generator = new Generator();
-
-    const expectedQueryNormalized = generator.generate(parser.parse(expectedQuery));
+  } LIMIT 5`);
 
     const newQuery = dropUselessOptionals(queryToOptimize);
 
-    expect(newQuery).toEqual(expectedQueryNormalized);
+    expect(newQuery).toEqual(expectedQuery);
   });
 });
 
@@ -410,6 +415,7 @@ ORDER BY ASC ( ?productType ) ASC ( ?color ) ASC ( ?buildType ) ASC ( ?price )
 });
 
 describe("flattenUselessSubqueries + dropUselessOptionals", () => {
+
   test("DBLP query example", () => {
     const initialQuery = `PREFIX : <https://dblp.org/rdf/schema#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
@@ -487,14 +493,48 @@ VALUES ?__propName { "numberOfCreators" "label" "title" "yearOfPublication" "pub
 
     const actualQuery = dropUselessOptionals(flattenUselessSubqueries(initialQuery));
 
-    const parser = new Parser();
-    const generator = new Generator();
+    expect(normalizeQuery(actualQuery)).toEqual(normalizeQuery(expectedQuery));
+  });
 
-    const actualString = generator.generate(parser.parse(actualQuery));
-    const expectedString = generator.generate(parser.parse(expectedQuery));
+  test("limit inheritance", () => {
+    const initialQuery = `
+PREFIX : <https://dblp.org/rdf/schema#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+SELECT ?this ?__propName ?__propVal WHERE {
+ {
+ SELECT ?this ?__propName ?__propVal WHERE {
+ ?this rdf:type :Publication .
+ OPTIONAL {
+ ?this :createdBy ?createdBy .
+ }
+ OPTIONAL {
+ ?createdBy rdfs:label ?createdBy__label .
+ }
+ VALUES ?this {
+ <https://dblp.org/rec/books/acm/0082477>
+ }
+ BIND( "createdBy__label" AS ?__propName )
+ BIND( ?createdBy__label AS ?__propVal )
+ }
+ LIMIT 5
+ }
+    }`;
 
-    // NOTE: Comparing regenerated query strings instead of ASTS because query strings are easier
-    // to understand
-    expect(actualString).toEqual(expectedString);
+    const expectedQuery = `
+PREFIX : <https://dblp.org/rdf/schema#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+SELECT ?this ?__propName ?__propVal WHERE {
+ ?this rdf:type :Publication .
+ OPTIONAL { ?this :createdBy ?createdBy . }
+ OPTIONAL { ?createdBy rdfs:label ?createdBy__label . }
+ VALUES ?this { <https://dblp.org/rec/books/acm/0082477> }
+ BIND( "createdBy__label" AS ?__propName )
+ BIND( ?createdBy__label AS ?__propVal )
+} LIMIT 5`;
+
+    const newQuery = dropUselessOptionals(flattenUselessSubqueries(initialQuery));
+    expect(normalizeQuery(newQuery)).toEqual(normalizeQuery(expectedQuery));
   });
 });
