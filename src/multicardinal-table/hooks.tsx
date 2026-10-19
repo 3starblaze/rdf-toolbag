@@ -2,7 +2,7 @@ import {
     useQueries,
   useQuery,
 } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
     getCoreRowModel,
     getPaginationRowModel,
@@ -18,11 +18,10 @@ import {
 } from "./shared";
 import {
   formatKeyQuery,
-  formatPaginatedQuery,
   parseKeyQueryResults,
 } from "@/compact-pagination/granular-compact-pagination";
-import { tableToMulticardinalTable } from "@/compact-pagination";
-import { cellsToMulticardinalTable, initialCellRequests, multicardinalTableToCells, type CellRequest, type MCTCell } from "@/compact-pagination/cell";
+import { cellsToMulticardinalTable, initialCellRequests, type CellRequest } from "@/compact-pagination/cell";
+import { createCellBatcher, defaultBatchingStrategy, type BatchingStrategy } from "./cell-batcher";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -65,69 +64,36 @@ export function useKeyValues({
     })
 }
 
-function useCellQueryArgs(args: {
-  baseQuery: string,
-  idVars: string[],
-  cellRequest: CellRequest,
-  queryCallback: QueryCallback,
-}) {
-    const {
-        baseQuery,
-        idVars,
-        cellRequest,
-        queryCallback,
-    } = args;
-
-    const propNameVar = "__propName";
-    const propValVar = "__propVal";
-
-    return {
-        queryKey: ["useCell", args],
-        queryFn: async (): Promise<MCTCell> => {
-            const query = formatPaginatedQuery({
-                queryToWrap: baseQuery,
-                idVars,
-                propNameVar,
-                propValVar,
-                cellRequests: [cellRequest],
-            });
-
-            const resultingTable = await queryCallback({ query });
-            const tableData = tableToMulticardinalTable({ propNameVar, propValVar, resultingTable });
-            const cells = multicardinalTableToCells(tableData, cellRequest.limit);
-            if (cells.length === 0) {
-                return {
-                    column: cellRequest.column,
-                    key: cellRequest.key,
-                    limit: cellRequest.limit,
-                    values: [],
-                };
-            }
-            if (cells.length === 1) return cells[0];
-            else throw "unexpected";
-        },
-        retry: false,
-    } satisfies Parameters<typeof useQuery>[0];
-}
-
 export function useCells(args: {
   baseQuery: string,
   idVars: string[],
   cellRequests: CellRequest[],
   queryCallback: QueryCallback,
+  batchingStrategy?: BatchingStrategy,
 }) {
     const {
         baseQuery,
         idVars,
         cellRequests,
         queryCallback,
+        batchingStrategy = defaultBatchingStrategy,
     } = args;
 
+    const batcher = useMemo(
+        () => createCellBatcher({ baseQuery, idVars, queryCallback, batchingStrategy }),
+        [baseQuery, idVars, queryCallback, batchingStrategy],
+    );
+
     return useQueries({
-        queries: cellRequests
-            .map((cellRequest) => useCellQueryArgs({ baseQuery, cellRequest, idVars, queryCallback })),
+        // NOTE: Every cell has its own cache entry. The batcher only changes how the requests
+        // are sent, so a changed cell (e.g. after increasing its limit) refetches only itself.
+        queries: cellRequests.map((cellRequest) => ({
+            queryKey: ["useCell", { baseQuery, idVars, cellRequest }],
+            queryFn: () => batcher.load(cellRequest),
+            retry: false,
+        })),
         combine: (queries) => ({
-            data: queries.map((it) => it.data).filter((it) => it !== undefined),
+            data: queries.flatMap((it) => it.data ? [it.data] : []),
             isPending: queries.some((it) => it.isPending),
             isError: queries.some((it) => it.isError),
         }),
