@@ -24,6 +24,7 @@ import { cellsToMulticardinalTable, initialCellRequests, type CellRequest } from
 import { createCellBatcher, defaultBatchingStrategy, type BatchingStrategy } from "./cell-batcher";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { valueEqual } from "@/func-util";
 
 interface CountPayload {
     globalCount: number,
@@ -207,12 +208,15 @@ export function useTable({
     });
 
     const [cellRequests, setCellRequests] = useState<CellRequest[]>([]);
+    const [cellRequestsPagination, setCellRequestsPagination] = useState<PaginationState | null>(null);
 
-    // NOTE: Initialize cell requests on first time
+    // NOTE: Change cell requests whenever pagination changes
     useEffect(() => {
         const limit = 5; // FIXME: fix initial limit
 
-        if (!(cellRequests.length === 0 && keyValuesQuery.data)) return;
+        if (!keyValuesQuery.data) return;
+        if (valueEqual(cellRequestsPagination, pagination)) return;
+
         setCellRequests(
             initialCellRequests({
                 idVars,
@@ -221,7 +225,8 @@ export function useTable({
                 limit,
             })
         );
-    }, [cellRequests, keyValuesQuery.data]);
+        setCellRequestsPagination(pagination);
+    }, [cellRequests, keyValuesQuery.data, pagination, cellRequestsPagination]);
 
     const cellsQuery = useCells({
         baseQuery: queryToWrap,
