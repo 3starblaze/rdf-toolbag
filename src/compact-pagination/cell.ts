@@ -68,7 +68,7 @@ export function formatCellQuery({
 }) {
   // NOTE: It's important to move VALUES clause as high as possible, otherwise performance might be
   // heavily degraded.
-  return `SELECT ${fmtVars([...idVars, propNameVar, propValVar])} WHERE {
+  return `SELECT DISTINCT ${fmtVars([...idVars, propNameVar, propValVar])} WHERE {
       ${formatValues(idVars, [key])}
       {${baseQuery}}
       BIND("${column}" AS ?${propNameVar})

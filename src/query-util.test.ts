@@ -497,6 +497,38 @@ VALUES ?__propName { "numberOfCreators" "label" "title" "yearOfPublication" "pub
     expect(normalizeQuery(actualQuery)).toEqual(normalizeQuery(expectedQuery));
   });
 
+  test("DISTINCT is inherited when flattening with matching vars", () => {
+    const initialQuery = `SELECT ?item ?__propName ?__propVal WHERE {
+  {SELECT DISTINCT ?item ?__propName ?__propVal WHERE {
+    VALUES (?item) { (<http://ex/a>) }
+    {SELECT ?item ?name WHERE { ?item <http://ex/name> ?name . }}
+    BIND("name" AS ?__propName)
+    BIND(?name AS ?__propVal)
+  } LIMIT 5}
+}`;
+
+    expect(initialQuery).toBeValidSparqlQuery();
+
+    const actualQuery = optimize(initialQuery);
+
+    expect(actualQuery).toBeValidSparqlQuery();
+    expect(actualQuery).toMatch(/^SELECT DISTINCT/);
+    expect(actualQuery).toContain("LIMIT 5");
+    expect(actualQuery).not.toContain("{SELECT");
+  });
+
+  test("DISTINCT subquery is kept when projected vars differ", () => {
+    const initialQuery = `SELECT ?item WHERE {
+  {SELECT DISTINCT ?item ?name WHERE { ?item <http://ex/name> ?name . }}
+}`;
+
+    expect(initialQuery).toBeValidSparqlQuery();
+
+    const actualQuery = optimize(initialQuery);
+
+    expect(actualQuery).toContain("SELECT DISTINCT ?item ?name");
+  });
+
   test("limit inheritance", () => {
     const initialQuery = `
 PREFIX : <https://dblp.org/rdf/schema#>

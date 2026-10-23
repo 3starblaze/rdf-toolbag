@@ -511,7 +511,15 @@ export function flattenUselessSubqueries(query: string): string {
       return false;
     }
 
-    if (fragment.solutionModifiers.limitOffset
+    // NOTE: REDUCED may be dropped by the engine, so it is not inherited and such subqueries are
+    // kept.
+    if (fragment.reduced) {
+      return false;
+    }
+
+    // NOTE: Like LIMIT, DISTINCT is inherited by the parent, which is only correct if both project
+    // the same variables.
+    if ((fragment.distinct || fragment.solutionModifiers.limitOffset)
       && !sameVars(fragment.variables, parentSelect?.variables ?? [])
     ) {
       return false;
@@ -562,11 +570,9 @@ export function flattenUselessSubqueries(query: string): string {
     return true;
   }
 
-  interface ParentOverride {
-    type: "parentOverride",
-    subType: "setLimit",
-    value: number,
-  }
+  type ParentOverride =
+    | { type: "parentOverride", subType: "setLimit", value: number }
+    | { type: "parentOverride", subType: "setDistinct" };
 
   function usePatterns(
     patternRes: (Pattern | ParentOverride)[],
@@ -585,13 +591,16 @@ export function flattenUselessSubqueries(query: string): string {
             F.gen(),
           );
         }
+        if (it.subType === "setDistinct") {
+          draft.distinct = true;
+        }
       })
     });
   }
 
   function processPatterns(
     patterns: Pattern[],
-    parentSelect: QuerySelect,
+    parentSelect: QuerySelect | null,
   ): (Pattern | ParentOverride)[] {
     return patterns.flatMap((it) => {
       if (it.type === "pattern" && it.subType === "group") {
@@ -599,11 +608,12 @@ export function flattenUselessSubqueries(query: string): string {
       }
 
       // NOTE: Each UNION block is independent of its siblings, so every branch is optimized on its
-      // own. Branch patterns never carry parent overrides, because the parent is not a plain subquery.
+      // own. Branches have no parent select to inherit into, so they never carry parent overrides
+      // (a LIMIT or DISTINCT of a branch can only be flattened when the parent is a plain subquery).
       if (it.type === "pattern" && it.subType === "union") {
         return produce(it, (draft) => {
           draft.patterns = it.patterns.flatMap((branch) =>
-            processPatterns([branch], parentSelect)
+            processPatterns([branch], null)
               .flatMap((res) => (res.type === "parentOverride" ? [] : res)),
           );
         });
@@ -630,9 +640,14 @@ export function flattenUselessSubqueries(query: string): string {
             );
           });
 
+          const distinctOverrides: ParentOverride[] = it.distinct
+            ? [{ type: "parentOverride", subType: "setDistinct" }]
+            : [];
+
           return [
             ...processPatterns(it.where.patterns, newParentSelect),
             { type: "parentOverride", subType: "setLimit", value: finalLimit },
+            ...distinctOverrides,
           ];
         }
         else return F.patternGroup(
