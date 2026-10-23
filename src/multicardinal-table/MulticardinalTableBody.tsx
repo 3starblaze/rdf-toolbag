@@ -9,7 +9,7 @@ import {
     TableCell,
     TableRow,
 } from "@/components/ui/table";
-import type { Props, Row } from "./shared";
+import { restValuesPlaceholderId, type Props, type Row } from "./shared";
 import { useKeyValues } from "./hooks";
 import { cn } from "@/lib/utils";
 
@@ -71,27 +71,51 @@ export function MulticardinalTableBody({
                 </SingletonCell>
             )}
             {keyValuesQuery.isSuccess && (table.getRowModel().rows?.length ? (
-                table.getRowModel().rows.map((row) => (
-                    <TableRow
-                        className="group"
-                        key={row.id}
-                        data-state={row.getIsSelected() && "selected"}
-                    >
-                        {row.getVisibleCells().map((cell) => (
-                            <TableCell
-                                className={cn(
-                                    idVars.includes(cell.column.id) && "bg-gray-100 group-hover:bg-gray-200"
-                                )}
-                                key={cell.id}
-                                style={{
-                                    width: cell.column.getSize(),
-                                }}
-                            >
-                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                            </TableCell>
-                        ))}
-                    </TableRow>
-                ))
+                <>
+                    {table.getRowModel().rows.map((row, i) => (
+                        <TableRow
+                            className="group"
+                            key={row.id}
+                            data-state={row.getIsSelected() && "selected"}
+                        >
+                            {row.getVisibleCells().map((cell) => {
+                                if (cell.column.id === restValuesPlaceholderId) {
+                                    // NOTE: One spinner spans all rows where the values will arrive
+                                    if (i !== 0) return null;
+
+                                    return (
+                                        <TableCell
+                                            className="align-middle"
+                                            key={cell.id}
+                                            rowSpan={table.getRowModel().rows.length}
+                                            style={{
+                                                width: cell.column.getSize(),
+                                            }}
+                                        >
+                                            <div className="flex justify-center items-center p-4">
+                                                <Spinner role="status" />
+                                            </div>
+                                        </TableCell>
+                                    );
+                                }
+
+                                return (
+                                    <TableCell
+                                        className={cn(
+                                            idVars.includes(cell.column.id) && "bg-gray-100 group-hover:bg-gray-200"
+                                        )}
+                                        key={cell.id}
+                                        style={{
+                                            width: cell.column.getSize(),
+                                        }}
+                                    >
+                                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                    </TableCell>
+                                );
+                            })}
+                        </TableRow>
+                    ))}
+                </>
             ) : (
                 <SingletonCell>
                     No results.

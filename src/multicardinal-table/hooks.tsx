@@ -13,6 +13,7 @@ import {
 } from "@tanstack/react-table";
 import {
   defaultColumn,
+  restValuesPlaceholderId,
   type Props,
   type Row,
 } from "./shared";
@@ -184,6 +185,13 @@ function getColumns(
     return [...idColumns, ...valueColumns];
 }
 
+// NOTE: Takes the place of the value columns, so that the spinner has a width and a header slot
+const restValuesPlaceholderColumn: ColumnDef<Row> = {
+    id: restValuesPlaceholderId,
+    header: () => null,
+    cell: () => null,
+};
+
 export function useTable({
   idVars,
   pagination,
@@ -235,21 +243,24 @@ export function useTable({
         cellRequests,
     });
 
-    let data: Row[];
+    // NOTE: Cell requests are only set in an effect, so right after keys arrive they are not ready yet
+    const cellRequestsReady = valueEqual(cellRequestsPagination, pagination);
+    const restValuesLoading = keyValuesQuery.isSuccess && (!cellRequestsReady || cellsQuery.isPending);
 
-    if (cellsQuery.data && keyValuesQuery.data) {
-      data = cellsToMulticardinalTable(cellsQuery.data, keyValuesQuery.data);
-    } else {
-      data = []
-        data = keyValuesQuery
-            .data
-            ?.map((idValues) => ({ idValues, restValues: {} }))
-            ?? [];
-    }
+    const keys = keyValuesQuery.data ?? [];
+    const cellRows = cellsToMulticardinalTable(cellsQuery.data, keys);
+
+    // NOTE: Every key is shown, even when its rest values have not arrived yet
+    const data: Row[] = keys.map((idValues) => (
+        cellRows.find((row) => valueEqual(row.idValues, idValues)) ?? { idValues, restValues: {} }
+    ));
 
     const restCols = [...new Set(cellsQuery.data.map((it) => it.column))];
     const columns = keyValuesQuery.data
-        ? getColumns(idVars, restCols, cellRequests, setCellRequests, renderHeader)
+        ? [
+            ...getColumns(idVars, restCols, cellRequests, setCellRequests, renderHeader),
+            ...(restValuesLoading ? [restValuesPlaceholderColumn] : []),
+        ]
         : [];
 
     return useReactTable<Row>({
@@ -267,5 +278,5 @@ export function useTable({
         defaultColumn,
         enableColumnResizing: true,
         columnResizeMode: "onChange",
-    })
+    });
 }

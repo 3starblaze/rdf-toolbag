@@ -263,7 +263,8 @@ export const WithPagination: Story = {
       await userEvent.click(nextPageButton);
 
       expect(currentPageNumber).toHaveTextContent("2");
-      expect(await canvas.findByText("B10")).toBeInTheDocument();
+      // NOTE: Rows are remounted while the page is loading, so the element is looked up on every try
+      await waitFor(() => expect(canvas.getByText("B10")).toBeInTheDocument());
       expect(canvas.queryByText("B0")).not.toBeInTheDocument();
     });
   },
@@ -428,10 +429,10 @@ export const SlowSuccessfulQuery: Story = {
     });
 
     await step("Data is shown after loading", async () => {
-      await waitForLoaded(canvas);
-
       const tableItem = await canvas.findByText("query successful", {}, { timeout: 5_000 });
       expect(tableItem).toBeInTheDocument();
+
+      await waitForLoaded(canvas);
     });
   },
 };
@@ -469,6 +470,44 @@ export const SlowQueryFailThenSucceed: Story = {
       // NOTE: Keys and then cells are fetched, each with a delay
       const tableItem = await canvas.findByText("query successful", {}, { timeout: 5_000 });
       expect(tableItem).toBeInTheDocument();
+    });
+  },
+};
+
+// NOTE: Delays keys and cells separately so that each loading stage can be observed
+function stagedCallback(keyDelay: number, cellDelay: number, callback: QueryCallback): QueryCallback {
+  return async (args) => {
+    await delayPromise(args.query.includes(PROP_NAME_VAR) ? cellDelay : keyDelay);
+    return callback(args);
+  };
+}
+
+export const LoadingSpinners: Story = {
+  args: {
+    ...defaultArgs,
+    idVars: ["key0", "key1"],
+    queryCallback: stagedCallback(1000, 2000, datasetCallback(["key0", "key1"], [{
+      idValues: { "key0": lit("AA"), "key1": lit("BB") },
+      restValues: { "value0": [lit("query successful")] },
+    }])),
+  },
+  play: async ({ canvas, step }) => {
+    await step("Spinner is shown while keys and rest values are loading", async () => {
+      expect(await canvas.findByRole("status")).toBeInTheDocument();
+      expect(canvas.queryByText("AA")).not.toBeInTheDocument();
+      expect(canvas.queryByText("query successful")).not.toBeInTheDocument();
+    });
+
+    await step("Keys are shown with spinner in rest values while rest values are loading", async () => {
+      expect(await canvas.findByText("AA")).toBeInTheDocument();
+      expect(canvas.getByRole("status")).toBeInTheDocument();
+      expect(canvas.queryByText("query successful")).not.toBeInTheDocument();
+    });
+
+    await step("No spinner is shown when everything is loaded", async () => {
+      expect(await canvas.findByText("query successful", {}, { timeout: 5_000 })).toBeInTheDocument();
+      // NOTE: Every column is fetched separately, so the spinner can outlast the first cell
+      await waitForLoaded(canvas);
     });
   },
 };

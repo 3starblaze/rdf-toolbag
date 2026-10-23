@@ -24,6 +24,9 @@ export interface Props {
 
 export type Row = MulticardinalTableData["rows"][number];
 
+/** Column that stands in for the value columns while they are still loading. */
+export const restValuesPlaceholderId = "__restValuesPlaceholder";
+
 export const defaultColumn = {
     size: 150,
     // NOTE: Going below 40px will mess the styling quite a bit, even with text overflow ellipsis
