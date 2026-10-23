@@ -255,7 +255,9 @@ export function useTable({
         cellRows.find((row) => valueEqual(row.idValues, idValues)) ?? { idValues, restValues: {} }
     ));
 
-    const restCols = [...new Set(cellsQuery.data.map((it) => it.column))];
+    // NOTE: Every value column is requested, so hide the ones that have no value in any shown row
+    const restCols = [...new Set(cellsQuery.data.map((it) => it.column))]
+        .filter((column) => data.some((row) => (row.restValues[column] ?? []).length > 0));
     const columns = keyValuesQuery.data
         ? [
             ...getColumns(idVars, restCols, cellRequests, setCellRequests, renderHeader),

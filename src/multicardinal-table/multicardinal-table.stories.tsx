@@ -44,7 +44,7 @@ function withCells(groups: Group[]): SparqlTableResult {
     })));
   });
 
-  if (rows.length === 0) return { head: { vars: [] }, results: { bindings: [] } };
+  if (rows.length === 0) return { head: { vars: [PROP_NAME_VAR, PROP_VAL_VAR] }, results: { bindings: [] } };
 
   return {
     head: { vars: Object.keys(rows[0]) },
@@ -72,7 +72,14 @@ function inferPagination(query: string): PaginationState | null {
  */
 function datasetCallback(idVars: string[], groups: Group[]): QueryCallback {
   return async ({ query }) => {
-    if (query.includes(PROP_NAME_VAR)) return withCells(groups);
+    if (query.includes(PROP_NAME_VAR)) {
+      // NOTE: Only the columns bound in the query are returned, like a real query would
+      const columns = new Set([...query.matchAll(/BIND\("([^"]+)" AS \?__propName\)/g)].map((m) => m[1]));
+      return withCells(groups.map(({ idValues, restValues }) => ({
+        idValues,
+        restValues: Object.fromEntries(Object.entries(restValues).filter(([column]) => columns.has(column))),
+      })));
+    }
 
     const pagination = inferPagination(query);
     const keys = groups.map((it) => it.idValues);
@@ -313,6 +320,38 @@ export const CustomColumn: Story = {
 
     await step("Custom cell values are rendered", async () => {
       expect(await canvas.findByText("val1")).toBeInTheDocument();
+    });
+  },
+};
+
+export const HidesEmptyColumns: Story = {
+  args: {
+    ...defaultArgs,
+    idVars: ["key0", "key1"],
+    // NOTE: `value1` has no value for any key, so it should not be shown. `value2` has a value for
+    // one key only, so it should still be shown.
+    queryCallback: datasetCallback(["key0", "key1"], [
+      {
+        idValues: { "key0": lit("AA"), "key1": lit("BB") },
+        restValues: { "value0": [lit("first")], "value1": [], "value2": [lit("kept")] },
+      },
+      {
+        idValues: { "key0": lit("AA"), "key1": lit("CC") },
+        restValues: { "value0": [lit("second")], "value1": [], "value2": [] },
+      },
+    ]),
+  },
+  play: async ({ canvas, step }) => {
+    await waitForLoaded(canvas);
+
+    await step("Columns with values are shown", async () => {
+      expect(await canvas.findByText("first")).toBeInTheDocument();
+      expect(canvas.getByText("value0")).toBeInTheDocument();
+      expect(canvas.getByText("value2")).toBeInTheDocument();
+    });
+
+    await step("Column without any values is hidden", () => {
+      expect(canvas.queryByText("value1")).not.toBeInTheDocument();
     });
   },
 };
