@@ -529,6 +529,74 @@ VALUES ?__propName { "numberOfCreators" "label" "title" "yearOfPublication" "pub
     expect(actualQuery).toContain("SELECT DISTINCT ?item ?name");
   });
 
+  test("plain subquery projecting all its vars is flattened inside a LIMIT subquery branch", () => {
+    const initialQuery = `SELECT ?s ?p ?__propName ?__propVal WHERE {
+  {
+    SELECT DISTINCT ?s ?p ?__propName ?__propVal WHERE {
+      VALUES( ?s ?p ){
+        ( <https://dblp.org/rdf/schema> <http://purl.org/dc/terms/abstract> )
+      }
+      {
+        SELECT ?s ?p ?o WHERE {
+          ?s ?p ?o .
+        }
+      }
+      BIND( "o" AS ?__propName )
+      BIND( ?o AS ?__propVal )
+    }
+    LIMIT 5
+  }
+  UNION {
+    SELECT DISTINCT ?s ?p ?__propName ?__propVal WHERE {
+      VALUES( ?s ?p ){
+        ( <https://dblp.org/rdf/dblp.nt> <http://purl.org/dc/terms/creator> )
+      }
+      {
+        SELECT ?s ?p ?o WHERE {
+          ?s ?p ?o .
+        }
+      }
+      BIND( "o" AS ?__propName )
+      BIND( ?o AS ?__propVal )
+    }
+    LIMIT 5
+  }
+}`;
+
+    const expectedQuery = `SELECT ?s ?p ?__propName ?__propVal WHERE {
+  {
+    SELECT DISTINCT ?s ?p ?__propName ?__propVal WHERE {
+      VALUES( ?s ?p ){
+        ( <https://dblp.org/rdf/schema> <http://purl.org/dc/terms/abstract> )
+      }
+      ?s ?p ?o .
+      BIND( "o" AS ?__propName )
+      BIND( ?o AS ?__propVal )
+    }
+    LIMIT 5
+  }
+  UNION {
+    SELECT DISTINCT ?s ?p ?__propName ?__propVal WHERE {
+      VALUES( ?s ?p ){
+        ( <https://dblp.org/rdf/dblp.nt> <http://purl.org/dc/terms/creator> )
+      }
+      ?s ?p ?o .
+      BIND( "o" AS ?__propName )
+      BIND( ?o AS ?__propVal )
+    }
+    LIMIT 5
+  }
+}`;
+
+    expect(initialQuery).toBeValidSparqlQuery();
+    expect(expectedQuery).toBeValidSparqlQuery();
+
+    const actualQuery = optimize(initialQuery);
+
+    expect(actualQuery).toBeValidSparqlQuery();
+    expect(normalizeQuery(actualQuery)).toEqual(normalizeQuery(expectedQuery));
+  });
+
   test("limit inheritance", () => {
     const initialQuery = `
 PREFIX : <https://dblp.org/rdf/schema#>

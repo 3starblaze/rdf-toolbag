@@ -474,6 +474,31 @@ function dropUselessOptionalsNonRecursive(select: QuerySelect): QuerySelect {
 }
 
 /**
+ * Check that a subquery has no solution modifiers and projects every variable used in its pattern.
+ */
+function isPlainFullProjection(fragment: QuerySelect): boolean {
+  const { group, having, order, limitOffset } = fragment.solutionModifiers;
+  if (fragment.distinct || fragment.reduced) return false;
+  if (group || having || order || limitOffset) return false;
+  if (!fragment.variables.every((it) => it.type === "term")) return false;
+
+  const projected = new Set(fragment.variables.map((it) => it.value));
+  const transformer = new AstTransformer();
+  let allProjected = true;
+
+  transformer.visitNode(fragment.where, {
+    term: {
+      visitor: (item) => {
+        if (item.subType !== "variable") return;
+        if (!projected.has(item.value)) allProjected = false;
+      },
+    },
+  });
+
+  return allProjected;
+}
+
+/**
  * Remove unnecessary subqueries.
  *
  * Especially useful in QLever-based endpoints where subqueries are expensive.
@@ -534,6 +559,10 @@ export function flattenUselessSubqueries(query: string): string {
       // NOTE: Only handling terms because it is easier.
       if (!parentSelect.variables.every((it) => it.type === "term")
         && !fragment.variables.every((it) => it.type === "term")) return false;
+
+      // NOTE: A subquery without solution modifiers that projects every variable of its pattern is just
+      // a join with the parent. Such a subquery can be merged into any parent, regardless of siblings.
+      if (isPlainFullProjection(fragment)) return true;
 
       // NOTE: Only optimize the cases where a query (that might be a subquery) contains only a
       // single subquery. This is done by flattening groups and asserting that we find a single child
