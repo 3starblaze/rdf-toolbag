@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest';
-import { batchByColumn, batchByCount, createCellBatcher } from './cell-batcher';
+import { batchByColumn, createCellBatcher } from './cell-batcher';
 import type { CellRequest } from '@/compact-pagination/cell';
 import type { SparqlTableResult } from '@/sparql_queries';
 

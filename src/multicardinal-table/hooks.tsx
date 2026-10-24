@@ -23,8 +23,6 @@ import {
 } from "@/compact-pagination/granular-compact-pagination";
 import { cellsToMulticardinalTable, initialCellRequests, type CellRequest } from "@/compact-pagination/cell";
 import { createCellBatcher, defaultBatchingStrategy, type BatchingStrategy } from "./cell-batcher";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { valueEqual } from "@/func-util";
 import { Ellipsis } from "lucide-react";

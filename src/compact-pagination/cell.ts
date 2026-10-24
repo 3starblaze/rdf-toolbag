@@ -1,7 +1,7 @@
 import type { MulticardinalTableData } from "@/multi-cardinal-table-util";
 import { findVars } from "@/query-util";
 import type { RdfTerm } from "@/sparql_queries";
-import { Option, MutableHashMap, Data, Equal, HashMap } from "effect";
+import { Option, MutableHashMap, Data, Equal } from "effect";
 import { fmtVars, formatTermAsLiteral } from "./util";
 
 type CellKey = MulticardinalTableData["rows"][number]["idValues"];
@@ -35,23 +35,6 @@ export function initialCellRequests({
     limit,
   }) satisfies CellRequest));
 }
-
-function rawFormatValues(varNames: string[], literals: string[][]): string {
-    return `VALUES (${fmtVars(varNames)}) {
-      ${literals.map((tuple) => `(${tuple.join(" ")})`).join(" ") satisfies string}
-    }`
-  }
-
-function formatValues(
-    varNames: string[],
-    values: MulticardinalTableData["rows"][number]["idValues"][],
-  ): string {
-    return rawFormatValues(varNames, values.map((it) => varNames.map((varName) => {
-      const item = it[varName];
-      if (!item) return "UNDEF";
-      return formatTermAsLiteral(item);
-    })));
-  }
 
 function formatKeyFilters(
   varNames: string[],

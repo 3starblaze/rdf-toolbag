@@ -675,7 +675,11 @@ export function flattenUselessSubqueries(query: string): string {
           draft.patterns = it.patterns.flatMap((branch) =>
             processPatterns([branch], null)
               .flatMap((res) => (res.type === "parentOverride" ? [] : res)),
-          );
+          ).map((pattern) => {
+            // NOTE: Union requires all patterns to be groups, thus we wrap them when needed.
+            if (pattern.type === "pattern" && pattern.subType === "group") return pattern;
+            return F.patternGroup([pattern], F.gen())
+          });
         });
       }
 
