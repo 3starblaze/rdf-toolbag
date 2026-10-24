@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { valueEqual } from "@/func-util";
+import { Ellipsis } from "lucide-react";
 
 interface CountPayload {
     globalCount: number,
@@ -171,12 +172,12 @@ function getColumns(
                         </li>
                     ))}
                     {suggestIncreasingLimit && (
-                      <Button
-                        className="w-fit"
+                      <button
+                          className="w-fit px-2 border-2 rounded-md cursor-pointer"
                         onClick={() => maybeCellRequest && increaseLimit(maybeCellRequest)}
                       >
-                        +
-                      </Button>
+                          <Ellipsis />
+                      </button>
                     )}
                 </ul>
             )
