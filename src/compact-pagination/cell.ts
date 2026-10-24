@@ -53,6 +53,21 @@ function formatValues(
     })));
   }
 
+function formatKeyFilters(
+  varNames: string[],
+  valueMap: MulticardinalTableData["rows"][number]["idValues"],
+): string {
+  const definedBinds = varNames.flatMap((varName) => {
+    const item = valueMap[varName];
+    if (!item) return [];
+    return { varName, value: formatTermAsLiteral(item)};
+  });
+
+  return definedBinds
+    .map(({ varName, value }) => `FILTER(?${varName} = ${value})`)
+    .join("\n");
+}
+
 export function formatCellQuery({
   idVars,
   cellRequest: { column, key, limit },
@@ -66,11 +81,9 @@ export function formatCellQuery({
   propValVar: string,
   baseQuery: string,
 }) {
-  // NOTE: It's important to move VALUES clause as high as possible, otherwise performance might be
-  // heavily degraded.
   return `SELECT DISTINCT ${fmtVars([...idVars, propNameVar, propValVar])} WHERE {
-      ${formatValues(idVars, [key])}
       {${baseQuery}}
+      ${formatKeyFilters(idVars, key)}
       BIND("${column}" AS ?${propNameVar})
       BIND(?${column} AS ?${propValVar})
     } LIMIT ${limit}`;

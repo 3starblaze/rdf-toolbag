@@ -6,6 +6,7 @@ import {
   type Pattern,
   type TripleNesting,
   type QuerySelect,
+  type Expression,
 } from '@traqula/rules-sparql-1-1';
 import { Generator } from '@traqula/generator-sparql-1-1';
 import Graph from 'graphology';
@@ -285,13 +286,15 @@ function dropUselessOptionalsNonRecursive(select: QuerySelect): QuerySelect {
     });
   }
 
-  // NOTE: BIND and VALUES are kept verbatim after the triple patterns. We only handle them when they
-  // trail all triple patterns, so that moving them does not change the meaning of the group.
+  // NOTE: BIND, VALUES and FILTER are kept verbatim after the triple patterns. We only handle them
+  // when they trail all triple patterns, so that moving them does not change the meaning of the group.
   const isTriplePattern = (it: Pattern) =>
     it.type === "pattern" && (it.subType === "bgp" || it.subType === "optional");
   const isBindOrValues = (it: Pattern) =>
     (it.type === "pattern" && it.subType === "values") ||
     (it.type === "pattern" && it.subType === "bind" && it.expression.type === "term");
+  const isSimpleFilter = (it: Pattern) =>
+    it.type === "pattern" && it.subType === "filter" && filterExpressionVars(it.expression) !== null;
 
   const firstExtraIndex = select.where.patterns.findIndex((it) => !isTriplePattern(it));
   const triplePatterns = firstExtraIndex === -1
@@ -301,7 +304,7 @@ function dropUselessOptionalsNonRecursive(select: QuerySelect): QuerySelect {
     ? []
     : select.where.patterns.slice(firstExtraIndex);
 
-  if (!extraPatterns.every(isBindOrValues)) return select;
+  if (!extraPatterns.every((it) => isBindOrValues(it) || isSimpleFilter(it))) return select;
 
   // NOTE: We are throwing unexpected when we find some edge cases that we are not ready to handle.
   // In this case we avoid optimizing.
@@ -437,7 +440,17 @@ function dropUselessOptionalsNonRecursive(select: QuerySelect): QuerySelect {
     graph.addDirectedEdge(it.variable.value, it.expression.value, { simplePattern: null });
   }
 
-  const keyVars = select.variables.flatMap((it) => (it.type === "term") ? it.value : []);
+  // NOTE: Variables used by a FILTER are needed, otherwise the filter would be evaluated on different
+  // bindings than the original query.
+  const filterVars = extraPatterns.flatMap((it) => {
+    if (it.type !== "pattern" || it.subType !== "filter") return [];
+    return filterExpressionVars(it.expression) ?? [];
+  });
+
+  const keyVars = [
+    ...select.variables.flatMap((it) => (it.type === "term") ? it.value : []),
+    ...filterVars,
+  ];
 
   let reachableVars: string[] = [];
 
@@ -471,6 +484,24 @@ function dropUselessOptionalsNonRecursive(select: QuerySelect): QuerySelect {
   return produce(select, (draft) => {
     draft.where.patterns = finalPatterns;
   });
+}
+
+/**
+ * Collect variables of a FILTER expression.
+ *
+ * Returns null for expressions that contain a pattern (e.g. EXISTS) or aggregate, because those are
+ * not simple enough to reason about here.
+ */
+function filterExpressionVars(expression: Expression): string[] | null {
+  if (expression.type === "term") {
+    return expression.subType === "variable" ? [expression.value] : [];
+  }
+  if (expression.subType === "operation" || expression.subType === "functionCall") {
+    const argVars = expression.args.map(filterExpressionVars);
+    if (argVars.includes(null)) return null;
+    return argVars.flatMap((it) => it ?? []);
+  }
+  return null;
 }
 
 /**

@@ -311,6 +311,89 @@ describe("dropUselessOptionals", () => {
 
     expect(newQuery).toEqual(expectedQuery);
   });
+
+  test("Optionals are dropped when a FILTER(?var = value) is present", () => {
+    const queryToOptimize = `
+ PREFIX : <https://dblp.org/rdf/schema#>
+ PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+ PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+ SELECT ?this ?__propName ?__propVal WHERE {
+  ?this rdf:type :Publication .
+  OPTIONAL { ?this :numberOfCreators ?numberOfCreators . }
+  OPTIONAL { ?this rdfs:label ?label . }
+  OPTIONAL { ?this :title ?title . }
+  OPTIONAL { ?this :createdBy ?createdBy . }
+  OPTIONAL { ?createdBy rdfs:label ?createdBy__label . }
+  FILTER(?this = <https://dblp.org/rec/books/acm/0082477>)
+  BIND( "numberOfCreators" AS ?__propName )
+  BIND( ?numberOfCreators AS ?__propVal )
+  } LIMIT 5`;
+
+    const expectedQuery = normalizeQuery(`
+ PREFIX : <https://dblp.org/rdf/schema#>
+ PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+ PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+ SELECT ?this ?__propName ?__propVal WHERE {
+  ?this rdf:type :Publication .
+  OPTIONAL { ?this :numberOfCreators ?numberOfCreators . }
+  FILTER(?this = <https://dblp.org/rec/books/acm/0082477>)
+  BIND( "numberOfCreators" AS ?__propName )
+  BIND( ?numberOfCreators AS ?__propVal )
+  } LIMIT 5`);
+
+    const newQuery = dropUselessOptionals(queryToOptimize);
+
+    expect(newQuery).toEqual(expectedQuery);
+  });
+
+  test("Optional binding a FILTER variable is kept", () => {
+    const queryToOptimize = `
+ PREFIX : <https://dblp.org/rdf/schema#>
+ PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+ PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+ SELECT ?this ?__propName ?__propVal WHERE {
+  ?this rdf:type :Publication .
+  OPTIONAL { ?this :numberOfCreators ?numberOfCreators . }
+  OPTIONAL { ?this rdfs:label ?label . }
+  OPTIONAL { ?this :title ?title . }
+  FILTER(?label = "Some label")
+  BIND( "numberOfCreators" AS ?__propName )
+  BIND( ?numberOfCreators AS ?__propVal )
+  } LIMIT 5`;
+
+    const expectedQuery = normalizeQuery(`
+ PREFIX : <https://dblp.org/rdf/schema#>
+ PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+ PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+ SELECT ?this ?__propName ?__propVal WHERE {
+  ?this rdf:type :Publication .
+  OPTIONAL { ?this :numberOfCreators ?numberOfCreators . }
+  OPTIONAL { ?this rdfs:label ?label . }
+  FILTER(?label = "Some label")
+  BIND( "numberOfCreators" AS ?__propName )
+  BIND( ?numberOfCreators AS ?__propVal )
+  } LIMIT 5`);
+
+    const newQuery = dropUselessOptionals(queryToOptimize);
+
+    expect(newQuery).toEqual(expectedQuery);
+  });
+
+  test("Query with EXISTS in FILTER is not optimized", () => {
+    const queryToOptimize = `
+ PREFIX : <https://dblp.org/rdf/schema#>
+ PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+ PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+ SELECT ?this WHERE {
+  ?this rdf:type :Publication .
+  OPTIONAL { ?this rdfs:label ?label . }
+  FILTER EXISTS { ?this :title ?title . }
+  } LIMIT 5`;
+
+    const newQuery = dropUselessOptionals(queryToOptimize);
+
+    expect(newQuery).toEqual(normalizeQuery(queryToOptimize));
+  });
 });
 
 describe("flattenUselessSubqueries", () => {
