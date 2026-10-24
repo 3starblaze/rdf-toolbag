@@ -22,7 +22,7 @@ export {
 } from "@/components/multi-cardinal-table";
 export {
     MultiCardinalTableServer,
-} from "@/components/MultiCardinalTableServer";
+} from "@/multicardinal-table/index";
 export {
     formatQuery,
 } from "@/misc/complex_property_query_builder";
@@ -31,4 +31,5 @@ export {
     reorderOptional,
     dropUselessOptionals,
     flattenUselessSubqueries,
+    optimize,
 } from "@/query-util";
