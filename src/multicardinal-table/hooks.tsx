@@ -25,6 +25,7 @@ import { cellsToMulticardinalTable, initialCellRequests, type CellRequest } from
 import { createCellBatcher, defaultBatchingStrategy, type BatchingStrategy } from "./cell-batcher";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { valueEqual } from "@/func-util";
 
 interface CountPayload {
@@ -97,6 +98,7 @@ export function useCells(args: {
         combine: (queries) => ({
             data: queries.flatMap((it) => it.data ? [it.data] : []),
             isPending: queries.some((it) => it.isPending),
+            pendingCellRequests: cellRequests.filter((_, i) => queries[i].isPending),
             isError: queries.some((it) => it.isError),
         }),
     });
@@ -119,7 +121,8 @@ function getColumns(
     idCols: string[],
     restCols: string[],
     cellRequests: CellRequest[],
-    setCellRequests: (newValue: CellRequest[]) => void,
+    increaseLimit: (cellRequest: CellRequest) => void,
+    loadingCellRequests: CellRequest[],
     renderHeader?: (colName: string) => React.ReactNode,
 ) {
     const idColumns: ColumnDef<Row>[] = idCols.map((idCol) => ({
@@ -149,19 +152,12 @@ function getColumns(
 
             const maybeCellRequest = cellRequests.find((it) => isSameCell(it));
 
-            const suggestIncreasingLimit = maybeCellRequest && maybeCellRequest.limit === val.length;
-
-            function increaseLimit() {
-              if (!maybeCellRequest) return;
-              const newCellRequest = {
-                ...maybeCellRequest,
-                limit: maybeCellRequest.limit * 2,
-              } satisfies CellRequest;
-              setCellRequests([
-                ...cellRequests.filter((it) => !isSameCell(it)),
-                newCellRequest,
-              ]);
+            // NOTE: A cell whose limit was just increased shows its spinner in place of its values
+            if (maybeCellRequest && loadingCellRequests.includes(maybeCellRequest)) {
+              return <Spinner role="status" />;
             }
+
+            const suggestIncreasingLimit = maybeCellRequest && maybeCellRequest.limit === val.length;
 
             return (
                 <ul className="flex flex-col gap-2 overflow-hidden">
@@ -175,7 +171,12 @@ function getColumns(
                         </li>
                     ))}
                     {suggestIncreasingLimit && (
-                      <Button className="w-fit" onClick={increaseLimit}>+</Button>
+                      <Button
+                        className="w-fit"
+                        onClick={() => maybeCellRequest && increaseLimit(maybeCellRequest)}
+                      >
+                        +
+                      </Button>
                     )}
                 </ul>
             )
@@ -217,6 +218,8 @@ export function useTable({
 
     const [cellRequests, setCellRequests] = useState<CellRequest[]>([]);
     const [cellRequestsPagination, setCellRequestsPagination] = useState<PaginationState | null>(null);
+    // NOTE: Cell requests made by increasing a limit, so their spinner is shown in the cell itself
+    const [increasedCellRequests, setIncreasedCellRequests] = useState<CellRequest[]>([]);
 
     // NOTE: Change cell requests whenever pagination changes
     useEffect(() => {
@@ -233,6 +236,7 @@ export function useTable({
                 limit,
             })
         );
+        setIncreasedCellRequests([]);
         setCellRequestsPagination(pagination);
     }, [cellRequests, keyValuesQuery.data, pagination, cellRequestsPagination]);
 
@@ -243,9 +247,26 @@ export function useTable({
         cellRequests,
     });
 
+    function increaseLimit(cellRequest: CellRequest) {
+        const newCellRequest = {
+            ...cellRequest,
+            limit: cellRequest.limit * 2,
+        } satisfies CellRequest;
+        setCellRequests([
+            ...cellRequests.filter((it) => it !== cellRequest),
+            newCellRequest,
+        ]);
+        setIncreasedCellRequests((prev) => [...prev, newCellRequest]);
+    }
+
     // NOTE: Cell requests are only set in an effect, so right after keys arrive they are not ready yet
     const cellRequestsReady = valueEqual(cellRequestsPagination, pagination);
-    const restValuesLoading = keyValuesQuery.isSuccess && (!cellRequestsReady || cellsQuery.isPending);
+    const loadingIncreasedCellRequests = cellsQuery.pendingCellRequests
+        .filter((it) => increasedCellRequests.includes(it));
+    // NOTE: Only the initial load of the rest values uses the placeholder column
+    const restValuesLoading = keyValuesQuery.isSuccess && (
+        !cellRequestsReady || cellsQuery.pendingCellRequests.length > loadingIncreasedCellRequests.length
+    );
 
     const keys = keyValuesQuery.data ?? [];
     const cellRows = cellsToMulticardinalTable(cellsQuery.data, keys);
@@ -255,12 +276,19 @@ export function useTable({
         cellRows.find((row) => valueEqual(row.idValues, idValues)) ?? { idValues, restValues: {} }
     ));
 
-    // NOTE: Every value column is requested, so hide the ones that have no value in any shown row
-    const restCols = [...new Set(cellsQuery.data.map((it) => it.column))]
-        .filter((column) => data.some((row) => (row.restValues[column] ?? []).length > 0));
+    // NOTE: Every value column is requested, so hide the ones that have no value in any shown row.
+    // A column whose cell is loading after a limit increase stays, so its spinner is still shown.
+    const restCols = [...new Set([
+        ...cellsQuery.data.map((it) => it.column),
+        ...loadingIncreasedCellRequests.map((it) => it.column),
+    ])]
+        .filter((column) => (
+            loadingIncreasedCellRequests.some((it) => it.column === column)
+            || data.some((row) => (row.restValues[column] ?? []).length > 0)
+        ));
     const columns = keyValuesQuery.data
         ? [
-            ...getColumns(idVars, restCols, cellRequests, setCellRequests, renderHeader),
+            ...getColumns(idVars, restCols, cellRequests, increaseLimit, loadingIncreasedCellRequests, renderHeader),
             ...(restValuesLoading ? [restValuesPlaceholderColumn] : []),
         ]
         : [];

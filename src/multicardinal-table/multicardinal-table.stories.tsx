@@ -550,3 +550,54 @@ export const LoadingSpinners: Story = {
     });
   },
 };
+
+const initialGroup: Group = {
+  idValues: { "key0": lit("AA"), "key1": lit("BB") },
+  restValues: { "value0": ["v1", "v2", "v3", "v4", "v5"].map(lit) },
+};
+
+const increasedGroup: Group = {
+  idValues: { "key0": lit("AA"), "key1": lit("BB") },
+  restValues: { "value0": ["v1", "v2", "v3", "v4", "v5", "v6", "v7"].map(lit) },
+};
+
+export const IncreasingLimitShowsSpinnerInCell: Story = {
+  args: {
+    ...defaultArgs,
+    idVars: ["key0", "key1"],
+    // NOTE: The initial cell is limited to 5 values, so it can be increased. Its increased limit is
+    // 10, which fetches 7 values after a delay so that the spinner can be observed.
+    queryCallback: async (args) => {
+      if (args.query.includes(PROP_NAME_VAR) && args.query.includes("LIMIT 10")) {
+        await delayPromise(1000);
+        return datasetCallback(["key0", "key1"], [increasedGroup])(args);
+      }
+      return datasetCallback(["key0", "key1"], [initialGroup])(args);
+    },
+  },
+  play: async ({ canvas, userEvent, canvasElement, step }) => {
+    await step("Initial values are shown", async () => {
+      expect(await canvas.findByText("v5")).toBeInTheDocument();
+    });
+
+    const headerCount = canvasElement.querySelectorAll("thead th").length;
+
+    await step("Spinner is shown in the increased cell and no column is added", async () => {
+      await userEvent.click(canvas.getByRole("button", { name: "+" }));
+
+      const spinner = await canvas.findByRole("status");
+      const headers = [...canvasElement.querySelectorAll("thead th")];
+      expect(headers).toHaveLength(headerCount);
+
+      const cell = spinner.closest("td");
+      if (!cell?.parentElement) throw "Unexpected spinner outside of a cell!";
+      const valueColumnIndex = headers.findIndex((it) => it.textContent === "value0");
+      expect([...cell.parentElement.children].indexOf(cell)).toBe(valueColumnIndex);
+    });
+
+    await step("Increased values are shown after loading", async () => {
+      expect(await canvas.findByText("v7", {}, { timeout: 5_000 })).toBeInTheDocument();
+      await waitForLoaded(canvas);
+    });
+  },
+};
