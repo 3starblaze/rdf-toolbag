@@ -26,6 +26,7 @@ import { createCellBatcher, defaultBatchingStrategy, type BatchingStrategy } fro
 import { Spinner } from "@/components/ui/spinner";
 import { valueEqual } from "@/func-util";
 import { Ellipsis } from "lucide-react";
+import { TermDisplay } from "./TermDisplay";
 
 interface CountPayload {
     globalCount: number,
@@ -131,8 +132,8 @@ function getColumns(
         cell: ({ getValue }) => {
             const val = getValue<Row["idValues"][string]>();
             return (
-                <div className="text-ellipsis overflow-hidden">{val?.value || ""}</div>
-            )
+                val ? <TermDisplay term={val} /> : <div></div>
+            );
         },
     }));
 
@@ -165,8 +166,7 @@ function getColumns(
                             key={i}
                             className="list-disc ml-4"
                         >
-                            <p className="text-ellipsis overflow-hidden">{item?.value || ""}</p>
-
+                            {item ? <TermDisplay term={item} /> : <div></div>}
                         </li>
                     ))}
                     {suggestIncreasingLimit && (
