@@ -583,7 +583,7 @@ export const IncreasingLimitShowsSpinnerInCell: Story = {
     const headerCount = canvasElement.querySelectorAll("thead th").length;
 
     await step("Spinner is shown in the increased cell and no column is added", async () => {
-      await userEvent.click(canvas.getByRole("button", { name: "+" }));
+      await userEvent.click(canvas.getByRole("button", { name: "Show more values" }));
 
       const spinner = await canvas.findByRole("status");
       const headers = [...canvasElement.querySelectorAll("thead th")];
@@ -598,6 +598,110 @@ export const IncreasingLimitShowsSpinnerInCell: Story = {
     await step("Increased values are shown after loading", async () => {
       expect(await canvas.findByText("v7", {}, { timeout: 5_000 })).toBeInTheDocument();
       await waitForLoaded(canvas);
+    });
+  },
+};
+
+// NOTE: Fails the first query that fetches `column`, every later query succeeds
+function failFirstQueryOfColumn(column: string, callback: QueryCallback): QueryCallback {
+  let failed = false;
+  return async (args) => {
+    if (!failed && args.query.includes(`BIND("${column}" AS ?${PROP_NAME_VAR})`)) {
+      failed = true;
+      throw new Error("womp womp");
+    }
+    return callback(args);
+  };
+}
+
+// NOTE: Both `value1` cells fail on their first load, so each one can be retried on its own
+const FAILING_VALUE1_GROUPS: Group[] = [
+  {
+    idValues: { "key0": lit("AA"), "key1": lit("BB") },
+    restValues: { "value0": [lit("kept value")], "value1": [lit("first value")] },
+  },
+  {
+    idValues: { "key0": lit("AA"), "key1": lit("CC") },
+    restValues: { "value0": [lit("kept value")], "value1": [lit("second value")] },
+  },
+];
+
+export const CellErrorCanBeRetriedPerCell: Story = {
+  args: {
+    ...defaultArgs,
+    idVars: ["key0", "key1"],
+    queryCallback: failFirstQueryOfColumn("value1", datasetCallback(["key0", "key1"], FAILING_VALUE1_GROUPS)),
+  },
+  play: async ({ canvas, userEvent, step }) => {
+    await step("Failed cells show an error and a retry button", async () => {
+      await waitForLoaded(canvas);
+
+      expect(await canvas.findAllByText("Could not get data")).toHaveLength(2);
+      expect(canvas.getAllByRole("button", { name: "Retry" })).toHaveLength(2);
+      expect(canvas.getByText("value1")).toBeInTheDocument();
+      // NOTE: Cells that did not fail are shown as usual
+      expect(canvas.getAllByText("kept value")).toHaveLength(2);
+    });
+
+    await step("Retrying one cell only refetches that cell", async () => {
+      await userEvent.click(canvas.getAllByRole("button", { name: "Retry" })[0]);
+
+      expect(await canvas.findByText("first value")).toBeInTheDocument();
+      expect(canvas.getAllByText("Could not get data")).toHaveLength(1);
+      expect(canvas.queryByText("second value")).not.toBeInTheDocument();
+    });
+
+    await step("Retrying the other cell shows its value", async () => {
+      await userEvent.click(canvas.getByRole("button", { name: "Retry" }));
+
+      expect(await canvas.findByText("second value")).toBeInTheDocument();
+      expect(canvas.queryByText("Could not get data")).not.toBeInTheDocument();
+      expect(canvas.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+    });
+  },
+};
+
+// NOTE: Re-renders the table without changing its data, like a parent component that re-renders
+function RerenderableTable(props: Props) {
+  const [queryCallback] = useState(() => failFirstQueryOfColumn(
+    "value1",
+    datasetCallback(["key0", "key1"], FAILING_VALUE1_GROUPS),
+  ));
+  const [renderCount, setRenderCount] = useState(0);
+
+  return (
+    <>
+      <button onClick={() => setRenderCount((it) => it + 1)}>Re-render table</button>
+      <p>Render count: {renderCount}</p>
+      <MultiCardinalTableServer {...props} queryCallback={queryCallback} />
+    </>
+  );
+}
+
+export const RetryWorksAfterParentRerenders: Story = {
+  args: {
+    ...defaultArgs,
+    idVars: ["key0", "key1"],
+    // NOTE: Replaced by the failing callback in `RerenderableTable`
+    queryCallback: datasetCallback([], []),
+  },
+  render: (args) => <RerenderableTable {...args} />,
+  play: async ({ canvas, userEvent, step }) => {
+    await step("Failed cells show an error", async () => {
+      await waitForLoaded(canvas);
+      expect(await canvas.findAllByText("Could not get data")).toHaveLength(2);
+    });
+
+    await step("Parent re-renders", async () => {
+      await userEvent.click(canvas.getByRole("button", { name: "Re-render table" }));
+      expect(canvas.getByText("Render count: 1")).toBeInTheDocument();
+    });
+
+    await step("Retry still refetches the cell after re-rendering", async () => {
+      await userEvent.click(canvas.getAllByRole("button", { name: "Retry" })[0]);
+
+      expect(await canvas.findByText("first value")).toBeInTheDocument();
+      expect(canvas.getAllByText("Could not get data")).toHaveLength(1);
     });
   },
 };

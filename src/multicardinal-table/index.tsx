@@ -14,6 +14,7 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { useControllableState } from "@radix-ui/react-use-controllable-state";
+import { useState } from "react";
 import { defaultPagination, ServerSidePaginationBar } from "@/components/table_pagination_bar";
 import { cn } from "@/lib/utils";
 import { ColumnResizer } from "@/components/column_resizer";
@@ -127,7 +128,8 @@ function MainComponent(props: Props): React.ReactNode {
 }
 
 export function MultiCardinalTableServer(props: Props) {
-    const queryClient = new QueryClient();
+    // NOTE: Do not recreate QueryClient on prop change
+    const [queryClient] = useState(() => new QueryClient());
 
     return (
         <QueryClientProvider client={queryClient}>

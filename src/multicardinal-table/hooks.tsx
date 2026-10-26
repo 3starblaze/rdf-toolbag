@@ -1,6 +1,7 @@
 import {
     useQueries,
   useQuery,
+  useQueryClient,
 } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -66,6 +67,18 @@ export function useKeyValues({
     })
 }
 
+function cellQueryKey({
+  baseQuery,
+  idVars,
+  cellRequest,
+}: {
+  baseQuery: string,
+  idVars: string[],
+  cellRequest: CellRequest,
+}) {
+    return ["useCell", { baseQuery, idVars, cellRequest }] as const;
+}
+
 export function useCells(args: {
   baseQuery: string,
   idVars: string[],
@@ -81,16 +94,18 @@ export function useCells(args: {
         batchingStrategy = defaultBatchingStrategy,
     } = args;
 
+    const queryClient = useQueryClient();
+
     const batcher = useMemo(
         () => createCellBatcher({ baseQuery, idVars, queryCallback, batchingStrategy }),
         [baseQuery, idVars, queryCallback, batchingStrategy],
     );
 
-    return useQueries({
+    const cellsQuery = useQueries({
         // NOTE: Every cell has its own cache entry. The batcher only changes how the requests
         // are sent, so a changed cell (e.g. after increasing its limit) refetches only itself.
         queries: cellRequests.map((cellRequest) => ({
-            queryKey: ["useCell", { baseQuery, idVars, cellRequest }],
+            queryKey: cellQueryKey({ baseQuery, idVars, cellRequest }),
             queryFn: () => batcher.load(cellRequest),
             retry: false,
         })),
@@ -99,8 +114,21 @@ export function useCells(args: {
             isPending: queries.some((it) => it.isPending),
             pendingCellRequests: cellRequests.filter((_, i) => queries[i].isPending),
             isError: queries.some((it) => it.isError),
+            erroredCellRequests: cellRequests.filter((_, i) => queries[i].isError),
+            // NOTE: A failed cell that is being refetched keeps its error until the refetch settles
+            retryingCellRequests: cellRequests.filter((_, i) => queries[i].isError && queries[i].isFetching),
         }),
     });
+
+    // NOTE: Refetches only the given cell, the other cells keep their state
+    function retryCell(cellRequest: CellRequest) {
+        return queryClient.refetchQueries({
+            queryKey: cellQueryKey({ baseQuery, idVars, cellRequest }),
+            exact: true,
+        });
+    }
+
+    return { ...cellsQuery, retryCell };
 }
 
 // FIXME
@@ -116,12 +144,22 @@ export function useCount(
     });
 }
 
+// NOTE: Query results are structurally shared, so a cell request may come back as an equal object
+// that is not the same one. Cells are therefore matched by their value.
+function isSameCellRequest(a: CellRequest, b: CellRequest) {
+    return a.column === b.column
+        && a.limit === b.limit
+        && JSON.stringify(a.key) === JSON.stringify(b.key);
+}
+
 function getColumns(
     idCols: string[],
     restCols: string[],
     cellRequests: CellRequest[],
     increaseLimit: (cellRequest: CellRequest) => void,
     loadingCellRequests: CellRequest[],
+    erroredCellRequests: CellRequest[],
+    retryCell: (cellRequest: CellRequest) => void,
     renderHeader?: (colName: string) => React.ReactNode,
 ) {
     const idColumns: ColumnDef<Row>[] = idCols.map((idCol) => ({
@@ -151,14 +189,26 @@ function getColumns(
 
             const maybeCellRequest = cellRequests.find((it) => isSameCell(it));
             const suggestIncreasingLimit = maybeCellRequest && maybeCellRequest.limit === val.length;
+            const isPending = !!maybeCellRequest
+                && loadingCellRequests.some((it) => isSameCellRequest(it, maybeCellRequest));
+            const isError = !!maybeCellRequest
+                && erroredCellRequests.some((it) => isSameCellRequest(it, maybeCellRequest));
 
             return (
                 <ValueCell
-                    values={val}
-                    loading={!!maybeCellRequest && loadingCellRequests.includes(maybeCellRequest)}
+                    value={{
+                        data: val,
+                        isPending,
+                        isError,
+                    }}
                     onIncreaseLimit={
                         maybeCellRequest && suggestIncreasingLimit
                             ? () => increaseLimit(maybeCellRequest)
+                            : undefined
+                    }
+                    onRetry={
+                        maybeCellRequest && isError
+                            ? () => retryCell(maybeCellRequest)
                             : undefined
                     }
                 />
@@ -229,6 +279,7 @@ export function useTable({
         queryCallback,
         cellRequests,
     });
+    const erroredCellRequests = cellsQuery.erroredCellRequests;
 
     function increaseLimit(cellRequest: CellRequest) {
         const newCellRequest = {
@@ -260,18 +311,30 @@ export function useTable({
     ));
 
     // NOTE: Every value column is requested, so hide the ones that have no value in any shown row.
-    // A column whose cell is loading after a limit increase stays, so its spinner is still shown.
+    // A column whose cell is loading after a limit increase or has failed stays, so its spinner or
+    // error is still shown.
     const restCols = [...new Set([
         ...cellsQuery.data.map((it) => it.column),
         ...loadingIncreasedCellRequests.map((it) => it.column),
+        ...erroredCellRequests.map((it) => it.column),
     ])]
         .filter((column) => (
             loadingIncreasedCellRequests.some((it) => it.column === column)
+            || erroredCellRequests.some((it) => it.column === column)
             || data.some((row) => (row.restValues[column] ?? []).length > 0)
         ));
     const columns = keyValuesQuery.data
         ? [
-            ...getColumns(idVars, restCols, cellRequests, increaseLimit, loadingIncreasedCellRequests, renderHeader),
+            ...getColumns(
+                idVars,
+                restCols,
+                cellRequests,
+                increaseLimit,
+                [...loadingIncreasedCellRequests, ...cellsQuery.retryingCellRequests],
+                erroredCellRequests,
+                cellsQuery.retryCell,
+                renderHeader,
+            ),
             ...(restValuesLoading ? [restValuesPlaceholderColumn] : []),
         ]
         : [];

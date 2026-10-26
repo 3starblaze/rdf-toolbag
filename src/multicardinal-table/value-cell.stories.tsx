@@ -7,7 +7,7 @@ const meta = {
   title: "multicardinal-table/ValueCell",
   component: ValueCell,
   args: {
-    values: [],
+    value: { data: [], isPending: false, isError: false },
   },
 } satisfies Meta<typeof ValueCell>;
 
@@ -21,7 +21,7 @@ const VALUES: RdfTerm[] = [
 ];
 
 export const Empty: Story = {
-  args: { values: [] },
+  args: { value: { data: [], isPending: false, isError: false } },
   play: async ({ canvas, canvasElement }) => {
     await expect(canvasElement.querySelectorAll("li")).toHaveLength(0);
     await expect(canvas.queryByRole("button")).not.toBeInTheDocument();
@@ -30,7 +30,7 @@ export const Empty: Story = {
 };
 
 export const Values: Story = {
-  args: { values: VALUES },
+  args: { value: { data: VALUES, isPending: false, isError: false } },
   play: async ({ canvas, canvasElement }) => {
     await expect(canvasElement.querySelectorAll("li")).toHaveLength(VALUES.length);
     await expect(canvas.getByText("Hello")).toBeInTheDocument();
@@ -40,7 +40,7 @@ export const Values: Story = {
 };
 
 export const WithIncreaseLimitButton: Story = {
-  args: { values: VALUES, onIncreaseLimit: fn() },
+  args: { value: { data: VALUES, isPending: false, isError: false }, onIncreaseLimit: fn() },
   play: async ({ args, canvas, userEvent }) => {
     await userEvent.click(canvas.getByRole("button"));
     await expect(args.onIncreaseLimit).toHaveBeenCalledTimes(1);
@@ -48,11 +48,38 @@ export const WithIncreaseLimitButton: Story = {
 };
 
 export const Loading: Story = {
-  args: { values: VALUES, loading: true, onIncreaseLimit: fn() },
+  args: { value: { data: VALUES, isPending: true, isError: false }, onIncreaseLimit: fn() },
   play: async ({ canvas, canvasElement }) => {
     await expect(canvas.getByRole("status")).toBeInTheDocument();
     // NOTE: While loading, neither the values nor the button are shown
     await expect(canvasElement.querySelectorAll("li")).toHaveLength(0);
+    await expect(canvas.queryByRole("button")).not.toBeInTheDocument();
+  },
+};
+
+export const LoadFailed: Story = {
+  args: { value: { data: [], isPending: false, isError: true }, onRetry: fn(), onIncreaseLimit: fn() },
+  play: async ({ canvas, canvasElement }) => {
+    await expect(canvas.getByText("Could not get data")).toBeInTheDocument();
+    await expect(canvasElement.querySelectorAll("li")).toHaveLength(0);
+    await expect(canvas.queryByRole("status")).not.toBeInTheDocument();
+    // NOTE: Only the retry button is shown, there is no limit to increase
+    await expect(canvas.getAllByRole("button")).toHaveLength(1);
+  },
+};
+
+export const ErrorRetry: Story = {
+  args: { value: { data: [], isPending: false, isError: true }, onRetry: fn() },
+  play: async ({ args, canvas, userEvent }) => {
+    await userEvent.click(canvas.getByRole("button", { name: "Retry" }));
+    await expect(args.onRetry).toHaveBeenCalledTimes(1);
+  },
+};
+
+export const ErrorWithoutRetry: Story = {
+  args: { value: { data: [], isPending: false, isError: true } },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText("Could not get data")).toBeInTheDocument();
     await expect(canvas.queryByRole("button")).not.toBeInTheDocument();
   },
 };
