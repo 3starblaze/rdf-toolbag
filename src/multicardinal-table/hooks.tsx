@@ -23,10 +23,9 @@ import {
 } from "@/compact-pagination/granular-compact-pagination";
 import { cellsToMulticardinalTable, initialCellRequests, type CellRequest } from "@/compact-pagination/cell";
 import { createCellBatcher, defaultBatchingStrategy, type BatchingStrategy } from "./cell-batcher";
-import { Spinner } from "@/components/ui/spinner";
 import { valueEqual } from "@/func-util";
-import { Ellipsis } from "lucide-react";
 import { TermDisplay } from "./TermDisplay";
+import { ValueCell } from "./ValueCell";
 
 interface CountPayload {
     globalCount: number,
@@ -151,33 +150,18 @@ function getColumns(
             }
 
             const maybeCellRequest = cellRequests.find((it) => isSameCell(it));
-
-            // NOTE: A cell whose limit was just increased shows its spinner in place of its values
-            if (maybeCellRequest && loadingCellRequests.includes(maybeCellRequest)) {
-              return <Spinner role="status" />;
-            }
-
             const suggestIncreasingLimit = maybeCellRequest && maybeCellRequest.limit === val.length;
 
             return (
-                <ul className="flex flex-col gap-2 overflow-hidden">
-                    {val.map((item, i) => (
-                        <li
-                            key={i}
-                            className="list-disc ml-4"
-                        >
-                            {item ? <TermDisplay term={item} /> : <div></div>}
-                        </li>
-                    ))}
-                    {suggestIncreasingLimit && (
-                      <button
-                          className="w-fit px-2 border-2 rounded-md cursor-pointer"
-                        onClick={() => maybeCellRequest && increaseLimit(maybeCellRequest)}
-                      >
-                          <Ellipsis />
-                      </button>
-                    )}
-                </ul>
+                <ValueCell
+                    values={val}
+                    loading={!!maybeCellRequest && loadingCellRequests.includes(maybeCellRequest)}
+                    onIncreaseLimit={
+                        maybeCellRequest && suggestIncreasingLimit
+                            ? () => increaseLimit(maybeCellRequest)
+                            : undefined
+                    }
+                />
             )
         },
     }));
