@@ -8,13 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { MultiCardinalTableServer as MulticardinalTableV2 } from "./index";
-import { MultiCardinalTableServer as MulticardinalTableLegacy } from "@/components/MultiCardinalTableServer";
 import { findVars, optimize } from "@/query-util";
 
 const VERSION_NAMES = [
     "optimized v2 (multicardinal-table/index.tsx)",
     "v2 (multicardinal-table/index.tsx)",
-    "legacy (components/MultiCardinalTableServer.tsx)",
 ] as const;
 type VersionName = typeof VERSION_NAMES[number];
 
@@ -29,7 +27,6 @@ interface FormState {
     endpoint: string,
     query: string,
     rawRowLimit: number,
-    counterLimit: number,
 }
 
 // NOTE: Naive extraction of projected variables from the SELECT clause. Doesn't handle `SELECT *`
@@ -48,7 +45,6 @@ interface TableHostProps {
     baseQuery: string,
     idVars: string[],
     rawRowLimit: number,
-    counterLimit: number,
 }
 
 // NOTE: Memoized so that typing in the draft inputs doesn't re-render the table, which would
@@ -59,7 +55,6 @@ const TableHost = memo(function TableHost({
     baseQuery,
     idVars,
     rawRowLimit,
-    counterLimit,
 }: TableHostProps) {
     const queryCallback = useCallback(
         ({ query, signal }: { query: string, signal?: AbortSignal }) => requestAsSparqlTableResult(
@@ -80,20 +75,6 @@ const TableHost = memo(function TableHost({
     );
 
     const isOptimized = version === "optimized v2 (multicardinal-table/index.tsx)";
-    const isLegacy = version === "legacy (components/MultiCardinalTableServer.tsx)";
-
-    // NOTE: Only the legacy table still takes a counter limit
-    if (isLegacy) {
-        return (
-            <MulticardinalTableLegacy
-                queryCallback={queryCallback}
-                baseQuery={baseQuery}
-                idVars={idVars}
-                rawRowLimit={rawRowLimit}
-                counterLimit={counterLimit}
-            />
-        );
-    }
 
     return (
         <MulticardinalTableV2
@@ -111,7 +92,6 @@ function Playground() {
         endpoint: DEFAULT_ENDPOINT,
         query: DEFAULT_QUERY,
         rawRowLimit: 1000,
-        counterLimit: 10000,
     });
     const [applied, setApplied] = useState<FormState>(form);
     const [idVars, setIdVars] = useState<string[]>([]);
@@ -189,24 +169,14 @@ function Playground() {
                         />
                     </label>
 
-                    <div className="grid grid-cols-2 gap-3">
-                        <label className="flex flex-col gap-1 text-sm">
-                            rawRowLimit
-                            <Input
-                                type="number"
-                                value={form.rawRowLimit}
-                                onChange={(e) => updateForm("rawRowLimit", Number(e.target.value))}
-                            />
-                        </label>
-                        <label className="flex flex-col gap-1 text-sm">
-                            counterLimit
-                            <Input
-                                type="number"
-                                value={form.counterLimit}
-                                onChange={(e) => updateForm("counterLimit", Number(e.target.value))}
-                            />
-                        </label>
-                    </div>
+                    <label className="flex flex-col gap-1 text-sm">
+                        rawRowLimit
+                        <Input
+                            type="number"
+                            value={form.rawRowLimit}
+                            onChange={(e) => updateForm("rawRowLimit", Number(e.target.value))}
+                        />
+                    </label>
 
                     <Button className="cursor-pointer self-start" onClick={run}>
                         Run
@@ -246,7 +216,6 @@ function Playground() {
                     baseQuery={applied.query}
                     idVars={idVars}
                     rawRowLimit={applied.rawRowLimit}
-                    counterLimit={applied.counterLimit}
                 />
             </section>
         </div>

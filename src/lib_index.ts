@@ -18,9 +18,6 @@ export {
     type MulticardinalTableData,
 } from "@/multi-cardinal-table-util";
 export {
-    default as AggregatedTable,
-} from "@/components/multi-cardinal-table";
-export {
     MultiCardinalTableServer,
 } from "@/multicardinal-table/index";
 export {
