@@ -25,6 +25,7 @@ import {
 import { cellsToMulticardinalTable, initialCellRequests, type CellRequest } from "@/compact-pagination/cell";
 import { createCellBatcher, defaultBatchingStrategy, type BatchingStrategy } from "./cell-batcher";
 import { valueEqual } from "@/func-util";
+import { findVars } from "@/query-util";
 import { TermDisplay } from "./TermDisplay";
 import { ValueCell } from "./ValueCell";
 
@@ -129,6 +130,44 @@ export function useCells(args: {
     }
 
     return { ...cellsQuery, retryCell };
+}
+
+/**
+ * Variables of the query, in the order they first appear in its text. `findVars` does not keep that
+ * order for `SELECT *`.
+ */
+function findVarsInTextOrder(query: string): string[] {
+    const textOrder = [...query.matchAll(/[?$]([A-Za-z0-9_]+)/g)].map((match) => match[1]);
+    return findVars({ query }).toSorted((a, b) => textOrder.indexOf(a) - textOrder.indexOf(b));
+}
+
+/**
+ * Value columns in the order of the query's variables. Columns stay in that order while cells are
+ * loading, failing or having their limit increased.
+ *
+ * A column is hidden when it has no value in any shown row. A column whose cell is loading after a
+ * limit increase or has failed is kept, so its spinner or error is still shown.
+ */
+export function getRestColumns({
+    queryToWrap,
+    idVars,
+    data,
+    loadingIncreasedCellRequests,
+    erroredCellRequests,
+}: {
+    queryToWrap: string,
+    idVars: string[],
+    data: Row[],
+    loadingIncreasedCellRequests: CellRequest[],
+    erroredCellRequests: CellRequest[],
+}): string[] {
+    return findVarsInTextOrder(queryToWrap)
+        .filter((column) => !idVars.includes(column))
+        .filter((column) => (
+            loadingIncreasedCellRequests.some((it) => it.column === column)
+            || erroredCellRequests.some((it) => it.column === column)
+            || data.some((row) => (row.restValues[column] ?? []).length > 0)
+        ));
 }
 
 // NOTE: Query results are structurally shared, so a cell request may come back as an equal object
@@ -301,19 +340,13 @@ export function useTable({
         cellRows.find((row) => valueEqual(row.idValues, idValues)) ?? { idValues, restValues: {} }
     ));
 
-    // NOTE: Every value column is requested, so hide the ones that have no value in any shown row.
-    // A column whose cell is loading after a limit increase or has failed stays, so its spinner or
-    // error is still shown.
-    const restCols = [...new Set([
-        ...cellsQuery.data.map((it) => it.column),
-        ...loadingIncreasedCellRequests.map((it) => it.column),
-        ...erroredCellRequests.map((it) => it.column),
-    ])]
-        .filter((column) => (
-            loadingIncreasedCellRequests.some((it) => it.column === column)
-            || erroredCellRequests.some((it) => it.column === column)
-            || data.some((row) => (row.restValues[column] ?? []).length > 0)
-        ));
+    const restCols = getRestColumns({
+        queryToWrap,
+        idVars,
+        data,
+        loadingIncreasedCellRequests,
+        erroredCellRequests,
+    });
     const columns = keyValuesQuery.data
         ? [
             ...getColumns(
