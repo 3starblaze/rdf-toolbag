@@ -10,7 +10,7 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { restValuesPlaceholderId, type Props, type Row } from "./shared";
-import { useKeyValues } from "./hooks";
+import { lookaheadKeyLimit, useKeyValues } from "./hooks";
 import { cn } from "@/lib/utils";
 
 export function MulticardinalTableBody({
@@ -46,7 +46,7 @@ export function MulticardinalTableBody({
     // NOTE: keyValuesQuery is a subset of rowsQuery -- if you have rows, you will have keys
     const keyValuesQuery = useKeyValues({
       queryCallback,
-      groupLimit: pagination.pageSize,
+      groupLimit: lookaheadKeyLimit(pagination),
       groupOffset: pagination.pageIndex * pagination.pageSize,
       idVars,
       queryToWrap: baseQuery,

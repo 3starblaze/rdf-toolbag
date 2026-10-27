@@ -14,7 +14,6 @@ export interface Props {
     baseQuery: string,
     idVars: string[],
     rawRowLimit: number,
-    counterLimit: number,
     /** Current pagination state */
     pagination?: PaginationState,
     /** Callback invoked during pagination change. */

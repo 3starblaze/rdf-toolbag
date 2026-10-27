@@ -15,11 +15,12 @@ import {
 } from "@/components/ui/table";
 import { useControllableState } from "@radix-ui/react-use-controllable-state";
 import { useState } from "react";
-import { defaultPagination, ServerSidePaginationBar } from "@/components/table_pagination_bar";
+import { defaultPagination } from "@/components/table_pagination_bar";
 import { cn } from "@/lib/utils";
 import { ColumnResizer } from "@/components/column_resizer";
 import { MulticardinalTableBody } from "./MulticardinalTableBody";
-import { useCount, useTable } from "./hooks";
+import { TableFooter } from "./TableFooter";
+import { useTable } from "./hooks";
 import { type Props, type Row } from "./shared";
 
 function MainHeader({
@@ -73,7 +74,6 @@ function MainComponent(props: Props): React.ReactNode {
         idVars,
         baseQuery,
         queryCallback,
-        counterLimit,
         rawRowLimit,
         pagination: providedPagination,
         onPaginationChange,
@@ -86,9 +86,7 @@ function MainComponent(props: Props): React.ReactNode {
         onChange: onPaginationChange,
     });
 
-    const countQuery = useCount({ baseQuery, counterLimit, idVars, queryCallback });
-
-    const table = useTable({
+    const { table, hasNextPage } = useTable({
         idVars,
         pagination,
         renderHeader,
@@ -116,12 +114,10 @@ function MainComponent(props: Props): React.ReactNode {
                     {...{ table, baseQuery, idVars, queryCallback, pagination, rawRowLimit }}
                 />
             </Table>
-            <ServerSidePaginationBar
-                table={table}
+            <TableFooter
                 pagination={pagination}
                 onPaginationChange={setPagination}
-                countPayload={countQuery.data}
-                rowCountLimit={counterLimit}
+                hasNextPage={hasNextPage}
             />
         </div>
     );

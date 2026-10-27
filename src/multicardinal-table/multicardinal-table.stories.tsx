@@ -127,7 +127,6 @@ const defaultBaseQuery = `SELECT ?key0 ?key1 ?value0 ?value1 ?value2 ?valueConst
 
 const defaultArgs: Omit<Story["args"], "queryCallback"> = {
   baseQuery: defaultBaseQuery,
-  counterLimit: 10_000_000,
   rawRowLimit: 100_000,
   idVars: [],
 };
@@ -371,10 +370,8 @@ export const CanOverpageOnNoSizeInformation: Story = {
 
       expect(nextPageButton).not.toBeDisabled();
 
-      const lastPageButton = canvas.getByText(">>");
-
-      // NOTE: Page count is not known and neither is the last page
-      expect(lastPageButton).toBeDisabled();
+      // NOTE: Page count is not known, so there is no last page button
+      expect(canvas.queryByText(">>")).not.toBeInTheDocument();
 
       expect(currentPageNumberInitial).toBeInTheDocument();
       expect(currentPageNumberInitial).toHaveTextContent("1");

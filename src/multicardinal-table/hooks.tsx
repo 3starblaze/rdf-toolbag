@@ -28,13 +28,13 @@ import { valueEqual } from "@/func-util";
 import { TermDisplay } from "./TermDisplay";
 import { ValueCell } from "./ValueCell";
 
-interface CountPayload {
-    globalCount: number,
-    groupedCount: number,
-}
-
 type QueryCallback = Props["queryCallback"];
 
+
+/** One key more than a page, so that a full result means there is a next page. */
+export function lookaheadKeyLimit(pagination: PaginationState) {
+    return pagination.pageSize + 1;
+}
 
 export function useKeyValues({
   queryCallback,
@@ -129,19 +129,6 @@ export function useCells(args: {
     }
 
     return { ...cellsQuery, retryCell };
-}
-
-// FIXME
-export function useCount(
-  args: Pick<Props, "queryCallback" | "baseQuery" | "idVars" | "counterLimit">,
-) {
-    return useQuery({
-        queryKey: ["count", args],
-        queryFn: async (): Promise<CountPayload> => {
-          throw "TODO";
-        },
-        retry: false,
-    });
 }
 
 // NOTE: Query results are structurally shared, so a cell request may come back as an equal object
@@ -242,12 +229,17 @@ export function useTable({
   queryToWrap: string,
 }) {
     const keyValuesQuery = useKeyValues({
-        groupLimit: pagination.pageSize,
+        groupLimit: lookaheadKeyLimit(pagination),
         groupOffset: pagination.pageIndex * pagination.pageSize,
         idVars,
         queryCallback,
         queryToWrap,
     });
+
+    // NOTE: The extra key is only used to know whether there is a next page, so it gets no cells
+    const lookaheadKeys = keyValuesQuery.data ?? [];
+    const keys = lookaheadKeys.slice(0, pagination.pageSize);
+    const hasNextPage = lookaheadKeys.length === lookaheadKeyLimit(pagination);
 
     const [cellRequests, setCellRequests] = useState<CellRequest[]>([]);
     const [cellRequestsPagination, setCellRequestsPagination] = useState<PaginationState | null>(null);
@@ -264,7 +256,7 @@ export function useTable({
         setCellRequests(
             initialCellRequests({
                 idVars,
-                keys: keyValuesQuery.data,
+                keys: keyValuesQuery.data.slice(0, pagination.pageSize),
                 queryToWrap,
                 limit,
             })
@@ -302,7 +294,6 @@ export function useTable({
         !cellRequestsReady || cellsQuery.pendingCellRequests.length > loadingIncreasedCellRequests.length
     );
 
-    const keys = keyValuesQuery.data ?? [];
     const cellRows = cellsToMulticardinalTable(cellsQuery.data, keys);
 
     // NOTE: Every key is shown, even when its rest values have not arrived yet
@@ -339,7 +330,7 @@ export function useTable({
         ]
         : [];
 
-    return useReactTable<Row>({
+    const table = useReactTable<Row>({
         data,
         columns,
         getCoreRowModel: getCoreRowModel(),
@@ -355,4 +346,6 @@ export function useTable({
         enableColumnResizing: true,
         columnResizeMode: "onChange",
     });
+
+    return { table, hasNextPage };
 }

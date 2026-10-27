@@ -11,12 +11,12 @@ import { MultiCardinalTableServer as MulticardinalTableV2 } from "./index";
 import { MultiCardinalTableServer as MulticardinalTableLegacy } from "@/components/MultiCardinalTableServer";
 import { findVars, optimize } from "@/query-util";
 
-const VERSIONS = {
-    "optimized v2 (multicardinal-table/index.tsx)": MulticardinalTableV2,
-    "v2 (multicardinal-table/index.tsx)": MulticardinalTableV2,
-    "legacy (components/MultiCardinalTableServer.tsx)": MulticardinalTableLegacy,
-} as const;
-type VersionName = keyof typeof VERSIONS;
+const VERSION_NAMES = [
+    "optimized v2 (multicardinal-table/index.tsx)",
+    "v2 (multicardinal-table/index.tsx)",
+    "legacy (components/MultiCardinalTableServer.tsx)",
+] as const;
+type VersionName = typeof VERSION_NAMES[number];
 
 const DEFAULT_ENDPOINT = "http://localhost:3030/ds/sparql";
 const DEFAULT_QUERY = `SELECT ?s ?p ?o WHERE {
@@ -79,17 +79,28 @@ const TableHost = memo(function TableHost({
         [endpoint],
     );
 
-    const Table = VERSIONS[version];
-
     const isOptimized = version === "optimized v2 (multicardinal-table/index.tsx)";
+    const isLegacy = version === "legacy (components/MultiCardinalTableServer.tsx)";
+
+    // NOTE: Only the legacy table still takes a counter limit
+    if (isLegacy) {
+        return (
+            <MulticardinalTableLegacy
+                queryCallback={queryCallback}
+                baseQuery={baseQuery}
+                idVars={idVars}
+                rawRowLimit={rawRowLimit}
+                counterLimit={counterLimit}
+            />
+        );
+    }
 
     return (
-        <Table
+        <MulticardinalTableV2
             queryCallback={isOptimized ? optimizedQueryCallback : queryCallback}
             baseQuery={baseQuery}
             idVars={idVars}
             rawRowLimit={rawRowLimit}
-            counterLimit={counterLimit}
         />
     );
 });
@@ -152,7 +163,7 @@ function Playground() {
                                 setApplied((prev) => ({ ...prev, version }));
                             }}
                         >
-                            {Object.keys(VERSIONS).map((name) => (
+                            {VERSION_NAMES.map((name) => (
                                 <option key={name} value={name}>{name}</option>
                             ))}
                         </select>
