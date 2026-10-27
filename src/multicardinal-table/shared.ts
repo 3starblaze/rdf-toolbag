@@ -9,7 +9,8 @@ import {
 } from "@/multi-cardinal-table-util";
 
 export interface Props {
-    queryCallback: ({ query }: { query: string }) => Promise<SparqlTableResult>,
+    /** Runs the query. `signal` is aborted when the result is no longer needed. */
+    queryCallback: ({ query, signal }: { query: string, signal: AbortSignal }) => Promise<SparqlTableResult>,
     baseQuery: string,
     idVars: string[],
     rawRowLimit: number,

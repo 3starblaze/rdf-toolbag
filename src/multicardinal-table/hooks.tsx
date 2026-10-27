@@ -51,7 +51,7 @@ export function useKeyValues({
 }) {
     return useQuery({
         queryKey: ["useKeyValues", { queryToWrap, idVars, groupLimit, groupOffset }],
-        queryFn: async (): Promise<ReturnType<typeof parseKeyQueryResults>> => {
+        queryFn: async ({ signal }): Promise<ReturnType<typeof parseKeyQueryResults>> => {
             const query = formatKeyQuery({
                 queryToWrap,
                 idVars,
@@ -59,7 +59,7 @@ export function useKeyValues({
                 groupOffset,
             });
 
-            const table = await queryCallback({ query });
+            const table = await queryCallback({ query, signal });
             const res = parseKeyQueryResults({ table, idVars });
 
             return res;
@@ -106,7 +106,7 @@ export function useCells(args: {
         // are sent, so a changed cell (e.g. after increasing its limit) refetches only itself.
         queries: cellRequests.map((cellRequest) => ({
             queryKey: cellQueryKey({ baseQuery, idVars, cellRequest }),
-            queryFn: () => batcher.load(cellRequest),
+            queryFn: ({ signal }) => batcher.load(cellRequest, signal),
             retry: false,
         })),
         combine: (queries) => ({

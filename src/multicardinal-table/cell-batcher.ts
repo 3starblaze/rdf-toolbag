@@ -37,11 +37,13 @@ async function fetchCellBatch({
   idVars,
   cellRequests,
   queryCallback,
+  signal,
 }: {
   baseQuery: string,
   idVars: string[],
   cellRequests: CellRequest[],
   queryCallback: QueryCallback,
+  signal: AbortSignal,
 }): Promise<MCTCell[]> {
   const propNameVar = "__propName";
   const propValVar = "__propVal";
@@ -55,7 +57,7 @@ async function fetchCellBatch({
     cellRequests,
   });
 
-  const resultingTable = await queryCallback({ query });
+  const resultingTable = await queryCallback({ query, signal });
   const tableData = tableToMulticardinalTable({ propNameVar, propValVar, resultingTable });
   // NOTE: The limit passed here is only used to build the cells and is overwritten below.
   const maxLimit = Math.max(...cellRequests.map((it) => it.limit));
@@ -73,6 +75,7 @@ async function fetchCellBatch({
 
 interface PendingLoad {
   cellRequest: CellRequest,
+  signal: AbortSignal,
   resolve: (cell: MCTCell) => void,
   reject: (error: unknown) => void,
 }
@@ -100,8 +103,15 @@ export function createCellBatcher({
     pending = [];
     scheduled = false;
 
-    const pendingByRequest = new Map(current.map((it) => [it.cellRequest, it]));
-    const batches = batchingStrategy(current.map((it) => it.cellRequest));
+    // NOTE: Requests cancelled before they were flushed are not sent at all
+    const active = current.filter((it) => {
+      if (!it.signal.aborted) return true;
+      it.reject(it.signal.reason);
+      return false;
+    });
+
+    const pendingByRequest = new Map(active.map((it) => [it.cellRequest, it]));
+    const batches = batchingStrategy(active.map((it) => it.cellRequest));
 
     batches.forEach((batch) => {
       const entries = batch.map((cellRequest) => {
@@ -110,16 +120,26 @@ export function createCellBatcher({
         return entry;
       });
 
-      fetchCellBatch({ baseQuery, idVars, cellRequests: batch, queryCallback })
+      // NOTE: The batch query is only cancelled once every request in it is cancelled, because the
+      // other requests still need its results
+      const controller = new AbortController();
+      let activeCount = entries.length;
+      entries.forEach((entry) => entry.signal.addEventListener("abort", () => {
+        activeCount -= 1;
+        if (activeCount === 0) controller.abort(entry.signal.reason);
+      }, { once: true }));
+
+      fetchCellBatch({ baseQuery, idVars, cellRequests: batch, queryCallback, signal: controller.signal })
         .then((cells) => entries.forEach((entry, i) => entry.resolve(cells[i])))
         .catch((error: unknown) => entries.forEach((entry) => entry.reject(error)));
     });
   }
 
   return {
-    load(cellRequest: CellRequest): Promise<MCTCell> {
+    /** `signal` cancels the request once it is no longer needed. */
+    load(cellRequest: CellRequest, signal: AbortSignal): Promise<MCTCell> {
       return new Promise<MCTCell>((resolve, reject) => {
-        pending.push({ cellRequest, resolve, reject });
+        pending.push({ cellRequest, signal, resolve, reject });
         if (scheduled) return;
         scheduled = true;
         setTimeout(flush, 0);

@@ -50,6 +50,7 @@ export class RequestError extends Error {
 export async function requestAsSparqlTableResult(
     url: URL,
     queryString: string,
+    signal?: AbortSignal,
 ): Promise<SparqlTableResult> {
     // NOTE: It's possible to run queries via GET but it doesn't work when queries are long. I
     // managed to obtain 5xx error because Varnish couldn't handle the GET request.
@@ -66,7 +67,8 @@ export async function requestAsSparqlTableResult(
         },
         body: new URLSearchParams({
             query: queryString,
-        })
+        }),
+        signal,
     });
 
     const res = await fetch(req);

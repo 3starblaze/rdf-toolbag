@@ -62,15 +62,19 @@ const TableHost = memo(function TableHost({
     counterLimit,
 }: TableHostProps) {
     const queryCallback = useCallback(
-        ({ query }: { query: string }) => requestAsSparqlTableResult(new URL(endpoint), query),
+        ({ query, signal }: { query: string, signal?: AbortSignal }) => requestAsSparqlTableResult(
+            new URL(endpoint),
+            query,
+            signal,
+        ),
         [endpoint],
     );
 
     const optimizedQueryCallback = useCallback(
-        ({ query }: { query: string }) => {
+        ({ query, signal }: { query: string, signal?: AbortSignal }) => {
             const optimizedQuery = optimize(query);
 
-            return requestAsSparqlTableResult(new URL(endpoint), optimizedQuery)
+            return requestAsSparqlTableResult(new URL(endpoint), optimizedQuery, signal);
         },
         [endpoint],
     );
