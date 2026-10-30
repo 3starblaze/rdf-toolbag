@@ -72,24 +72,29 @@ function makeCommonAssertions({
     expectCorrectOptionalPosition(query);
 }
 
+/** Collapses whitespace and trailing dots so that generated queries can be matched as strings. */
+function compact(query: string): string {
+    return query.replace(/\s+/g, " ").replace(/ \.(?= |$)/g, "");
+}
+
 describe("formatQuery", () => {
     test("basic test", () => {
         const sampleSelection = {
-            rdfType: "http://Person",
-            dataProps: [{ name: "http://p0" }, { name: "http://p1" }],
+            rdfType: { names: ["http://Person"] },
+            dataProps: [{ names: ["http://p0"] }, { names: ["http://p1"] }],
             objectProps: [
                 {
-                    name: "http://relation",
+                    names: ["http://relation"],
                     selection: {
-                        rdfType: "http://Item",
-                        dataProps: [{ name: "http://p0" }],
+                        rdfType: { names: ["http://Item"] },
+                        dataProps: [{ names: ["http://p0"] }],
                         objectProps: [
                             {
-                                name: "http://anotherRelation",
+                                names: ["http://anotherRelation"],
                                 selection: {
-                                    rdfType: "http://anotherRelatedType",
+                                    rdfType: { names: ["http://anotherRelatedType"] },
                                     dataProps: [
-                                        { name: "http://lastDataPropISwear" }
+                                        { names: ["http://lastDataPropISwear"] }
                                     ],
                                     objectProps: [],
                                 },
@@ -119,51 +124,51 @@ describe("formatQuery", () => {
         const { query, varInfos } = formatQuery(sampleSelection);
 
         // NOTE: asserting one constraint that should appear
-        expect(query).toMatch(`?this <${sampleSelection.dataProps[0]?.name}> ?p0`);
+        expect(query).toMatch(`?this <${sampleSelection.dataProps[0]?.names[0]}> ?p0`);
 
         makeCommonAssertions({ query, expectedVarInfos, varInfos });
     });
     test("more realistic test", () => {
         const sampleSelection = {
-            "rdfType": "http://data.nobelprize.org/terms/Laureate",
+            rdfType: { names: ["http://data.nobelprize.org/terms/Laureate"] },
             "dataProps": [
                 {
-                    "name": "http://xmlns.com/foaf/0.1/name"
+                    names: ["http://xmlns.com/foaf/0.1/name"]
                 },
                 {
-                    "name": "http://www.w3.org/2000/01/rdf-schema#label"
+                    names: ["http://www.w3.org/2000/01/rdf-schema#label"]
                 },
                 {
-                    "name": "http://dbpedia.org/property/dateOfBirth"
+                    names: ["http://dbpedia.org/property/dateOfBirth"]
                 },
                 {
-                    "name": "http://xmlns.com/foaf/0.1/birthday"
+                    names: ["http://xmlns.com/foaf/0.1/birthday"]
                 },
                 {
-                    "name": "http://xmlns.com/foaf/0.1/givenName"
+                    names: ["http://xmlns.com/foaf/0.1/givenName"]
                 }
             ],
             "objectProps": [
                 {
-                    "name": "http://dbpedia.org/ontology/birthPlace",
+                    names: ["http://dbpedia.org/ontology/birthPlace"],
                     "selection": {
-                        "rdfType": "",
+                        rdfType: { names: [""] },
                         "dataProps": [],
                         "objectProps": []
                     }
                 },
                 {
-                    "name": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+                    names: ["http://www.w3.org/1999/02/22-rdf-syntax-ns#type"],
                     "selection": {
-                        "rdfType": "",
+                        rdfType: { names: [""] },
                         "dataProps": [],
                         "objectProps": []
                     }
                 },
                 {
-                    "name": "http://dbpedia.org/ontology/deathPlace",
+                    names: ["http://dbpedia.org/ontology/deathPlace"],
                     "selection": {
-                        "rdfType": "",
+                        rdfType: { names: [""] },
                         "dataProps": [],
                         "objectProps": []
                     }
@@ -195,13 +200,13 @@ describe("formatQuery", () => {
     });
     test("potential varName collisions", () => {
         const sampleSelection = {
-            "rdfType": "http://ldf.fi/schema/yoma/ReferencedPerson",
+            rdfType: { names: ["http://ldf.fi/schema/yoma/ReferencedPerson"] },
             "dataProps": [
                 {
-                    "name": "http://www.w3.org/2004/02/skos/core#prefLabel"
+                    names: ["http://www.w3.org/2004/02/skos/core#prefLabel"]
                 },
                 {
-                    "name": "http://www.w3.org/2008/05/skos-xl#prefLabel"
+                    names: ["http://www.w3.org/2008/05/skos-xl#prefLabel"]
                 },
             ],
             "objectProps": []
@@ -219,16 +224,16 @@ describe("formatQuery", () => {
     });
     test("prefixed var is handled correctly", () => {
         const sampleSelection = {
-            "rdfType": "http://ldf.fi/schema/yoma/ReferencedPerson",
+            rdfType: { names: ["http://ldf.fi/schema/yoma/ReferencedPerson"] },
             "dataProps": [
                 {
-                    "name": "http://www.w3.org/2004/02/skos/core#prefLabel"
+                    names: ["http://www.w3.org/2004/02/skos/core#prefLabel"]
                 },
                 {
-                    "name": "http://www.w3.org/2008/05/skos-xl#prefLabel"
+                    names: ["http://www.w3.org/2008/05/skos-xl#prefLabel"]
                 },
                 {
-                    "name": "http://www.w3.org/2004/02/skos/core#prefLabel123"
+                    names: ["http://www.w3.org/2004/02/skos/core#prefLabel123"]
                 },
             ],
             "objectProps": [],
@@ -242,6 +247,153 @@ describe("formatQuery", () => {
             { varName: "skos_xl_prefLabel", path: ["http://www.w3.org/2008/05/skos-xl#prefLabel"] },
             { varName: "prefLabel123", path: ["http://www.w3.org/2004/02/skos/core#prefLabel123"] },
         ];
+
+        makeCommonAssertions({ query, expectedVarInfos, varInfos });
+    });
+});
+
+describe("formatQuery unions", () => {
+    test("union of data props is bound to the alias variable", () => {
+        const sampleSelection = {
+            rdfType: { names: [""] },
+            dataProps: [
+                {
+                    names: ["http://schema.org/name", "http://xmlns.com/foaf/0.1/name"],
+                    alias: "personName",
+                },
+            ],
+            objectProps: [],
+        } satisfies ComplexPropertySelection;
+
+        const expectedVarInfos: VarInfo[] = [
+            { varName: "this", path: [] },
+            { varName: "personName", path: ["personName"] },
+        ];
+
+        const { query, varInfos } = formatQuery(sampleSelection);
+
+        expect(compact(query)).toMatch(
+            "OPTIONAL { { ?this <http://schema.org/name> ?personName } UNION { ?this <http://xmlns.com/foaf/0.1/name> ?personName } }"
+        );
+
+        makeCommonAssertions({ query, expectedVarInfos, varInfos });
+    });
+    test("union of data props without alias falls back to the first name", () => {
+        const sampleSelection = {
+            rdfType: { names: [""] },
+            dataProps: [
+                {
+                    names: ["http://schema.org/name", "http://xmlns.com/foaf/0.1/name"],
+                },
+            ],
+            objectProps: [],
+        } satisfies ComplexPropertySelection;
+
+        const expectedVarInfos: VarInfo[] = [
+            { varName: "this", path: [] },
+            { varName: "name", path: ["http://schema.org/name"] },
+        ];
+
+        const { query, varInfos } = formatQuery(sampleSelection);
+
+        expect(compact(query)).toMatch(
+            "OPTIONAL { { ?this <http://schema.org/name> ?name } UNION { ?this <http://xmlns.com/foaf/0.1/name> ?name } }"
+        );
+
+        makeCommonAssertions({ query, expectedVarInfos, varInfos });
+    });
+    test("union alias collision is prefixed like other variables", () => {
+        const sampleSelection = {
+            rdfType: { names: [""] },
+            dataProps: [
+                { names: ["http://a/label"] },
+                {
+                    names: ["http://b/label", "http://c/label"],
+                    alias: "label",
+                },
+            ],
+            objectProps: [],
+        } satisfies ComplexPropertySelection;
+
+        const { query, varInfos } = formatQuery(sampleSelection);
+
+        const expectedVarInfos: VarInfo[] = [
+            { varName: "this", path: [] },
+            { varName: "a_label", path: ["http://a/label"] },
+            { varName: "label", path: ["label"] },
+        ];
+
+        makeCommonAssertions({ query, expectedVarInfos, varInfos });
+    });
+    test("union of types", () => {
+        const sampleSelection = {
+            rdfType: { names: ["http://Person", "http://Organization"] },
+            dataProps: [],
+            objectProps: [],
+        } satisfies ComplexPropertySelection;
+
+        const { query, varInfos } = formatQuery(sampleSelection);
+
+        expect(compact(query)).toMatch("{ ?this <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://Person> } UNION { ?this <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://Organization> }");
+
+        makeCommonAssertions({
+            query,
+            expectedVarInfos: [{ varName: "this", path: [] }],
+            varInfos,
+        });
+    });
+    test("empty values are ignored", () => {
+        const sampleSelection = {
+            rdfType: { names: ["", "http://Person"] },
+            dataProps: [{ names: ["", "http://p0"] }],
+            objectProps: [],
+        } satisfies ComplexPropertySelection;
+
+        const { query, varInfos } = formatQuery(sampleSelection);
+
+        expect(compact(query)).not.toMatch("UNION");
+        expect(compact(query)).toMatch("?this <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://Person>");
+        expect(compact(query)).toMatch("OPTIONAL { ?this <http://p0> ?p0 }");
+
+        makeCommonAssertions({
+            query,
+            expectedVarInfos: [
+                { varName: "this", path: [] },
+                { varName: "p0", path: ["http://p0"] },
+            ],
+            varInfos,
+        });
+    });
+    test("union object prop with alias is used as the nested subject", () => {
+        const sampleSelection = {
+            rdfType: { names: [""] },
+            dataProps: [],
+            objectProps: [
+                {
+                    names: ["http://knows", "http://friend"],
+                    alias: "contact",
+                    selection: {
+                        rdfType: { names: ["http://Person"] },
+                        dataProps: [{ names: ["http://name"] }],
+                        objectProps: [],
+                    },
+                },
+            ],
+        } satisfies ComplexPropertySelection;
+
+        const expectedVarInfos: VarInfo[] = [
+            { varName: "this", path: [] },
+            { varName: "contact", path: ["contact"] },
+            { varName: "contact__name", path: ["contact", "http://name"] },
+        ];
+
+        const { query, varInfos } = formatQuery(sampleSelection);
+
+        expect(compact(query)).toMatch(
+            "OPTIONAL { { ?this <http://knows> ?contact } UNION { ?this <http://friend> ?contact } }"
+        );
+        expect(compact(query)).toMatch("?contact <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://Person>");
+        expect(compact(query)).toMatch("OPTIONAL { ?contact <http://name> ?contact__name }");
 
         makeCommonAssertions({ query, expectedVarInfos, varInfos });
     });

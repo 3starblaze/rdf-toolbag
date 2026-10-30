@@ -1,33 +1,54 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useControllableState } from "@radix-ui/react-use-controllable-state";
 import { SingleStringCombobox } from "./property_selector";
 import { ChevronDown } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
+import { Input } from "./ui/input";
 import { cn } from "@/lib/utils";
 import { QueryClient, QueryClientProvider, skipToken, useQuery } from "@tanstack/react-query";
 import { DestroyItemButton, MultiItemAddButton, MultiItemRow, MultiItemSelectorBase, MultiItemSelectorList } from "./MultiItemList";
 
+/** Property that is matched by name. */
+export interface PropertySelection {
+    /**
+     * Property names. More than one name is a union: the property must match at least one of them.
+     */
+    names: string[],
+    /**
+     * Name that identifies the union variable. Only used when `names` has more than one value.
+     * Like other variable names, it is sanitized and prefixed when it collides with another.
+     */
+    alias?: string,
+}
+
+export interface ObjectPropSelection extends PropertySelection {
+    selection: ComplexPropertySelection,
+}
+
+/** Type that the subject must have. */
+export interface TypeSelection {
+    /**
+     * Type names. More than one name is a union: the subject must have at least one of them.
+     */
+    names: string[],
+}
+
 export interface ComplexPropertySelection {
-    rdfType: string,
-    dataProps: {
-        name: string,
-    }[],
-    objectProps: {
-        name: string,
-        selection: ComplexPropertySelection,
-    }[],
+    rdfType: TypeSelection,
+    dataProps: PropertySelection[],
+    objectProps: ObjectPropSelection[],
 }
 
 /** Item that suggestions are requested for. */
 export type SuggestionTarget =
-    | { kind: "rdfType" }
-    | { kind: "dataProp", index: number }
-    | { kind: "objectProp", index: number };
+    | { kind: "rdfType", valueIndex: number }
+    | { kind: "dataProp", index: number, valueIndex: number }
+    | { kind: "objectProp", index: number, valueIndex: number };
 
-/** Object property on the path from the root selection to the current selection. */
-export interface SuggestionAncestor {
-    /** Name of the object property. */
-    name: string,
+/**
+ * Object property on the path from the root selection to the current selection.
+ */
+export interface SuggestionAncestor extends PropertySelection {
     /** Index of the object property within its parent's `objectProps`. */
     index: number,
     /** Selection that the object property points to. */
@@ -53,7 +74,15 @@ export type SuggestionsFetcher = (
 type SuggestionContextBase = Omit<SuggestionsFetcherContext, "target">;
 
 export function makeDefaultSelection(): ComplexPropertySelection {
-    return { rdfType: "", dataProps: [], objectProps: [] };
+    return { rdfType: { names: [""] }, dataProps: [], objectProps: [] };
+}
+
+function replaceAt<T>(items: readonly T[], i: number, item: T): T[] {
+    return [...items.slice(0, i), item, ...items.slice(i + 1)];
+}
+
+function removeAt<T>(items: readonly T[], i: number): T[] {
+    return [...items.slice(0, i), ...items.slice(i + 1)];
 }
 
 function SuggestionCombobox({
@@ -86,6 +115,75 @@ function SuggestionCombobox({
     );
 }
 
+/**
+ * Editable list of values. The first value is always shown, extra values are alternatives that
+ * form a union with it.
+ */
+function SuggestionValueList({
+    values,
+    onValuesChange,
+    suggestionsFetcher,
+    makeContext,
+    placeholder,
+    addLabel,
+    primaryTrailing,
+}: {
+    values: string[],
+    onValuesChange: (newValues: string[]) => void,
+    suggestionsFetcher: SuggestionsFetcher | undefined,
+    /** Creates the suggestion context for the value at `valueIndex`. */
+    makeContext: (valueIndex: number) => SuggestionsFetcherContext,
+    placeholder?: string,
+    addLabel: string,
+    /** Rendered next to the first value, e.g. to remove the whole item. */
+    primaryTrailing?: ReactNode,
+}) {
+    return (
+        <MultiItemSelectorList>
+            {/* NOTE: Index keys are intentional. Values may not be unique. */}
+            {values.map((value, i) => (
+                <MultiItemRow key={i}>
+                    {i > 0 && (
+                        <span className="self-center w-8 shrink-0 text-sm font-medium text-gray-500 ml-4">
+                            OR
+                        </span>
+                    )}
+                    <SuggestionCombobox
+                        value={value}
+                        onValueChange={(newValue) => onValuesChange(replaceAt(values, i, newValue))}
+                        suggestionsFetcher={suggestionsFetcher}
+                        context={makeContext(i)}
+                        placeholder={placeholder}
+                    />
+                    {i === 0 ? primaryTrailing : (
+                        <DestroyItemButton onClick={() => onValuesChange(removeAt(values, i))} />
+                    )}
+                </MultiItemRow>
+            ))}
+            <MultiItemAddButton onClick={() => onValuesChange([...values, ""])}>
+                {addLabel}
+            </MultiItemAddButton>
+        </MultiItemSelectorList>
+    );
+}
+
+function UnionAliasInput({
+    value,
+    onValueChange,
+}: {
+    value: string | undefined,
+    onValueChange: (newValue: string) => void,
+}) {
+    return (
+        <Input
+            aria-label="Union alias"
+            placeholder="Union alias (optional)"
+            value={value ?? ""}
+            onChange={(e) => onValueChange(e.target.value)}
+        />
+    );
+}
+
 function DataPropsSelector({
     selection,
     onSelectionChange,
@@ -97,32 +195,10 @@ function DataPropsSelector({
     suggestionsFetcher: SuggestionsFetcher | undefined,
     contextBase: SuggestionContextBase,
 }) {
-    function addDataProp() {
-        onSelectionChange({
-            ...selection,
-            dataProps: [...selection.dataProps, { name: "" }],
-        })
-    }
+    const dataProps = selection.dataProps;
 
-    function setDataPropName(newName: string, i: number) {
-        onSelectionChange({
-            ...selection,
-            dataProps: [
-                ...selection.dataProps.slice(0, i),
-                { ...selection.dataProps[i], name: newName },
-                ...selection.dataProps.slice(i+1),
-            ],
-        });
-    }
-
-    function deleteDataProp(i: number) {
-        onSelectionChange({
-            ...selection,
-            dataProps: [
-                ...selection.dataProps.slice(0, i),
-                ...selection.dataProps.slice(i+1),
-            ],
-        });
+    function setDataProps(newDataProps: PropertySelection[]) {
+        onSelectionChange({ ...selection, dataProps: newDataProps });
     }
 
     return (
@@ -131,24 +207,43 @@ function DataPropsSelector({
             <MultiItemSelectorBase>
                 <MultiItemSelectorList>
                     {/* NOTE: Index keys are intentional. Item name may not be unique. */}
-                    {selection.dataProps.map((item, i) => (
+                    {dataProps.map((item, i) => (
                         <div
                             key={i}
-                            className="flex gap-2"
+                            className="flex flex-col gap-2"
                         >
-                            <SuggestionCombobox
-                                value={item.name}
-                                onValueChange={(newName) => setDataPropName(newName, i)}
+                            <SuggestionValueList
+                                values={item.names}
+                                onValuesChange={(names) => setDataProps(
+                                    replaceAt(dataProps, i, { ...item, names })
+                                )}
                                 suggestionsFetcher={suggestionsFetcher}
-                                context={{ ...contextBase, target: { kind: "dataProp", index: i } }}
+                                makeContext={(valueIndex) => ({
+                                    ...contextBase,
+                                    target: { kind: "dataProp", index: i, valueIndex },
+                                })}
+                                addLabel="Add alternative"
+                                primaryTrailing={
+                                    <DestroyItemButton
+                                        onClick={() => setDataProps(removeAt(dataProps, i))}
+                                    />
+                                }
                             />
-                            <DestroyItemButton
-                                onClick={() => deleteDataProp(i)}
-                            />
+                            {item.names.length > 1 && (
+                                <UnionAliasInput
+                                    value={item.alias}
+                                    onValueChange={(alias) => setDataProps(
+                                        replaceAt(dataProps, i, { ...item, alias })
+                                    )}
+                                />
+                            )}
                         </div>
                     ))}
                 </MultiItemSelectorList>
-                <MultiItemAddButton onClick={addDataProp}>
+                <MultiItemAddButton onClick={() => setDataProps([
+                    ...dataProps,
+                    { names: [""] },
+                ])}>
                     Add data property
                 </MultiItemAddButton>
             </MultiItemSelectorBase>
@@ -174,7 +269,7 @@ function ObjectPropsSelector({
 }) {
     const objectProps = selection.objectProps;
 
-    function setObjectProps(newObjectProps: ComplexPropertySelection["objectProps"]) {
+    function setObjectProps(newObjectProps: ObjectPropSelection[]) {
         onSelectionChange({ ...selection, objectProps: newObjectProps });
     }
 
@@ -189,44 +284,54 @@ function ObjectPropsSelector({
                             key={i}
                             className="flex flex-col group gap-2"
                         >
-                            <MultiItemRow>
-                                <SuggestionCombobox
-                                    value={item.name}
-                                    onValueChange={(newName) => setObjectProps([
-                                        ...objectProps.slice(0, i),
-                                        { ...item, name: newName },
-                                        ...objectProps.slice(i+1),
-                                    ])}
-                                    suggestionsFetcher={suggestionsFetcher}
-                                    context={{ ...contextBase, target: { kind: "objectProp", index: i } }}
-                                />
-                                <DestroyItemButton
-                                    onClick={() => setObjectProps([
-                                        ...objectProps.slice(0, i),
-                                        ...objectProps.slice(i + 1),
-                                    ])}
-                                />
-                                <CollapsibleTrigger className="cursor-pointer">
-                                    <ChevronDown
-                                        className="size-4 group-data-[state=open]:rotate-180 transition-transform"
+                            <SuggestionValueList
+                                values={item.names}
+                                onValuesChange={(names) => setObjectProps(
+                                    replaceAt(objectProps, i, { ...item, names })
+                                )}
+                                suggestionsFetcher={suggestionsFetcher}
+                                makeContext={(valueIndex) => ({
+                                    ...contextBase,
+                                    target: { kind: "objectProp", index: i, valueIndex },
+                                })}
+                                addLabel="Add alternative"
+                                primaryTrailing={<>
+                                    <DestroyItemButton
+                                        onClick={() => setObjectProps(removeAt(objectProps, i))}
                                     />
-                                </CollapsibleTrigger>
-                            </MultiItemRow>
+                                    <CollapsibleTrigger className="cursor-pointer">
+                                        <ChevronDown
+                                            className="size-4 group-data-[state=open]:rotate-180 transition-transform"
+                                        />
+                                    </CollapsibleTrigger>
+                                </>}
+                            />
+                            {item.names.length > 1 && (
+                                <UnionAliasInput
+                                    value={item.alias}
+                                    onValueChange={(alias) => setObjectProps(
+                                        replaceAt(objectProps, i, { ...item, alias })
+                                    )}
+                                />
+                            )}
                             <CollapsibleContent className={cn(
                                 "text-gray-700 ml-4 p-2",
                                 (recursionDepth % 2 === 0) ? "bg-gray-100" : "bg-white",
                             )}>
                                 <ComplexPropertySelectorBase
                                     selection={item.selection}
-                                    onSelectionChange={(newSelection) => setObjectProps([
-                                        ...objectProps.slice(0, i),
-                                        { ...item, selection: newSelection },
-                                        ...objectProps.slice(i + 1),
-                                    ])}
+                                    onSelectionChange={(newSelection) => setObjectProps(
+                                        replaceAt(objectProps, i, { ...item, selection: newSelection })
+                                    )}
                                     rootSelection={contextBase.rootSelection}
                                     ancestors={[
                                         ...contextBase.ancestors,
-                                        { name: item.name, index: i, selection: item.selection },
+                                        {
+                                            names: item.names,
+                                            alias: item.alias,
+                                            index: i,
+                                            selection: item.selection,
+                                        },
                                     ]}
                                     suggestionsFetcher={suggestionsFetcher}
                                     recursionDepth={recursionDepth + 1}
@@ -237,7 +342,7 @@ function ObjectPropsSelector({
                 </MultiItemSelectorList>
                 <MultiItemAddButton onClick={() => setObjectProps([
                     ...objectProps,
-                    { name: "", selection: makeDefaultSelection() },
+                    { names: [""], selection: makeDefaultSelection() },
                 ])}>
                     Add object property
                 </MultiItemAddButton>
@@ -282,12 +387,16 @@ function ComplexPropertySelectorBase({
         <div className="flex flex-col gap-4">
             <div>
                 <p>Type</p>
-                <SuggestionCombobox
-                    value={selection.rdfType}
-                    onValueChange={(rdfType) => onSelectionChange({ ...selection, rdfType })}
+                <SuggestionValueList
+                    values={selection.rdfType.names}
+                    onValuesChange={(names) => onSelectionChange({ ...selection, rdfType: { names } })}
                     suggestionsFetcher={suggestionsFetcher}
-                    context={{ ...contextBase, target: { kind: "rdfType" } }}
+                    makeContext={(valueIndex) => ({
+                        ...contextBase,
+                        target: { kind: "rdfType", valueIndex },
+                    })}
                     placeholder="Enter type"
+                    addLabel="Add alternative type"
                 />
             </div>
             <DataPropsSelector

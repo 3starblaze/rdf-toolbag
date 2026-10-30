@@ -1,4 +1,4 @@
-import type { ComplexPropertySelection } from "@/components/complex_property_selector";
+import type { ComplexPropertySelection, PropertySelection } from "@/components/complex_property_selector";
 import { reorderOptional } from "@/query-util";
 import { HashSet, Data, HashMap, Option } from "effect";
 
@@ -105,6 +105,28 @@ function formatCollidingVars(varInfos: VarInfo[]): VarInfo[] {
     return varInfos.map(({ varName, ...rest }, i) => ({ varName: `${varName}${i}`, ...rest }));
 }
 
+/** Values that are actually used. Empty values are ignored, but the list is never empty. */
+function valuesOf(values: readonly string[]): string[] {
+    const nonEmpty = values.filter((it) => it !== "");
+    return nonEmpty.length > 0 ? nonEmpty : [""];
+}
+
+/**
+ * Path item that identifies a property. Union properties are identified by their alias when one is
+ * provided, otherwise by their first name.
+ */
+function segmentOf({ names, alias }: PropertySelection): string {
+    const values = valuesOf(names);
+    if (values.length > 1 && alias) return alias;
+    return values[0]!;
+}
+
+/** Joins alternatives so that at least one of them must match. */
+function unionOf(alternatives: string[]): string {
+    if (alternatives.length === 1) return alternatives[0]!;
+    return alternatives.map((it) => `{ ${it} }`).join(" UNION ");
+}
+
 function formatVarInfo(path: readonly string[]): VarInfo {
     return {
         path,
@@ -129,21 +151,28 @@ function collectConstraints(
         );
     }
 
+    function propConstraint(thisVarName: string, prop: PropertySelection, varName: string): string {
+        return wrapOptional(unionOf(
+            valuesOf(prop.names).map((name) => `?${thisVarName} <${name}> ?${varName}`)
+        ));
+    }
+
     const thisVar = getByPath(pathPrefix);
 
-    const dataVars = dataProps.map(({ name }) => {
-        const varInfo = getByPath([...pathPrefix, name]);
-        const constraint = wrapOptional(`?${thisVar.varName} <${name}> ?${varInfo.varName}`);
+    const dataVars = dataProps.map((prop) => {
+        const varInfo = getByPath([...pathPrefix, segmentOf(prop)]);
+        const constraint = propConstraint(thisVar.varName, prop, varInfo.varName);
         return { varInfo, constraint };
     });
 
-    const objectVars: ConstraintPayload[] = objectProps.map(({ name, selection }) => {
-        const varInfo = getByPath([...pathPrefix, name]);
-        const constraint = wrapOptional(`?${thisVar.varName} <${name}> ?${varInfo.varName}`);
+    const objectVars: ConstraintPayload[] = objectProps.map((prop) => {
+        const segment = segmentOf(prop);
+        const varInfo = getByPath([...pathPrefix, segment]);
+        const constraint = propConstraint(thisVar.varName, prop, varInfo.varName);
         const { constraints, varInfos } = collectConstraints(
             varInfoMapping,
-            [...pathPrefix, name],
-            selection,
+            [...pathPrefix, segment],
+            prop.selection,
         );
         return {
             constraints: [constraint, ...constraints],
@@ -151,9 +180,12 @@ function collectConstraints(
         };
     })
 
+    const types = valuesOf(rdfType.names);
     const miscConstraints: string[] = [
-        // NOTE: rdfType constraint should only be applied if the string is not empty
-        ...(rdfType !== "" ?  [`?${thisVar.varName} a <${rdfType}> .`] : []),
+        // NOTE: type constraint should only be applied if at least one type is specified
+        ...(types[0] !== "" ? [unionOf(
+            types.map((typeName) => `?${thisVar.varName} a <${typeName}> .`)
+        )] : []),
     ];
 
     return {
@@ -179,10 +211,10 @@ function collectVarNames(
     ): string[][] {
         return [
             pathPrefix, // NOTE: this
-            ...currentSelection.dataProps.map((it) => [...pathPrefix, it.name]),
+            ...currentSelection.dataProps.map((it) => [...pathPrefix, segmentOf(it)]),
             ...currentSelection.objectProps.flatMap((it) => [
-                [...pathPrefix, it.name],
-                ...collectPaths(it.selection, [...pathPrefix, it.name]),
+                [...pathPrefix, segmentOf(it)],
+                ...collectPaths(it.selection, [...pathPrefix, segmentOf(it)]),
             ])
         ];
     }

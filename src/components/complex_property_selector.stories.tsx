@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import ComplexPropertySelector, { makeDefaultSelection, type ComplexPropertySelection, type SuggestionsFetcherContext } from './complex_property_selector';
-import { expect } from 'storybook/test';
+import { expect, screen, userEvent } from 'storybook/test';
 import { useArgs } from 'storybook/preview-api';
 import { useState, type ComponentProps } from 'react';
 import type { Canvas } from 'storybook/internal/types';
@@ -51,15 +51,15 @@ function WrappedSelector({ args: oldArgs }: { args: Args }) {
 export const Prefilled: Story = {
     args: {
         selection: {
-            rdfType: "http://myType",
+            rdfType: { names: ["http://myType"] },
             dataProps: [
-                { name: "http://dataProp0" },
-                { name: "http://dataProp1" },
+                { names: ["http://dataProp0"] },
+                { names: ["http://dataProp1"] },
             ],
             objectProps: [
-                { name: "http://objProp0", selection: makeDefaultSelection() },
-                { name: "http://objProp1", selection: makeDefaultSelection() },
-                { name: "http://objProp2", selection: makeDefaultSelection() },
+                { names: ["http://objProp0"], selection: makeDefaultSelection() },
+                { names: ["http://objProp1"], selection: makeDefaultSelection() },
+                { names: ["http://objProp2"], selection: makeDefaultSelection() },
             ],
         },
     },
@@ -70,7 +70,7 @@ export const Prefilled: Story = {
 export const WithPropSuggestions: Story = {
   args: {
       suggestionsFetcher: async (ctx) => {
-          const {rdfType} = ctx.selection;
+          const rdfType = ctx.selection.rdfType.names[0] ?? "";
 
           switch (ctx.target.kind) {
               case "rdfType":
@@ -96,7 +96,7 @@ export const WithPropSuggestions: Story = {
                   })();
               case "objectProp":
                   return (() => {
-                      const finalName = rdfType ?? "noClass";
+                      const finalName = rdfType || "noClass";
 
                       const fmtItem = (i: number) => ({
                           value: `http://${finalName}/suggestedObj${i}`,
@@ -120,19 +120,19 @@ export const DeepRecursion: Story = {
         selection: {
             ...makeDefaultSelection(),
             objectProps: [{
-                name: "http://lookDeeper",
+                names: ["http://lookDeeper"],
                 selection: {
                     ...makeDefaultSelection(),
                     objectProps: [{
-                        name: "http://lookAgain",
+                        names: ["http://lookAgain"],
                         selection: {
                             ...makeDefaultSelection(),
                             objectProps: [{
-                                name: "http://andOnceAgain",
+                                names: ["http://andOnceAgain"],
                                 selection: {
                                     ...makeDefaultSelection(),
                                     objectProps: [{
-                                        name: "http://okThatsIt",
+                                        names: ["http://okThatsIt"],
                                         selection: {
                                             ...makeDefaultSelection(),
                                         }
@@ -151,7 +151,7 @@ export const DeepRecursion: Story = {
 export const TypeIsUpdatedInUI: Story = {
     args: {
         selection: {
-            rdfType: "mytype",
+            rdfType: { names: ["mytype"] },
             dataProps: [],
             objectProps: [],
         },
@@ -164,7 +164,7 @@ export const TypeIsUpdatedInUI: Story = {
 export const NoTypeSmearing: Story = {
     args: {
         selection: {
-            rdfType: "initialType",
+            rdfType: { names: ["initialType"] },
             dataProps: [],
             objectProps: [],
         },
@@ -178,7 +178,7 @@ export const NoTypeSmearing: Story = {
                 args={{
                     ...args,
                     selection: {
-                        rdfType: "freshType",
+                        rdfType: { names: ["freshType"] },
                         dataProps: [],
                         objectProps: [],
                     }
@@ -193,14 +193,14 @@ export const NoTypeSmearing: Story = {
 
 function ExternalRdfTypeSetter() {
     const [selection, setSelection] = useState<ComplexPropertySelection>({
-        rdfType: "initialType",
+        rdfType: { names: ["initialType"] },
         dataProps: [],
         objectProps: [],
     });
 
     return (
         <>
-            <button onClick={() => setSelection({ ...selection, rdfType: "freshType" })}>
+            <button onClick={() => setSelection({ ...selection, rdfType: { names: ["freshType"] } })}>
                 Set type
             </button>
             <ComplexPropertySelector selection={selection} onSelectionChange={setSelection} />
@@ -237,10 +237,10 @@ export const RdfTypeUpdatesFromOutside: Story = {
 };
 
 const initialSelection: ComplexPropertySelection = {
-    rdfType: "",
+    rdfType: { names: [""] },
     dataProps: [
-        { name: "alpha" },
-        { name: "beta" },
+        { names: ["alpha"] },
+        { names: ["beta"] },
     ],
     objectProps: [],
 };
@@ -288,11 +288,11 @@ export const NoDataPropertySmearing: Story = {
 export const NoObjectPropertySmearing: Story = {
     args: {
         selection: {
-            rdfType: "",
+            rdfType: { names: [""] },
             dataProps: [],
             objectProps: [
-                { name: "alpha", selection: makeDefaultSelection() },
-                { name: "beta", selection: makeDefaultSelection() },
+                { names: ["alpha"], selection: makeDefaultSelection() },
+                { names: ["beta"], selection: makeDefaultSelection() },
             ],
         },
     },
@@ -330,9 +330,9 @@ export const NoObjectPropertySmearing: Story = {
 export const DataPropLabelsAreShown: Story = {
     args: {
         selection: {
-            rdfType: "",
+            rdfType: { names: [""] },
             dataProps: [
-                { name: "data_value" },
+                { names: ["data_value"] },
             ],
             objectProps: [],
         },
@@ -352,10 +352,10 @@ export const DataPropLabelsAreShown: Story = {
 export const ObjectPropLabelsAreShown: Story = {
     args: {
         selection: {
-            rdfType: "",
+            rdfType: { names: [""] },
             dataProps: [],
             objectProps: [
-                { name: "cool_value", selection: makeDefaultSelection() },
+                { names: ["cool_value"], selection: makeDefaultSelection() },
             ],
         },
         suggestionsFetcher: async ({ target }) => {
@@ -386,21 +386,21 @@ export const ContextfulSuggestions: Story = {
         const callLog: SuggestionsFetcherContext[] = [];
 
         const defaultSelection = {
-            rdfType: "someType",
+            rdfType: { names: ["someType"] },
             dataProps: [],
             objectProps: [{
-                name: "nestedPropA",
+                names: ["nestedPropA"],
                 selection: {
-                    rdfType: "nestedType",
+                    rdfType: { names: ["nestedType"] },
                     dataProps: [],
                     objectProps: [{
-                        name: "nestedPropB",
+                        names: ["nestedPropB"],
                         selection: {
-                            rdfType: "finalNested",
-                            dataProps: [{ name: "finalNestedData" }],
+                            rdfType: { names: ["finalNested"] },
+                            dataProps: [{ names: ["finalNestedData"] }],
                             objectProps: [{
-                                name: "finalNestedObj",
-                                selection: { rdfType: "", dataProps: [], objectProps: []},
+                                names: ["finalNestedObj"],
+                                selection: { rdfType: { names: [""] }, dataProps: [], objectProps: []},
                             }],
                         },
                     }],
@@ -456,8 +456,8 @@ export const ContextfulSuggestions: Story = {
             const level1 = defaultSelection.objectProps[0].selection;
             const level2 = level1.objectProps[0].selection;
             const ancestors = [
-                { name: "nestedPropA", index: 0, selection: level1 },
-                { name: "nestedPropB", index: 0, selection: level2 },
+                { names: ["nestedPropA"], index: 0, selection: level1 },
+                { names: ["nestedPropB"], index: 0, selection: level2 },
             ];
 
             const expectedContext = (target: SuggestionsFetcherContext["target"]) => ({
@@ -467,9 +467,244 @@ export const ContextfulSuggestions: Story = {
                 target,
             }) satisfies SuggestionsFetcherContext;
 
-            expect(callLog).toContainEqual(expectedContext({ kind: "rdfType" }));
-            expect(callLog).toContainEqual(expectedContext({ kind: "dataProp", index: 0 }));
-            expect(callLog).toContainEqual(expectedContext({ kind: "objectProp", index: 0 }));
+            expect(callLog).toContainEqual(expectedContext({ kind: "rdfType", valueIndex: 0 }));
+            expect(callLog).toContainEqual(expectedContext({ kind: "dataProp", index: 0, valueIndex: 0 }));
+            expect(callLog).toContainEqual(expectedContext({ kind: "objectProp", index: 0, valueIndex: 0 }));
         });
     }
 }
+
+/**
+ * Keeps the selection in state and serializes it, so that stories can assert on the whole selection.
+ */
+function SelectionJsonProbe({
+    defaultSelection,
+    suggestionsFetcher,
+}: {
+    defaultSelection: ComplexPropertySelection,
+    suggestionsFetcher?: SuggestionsFetcher,
+}) {
+    const [selection, setSelection] = useState(defaultSelection);
+
+    return (
+        <>
+            <ComplexPropertySelector
+                selection={selection}
+                onSelectionChange={setSelection}
+                suggestionsFetcher={suggestionsFetcher}
+            />
+            <output data-testid="selection-json">{JSON.stringify(selection)}</output>
+        </>
+    );
+}
+
+function readSelectionJson(canvas: Canvas): ComplexPropertySelection {
+    return JSON.parse(canvas.getByTestId("selection-json").textContent ?? "null");
+}
+
+// NOTE: Popups are portaled to the document body, so they are looked up through `screen`.
+async function commitCustomValue(input: HTMLElement, value: string) {
+    const user = userEvent.setup({});
+    await user.clear(input);
+    await user.type(input, value);
+    await user.click(await screen.findByRole("option", { name: `Use "${value}"` }));
+}
+
+export const AddAlternativeValues: Story = {
+    args: {},
+    play: async ({ mount, userEvent, step }) => {
+        const user = userEvent.setup({});
+
+        const canvas = await mount(
+            <SelectionJsonProbe
+                defaultSelection={{
+                    rdfType: { names: ["firstType"] },
+                    dataProps: [{ names: ["firstProp"] }],
+                    objectProps: [],
+                }}
+            />
+        );
+
+        await step("Only the primary values are shown by default", () => {
+            expect(canvas.getAllByRole("combobox")).toHaveLength(2);
+            expect(canvas.queryByRole("textbox", { name: "Union alias" })).toBeNull();
+        });
+
+        await step("Add an alternative type", async () => {
+            await user.click(canvas.getByRole("button", { name: "Add alternative type" }));
+            expect(canvas.getAllByRole("combobox")).toHaveLength(3);
+            await commitCustomValue(canvas.getAllByRole("combobox")[1], "altType");
+        });
+
+        await step("Add an alternative data property", async () => {
+            await user.click(canvas.getByRole("button", { name: "Add alternative" }));
+            expect(canvas.getAllByRole("combobox")).toHaveLength(4);
+            await commitCustomValue(canvas.getAllByRole("combobox")[3], "altProp");
+        });
+
+        await step("Alias is shown once a data property has alternatives", () => {
+            expect(canvas.getAllByRole("textbox", { name: "Union alias" })).toHaveLength(1);
+        });
+
+        await step("Each alternative is labeled with OR", () => {
+            // NOTE: Only the two alternatives are labeled, primary values are not
+            expect(canvas.getAllByText("OR")).toHaveLength(2);
+        });
+
+        await step("Validate selection", () => {
+            expect(readSelectionJson(canvas)).toEqual({
+                rdfType: { names: ["firstType", "altType"] },
+                dataProps: [{ names: ["firstProp", "altProp"] }],
+                objectProps: [],
+            });
+        });
+    },
+};
+
+export const SetUnionAlias: Story = {
+    args: {
+        selection: {
+            rdfType: { names: [""] },
+            dataProps: [{ names: ["firstProp", "altProp"] }],
+            objectProps: [],
+        },
+    },
+    play: async ({ mount, userEvent, step }) => {
+        const user = userEvent.setup({});
+
+        const canvas = await mount(
+            <SelectionJsonProbe
+                defaultSelection={{
+                    rdfType: { names: [""] },
+                    dataProps: [{ names: ["firstProp", "altProp"] }],
+                    objectProps: [],
+                }}
+            />
+        );
+
+        await step("Alias is empty by default", () => {
+            expect(readSelectionJson(canvas).dataProps[0]?.alias).toBeUndefined();
+        });
+
+        await step("Type an alias", async () => {
+            await user.type(canvas.getByRole("textbox", { name: "Union alias" }), "unionName");
+        });
+
+        await step("Validate selection", () => {
+            expect(readSelectionJson(canvas).dataProps).toEqual([
+                { names: ["firstProp", "altProp"], alias: "unionName" },
+            ]);
+        });
+    },
+};
+
+export const AlternativeObjectPropHasAlias: Story = {
+    args: {},
+    play: async ({ mount, userEvent, step }) => {
+        const user = userEvent.setup({});
+
+        const canvas = await mount(
+            <SelectionJsonProbe
+                defaultSelection={{
+                    rdfType: { names: [""] },
+                    dataProps: [],
+                    objectProps: [{
+                        names: ["objProp", "altObjProp"],
+                        selection: makeDefaultSelection(),
+                    }],
+                }}
+            />
+        );
+
+        await step("Alias input is shown for a union object property", async () => {
+            expect(canvas.getByRole("textbox", { name: "Union alias" })).not.toBeNull();
+        });
+
+        await step("Type an alias", async () => {
+            await user.type(canvas.getByRole("textbox", { name: "Union alias" }), "contact");
+        });
+
+        await step("Validate selection", () => {
+            expect(readSelectionJson(canvas).objectProps).toEqual([{
+                names: ["objProp", "altObjProp"],
+                alias: "contact",
+                selection: makeDefaultSelection(),
+            }]);
+        });
+    },
+};
+
+export const RemoveAlternativeValues: Story = {
+    args: {},
+    play: async ({ mount, userEvent, step }) => {
+        const user = userEvent.setup({});
+
+        const canvas = await mount(
+            <SelectionJsonProbe
+                defaultSelection={{
+                    rdfType: { names: ["firstType", "altType"] },
+                    dataProps: [{ names: ["firstProp", "altProp"], alias: "unionName" }],
+                    objectProps: [],
+                }}
+            />
+        );
+
+        await step("Remove alternative type", async () => {
+            // NOTE: The first destroy button belongs to the alternative type
+            const destroyButtons = canvas.getAllByRole("button", { name: "-" });
+            await user.click(destroyButtons[0]);
+        });
+
+        await step("Remove alternative data property", async () => {
+            // NOTE: Alternative data property is the last destroy button
+            const destroyButtons = canvas.getAllByRole("button", { name: "-" });
+            await user.click(destroyButtons[destroyButtons.length - 1]);
+        });
+
+        await step("Validate selection", () => {
+            expect(readSelectionJson(canvas)).toEqual({
+                rdfType: { names: ["firstType"] },
+                dataProps: [{ names: ["firstProp"], alias: "unionName" }],
+                objectProps: [],
+            });
+            expect(canvas.queryByRole("textbox", { name: "Union alias" })).toBeNull();
+        });
+    },
+};
+
+export const AlternativeValuesHaveContext: Story = {
+    args: {},
+    play: async ({ mount, userEvent, step }) => {
+        const user = userEvent.setup({});
+
+        // NOTE: Records every target that suggestions were requested for
+        const targetLog: SuggestionsFetcherContext["target"][] = [];
+        const suggestionsFetcher: SuggestionsFetcher = async (ctx) => {
+            targetLog.push(ctx.target);
+            return [];
+        };
+
+        const canvas = await mount(
+            <SelectionJsonProbe
+                defaultSelection={{
+                    rdfType: { names: ["firstType", ""] },
+                    dataProps: [{ names: ["firstProp", ""] }],
+                    objectProps: [],
+                }}
+                suggestionsFetcher={suggestionsFetcher}
+            />
+        );
+
+        await step("Request suggestions for each alternative", async () => {
+            // NOTE: Comboboxes are ordered: type, type alternative, data prop, data prop alternative
+            const comboboxes = canvas.getAllByRole("combobox");
+            await user.click(comboboxes[1]);
+            await user.click(comboboxes[3]);
+        });
+
+        await step("Validate targets", () => {
+            expect(targetLog).toContainEqual({ kind: "rdfType", valueIndex: 1 });
+            expect(targetLog).toContainEqual({ kind: "dataProp", index: 0, valueIndex: 1 });
+        });
+    },
+};
