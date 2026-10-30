@@ -1,9 +1,10 @@
 import { useState, type ReactNode } from "react";
 import { useControllableState } from "@radix-ui/react-use-controllable-state";
 import { SingleStringCombobox } from "./property_selector";
-import { ChevronDown } from "lucide-react";
+import { Asterisk, ChevronDown, CircleQuestionMark } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
 import { Input } from "./ui/input";
+import { Button } from "./ui/button";
 import { cn } from "@/lib/utils";
 import { QueryClient, QueryClientProvider, skipToken, useQuery } from "@tanstack/react-query";
 import { DestroyItemButton, MultiItemAddButton, MultiItemRow, MultiItemSelectorBase, MultiItemSelectorList } from "./MultiItemList";
@@ -19,6 +20,8 @@ export interface PropertySelection {
      * Like other variable names, it is sanitized and prefixed when it collides with another.
      */
     alias?: string,
+    /** Whether the property must be present. */
+    mandatory: boolean,
 }
 
 export interface ObjectPropSelection extends PropertySelection {
@@ -184,6 +187,28 @@ function UnionAliasInput({
     );
 }
 
+function MandatoryToggle({
+    mandatory,
+    onMandatoryChange,
+}: {
+    mandatory: boolean,
+    onMandatoryChange: (newMandatory: boolean) => void,
+}) {
+    return (
+        <Button
+            className="cursor-pointer"
+            variant="outline"
+            size="icon"
+            aria-label={mandatory ? "Mandatory" : "Optional"}
+            data-mandatory={mandatory}
+            title={mandatory ? "Mandatory: click to make optional" : "Optional: click to make mandatory"}
+            onClick={() => onMandatoryChange(!mandatory)}
+        >
+            {mandatory ? <Asterisk /> : <CircleQuestionMark />}
+        </Button>
+    );
+}
+
 function DataPropsSelector({
     selection,
     onSelectionChange,
@@ -223,11 +248,17 @@ function DataPropsSelector({
                                     target: { kind: "dataProp", index: i, valueIndex },
                                 })}
                                 addLabel="Add alternative"
-                                primaryTrailing={
+                                primaryTrailing={<>
+                                    <MandatoryToggle
+                                        mandatory={item.mandatory}
+                                        onMandatoryChange={(mandatory) => setDataProps(
+                                            replaceAt(dataProps, i, { ...item, mandatory })
+                                        )}
+                                    />
                                     <DestroyItemButton
                                         onClick={() => setDataProps(removeAt(dataProps, i))}
                                     />
-                                }
+                                </>}
                             />
                             {item.names.length > 1 && (
                                 <UnionAliasInput
@@ -242,7 +273,7 @@ function DataPropsSelector({
                 </MultiItemSelectorList>
                 <MultiItemAddButton onClick={() => setDataProps([
                     ...dataProps,
-                    { names: [""] },
+                    { names: [""], mandatory: false },
                 ])}>
                     Add data property
                 </MultiItemAddButton>
@@ -296,6 +327,12 @@ function ObjectPropsSelector({
                                 })}
                                 addLabel="Add alternative"
                                 primaryTrailing={<>
+                                    <MandatoryToggle
+                                        mandatory={item.mandatory}
+                                        onMandatoryChange={(mandatory) => setObjectProps(
+                                            replaceAt(objectProps, i, { ...item, mandatory })
+                                        )}
+                                    />
                                     <DestroyItemButton
                                         onClick={() => setObjectProps(removeAt(objectProps, i))}
                                     />
@@ -329,6 +366,7 @@ function ObjectPropsSelector({
                                         {
                                             names: item.names,
                                             alias: item.alias,
+                                            mandatory: item.mandatory,
                                             index: i,
                                             selection: item.selection,
                                         },
@@ -342,7 +380,7 @@ function ObjectPropsSelector({
                 </MultiItemSelectorList>
                 <MultiItemAddButton onClick={() => setObjectProps([
                     ...objectProps,
-                    { names: [""], selection: makeDefaultSelection() },
+                    { names: [""], mandatory: false, selection: makeDefaultSelection() },
                 ])}>
                     Add object property
                 </MultiItemAddButton>

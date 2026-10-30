@@ -53,13 +53,13 @@ export const Prefilled: Story = {
         selection: {
             rdfType: { names: ["http://myType"] },
             dataProps: [
-                { names: ["http://dataProp0"] },
-                { names: ["http://dataProp1"] },
+                { names: ["http://dataProp0"], mandatory: false },
+                { names: ["http://dataProp1"], mandatory: false },
             ],
             objectProps: [
-                { names: ["http://objProp0"], selection: makeDefaultSelection() },
-                { names: ["http://objProp1"], selection: makeDefaultSelection() },
-                { names: ["http://objProp2"], selection: makeDefaultSelection() },
+                { names: ["http://objProp0"], mandatory: false, selection: makeDefaultSelection() },
+                { names: ["http://objProp1"], mandatory: false, selection: makeDefaultSelection() },
+                { names: ["http://objProp2"], mandatory: false, selection: makeDefaultSelection() },
             ],
         },
     },
@@ -120,19 +120,19 @@ export const DeepRecursion: Story = {
         selection: {
             ...makeDefaultSelection(),
             objectProps: [{
-                names: ["http://lookDeeper"],
+                names: ["http://lookDeeper"], mandatory: false,
                 selection: {
                     ...makeDefaultSelection(),
                     objectProps: [{
-                        names: ["http://lookAgain"],
+                        names: ["http://lookAgain"], mandatory: false,
                         selection: {
                             ...makeDefaultSelection(),
                             objectProps: [{
-                                names: ["http://andOnceAgain"],
+                                names: ["http://andOnceAgain"], mandatory: false,
                                 selection: {
                                     ...makeDefaultSelection(),
                                     objectProps: [{
-                                        names: ["http://okThatsIt"],
+                                        names: ["http://okThatsIt"], mandatory: false,
                                         selection: {
                                             ...makeDefaultSelection(),
                                         }
@@ -239,8 +239,8 @@ export const RdfTypeUpdatesFromOutside: Story = {
 const initialSelection: ComplexPropertySelection = {
     rdfType: { names: [""] },
     dataProps: [
-        { names: ["alpha"] },
-        { names: ["beta"] },
+        { names: ["alpha"], mandatory: false },
+        { names: ["beta"], mandatory: false },
     ],
     objectProps: [],
 };
@@ -291,8 +291,8 @@ export const NoObjectPropertySmearing: Story = {
             rdfType: { names: [""] },
             dataProps: [],
             objectProps: [
-                { names: ["alpha"], selection: makeDefaultSelection() },
-                { names: ["beta"], selection: makeDefaultSelection() },
+                { names: ["alpha"], mandatory: false, selection: makeDefaultSelection() },
+                { names: ["beta"], mandatory: false, selection: makeDefaultSelection() },
             ],
         },
     },
@@ -332,7 +332,7 @@ export const DataPropLabelsAreShown: Story = {
         selection: {
             rdfType: { names: [""] },
             dataProps: [
-                { names: ["data_value"] },
+                { names: ["data_value"], mandatory: false },
             ],
             objectProps: [],
         },
@@ -355,7 +355,7 @@ export const ObjectPropLabelsAreShown: Story = {
             rdfType: { names: [""] },
             dataProps: [],
             objectProps: [
-                { names: ["cool_value"], selection: makeDefaultSelection() },
+                { names: ["cool_value"], mandatory: false, selection: makeDefaultSelection() },
             ],
         },
         suggestionsFetcher: async ({ target }) => {
@@ -389,17 +389,17 @@ export const ContextfulSuggestions: Story = {
             rdfType: { names: ["someType"] },
             dataProps: [],
             objectProps: [{
-                names: ["nestedPropA"],
+                names: ["nestedPropA"], mandatory: false,
                 selection: {
                     rdfType: { names: ["nestedType"] },
                     dataProps: [],
                     objectProps: [{
-                        names: ["nestedPropB"],
+                        names: ["nestedPropB"], mandatory: false,
                         selection: {
                             rdfType: { names: ["finalNested"] },
-                            dataProps: [{ names: ["finalNestedData"] }],
+                            dataProps: [{ names: ["finalNestedData"], mandatory: false }],
                             objectProps: [{
-                                names: ["finalNestedObj"],
+                                names: ["finalNestedObj"], mandatory: false,
                                 selection: { rdfType: { names: [""] }, dataProps: [], objectProps: []},
                             }],
                         },
@@ -456,8 +456,8 @@ export const ContextfulSuggestions: Story = {
             const level1 = defaultSelection.objectProps[0].selection;
             const level2 = level1.objectProps[0].selection;
             const ancestors = [
-                { names: ["nestedPropA"], index: 0, selection: level1 },
-                { names: ["nestedPropB"], index: 0, selection: level2 },
+                { names: ["nestedPropA"], mandatory: false, index: 0, selection: level1 },
+                { names: ["nestedPropB"], mandatory: false, index: 0, selection: level2 },
             ];
 
             const expectedContext = (target: SuggestionsFetcherContext["target"]) => ({
@@ -519,7 +519,7 @@ export const AddAlternativeValues: Story = {
             <SelectionJsonProbe
                 defaultSelection={{
                     rdfType: { names: ["firstType"] },
-                    dataProps: [{ names: ["firstProp"] }],
+                    dataProps: [{ names: ["firstProp"], mandatory: false }],
                     objectProps: [],
                 }}
             />
@@ -554,7 +554,7 @@ export const AddAlternativeValues: Story = {
         await step("Validate selection", () => {
             expect(readSelectionJson(canvas)).toEqual({
                 rdfType: { names: ["firstType", "altType"] },
-                dataProps: [{ names: ["firstProp", "altProp"] }],
+                dataProps: [{ names: ["firstProp", "altProp"], mandatory: false }],
                 objectProps: [],
             });
         });
@@ -565,7 +565,7 @@ export const SetUnionAlias: Story = {
     args: {
         selection: {
             rdfType: { names: [""] },
-            dataProps: [{ names: ["firstProp", "altProp"] }],
+            dataProps: [{ names: ["firstProp", "altProp"], mandatory: false }],
             objectProps: [],
         },
     },
@@ -576,7 +576,7 @@ export const SetUnionAlias: Story = {
             <SelectionJsonProbe
                 defaultSelection={{
                     rdfType: { names: [""] },
-                    dataProps: [{ names: ["firstProp", "altProp"] }],
+                    dataProps: [{ names: ["firstProp", "altProp"], mandatory: false }],
                     objectProps: [],
                 }}
             />
@@ -592,7 +592,7 @@ export const SetUnionAlias: Story = {
 
         await step("Validate selection", () => {
             expect(readSelectionJson(canvas).dataProps).toEqual([
-                { names: ["firstProp", "altProp"], alias: "unionName" },
+                { names: ["firstProp", "altProp"], mandatory: false, alias: "unionName" },
             ]);
         });
     },
@@ -609,7 +609,7 @@ export const AlternativeObjectPropHasAlias: Story = {
                     rdfType: { names: [""] },
                     dataProps: [],
                     objectProps: [{
-                        names: ["objProp", "altObjProp"],
+                        names: ["objProp", "altObjProp"], mandatory: false,
                         selection: makeDefaultSelection(),
                     }],
                 }}
@@ -626,7 +626,7 @@ export const AlternativeObjectPropHasAlias: Story = {
 
         await step("Validate selection", () => {
             expect(readSelectionJson(canvas).objectProps).toEqual([{
-                names: ["objProp", "altObjProp"],
+                names: ["objProp", "altObjProp"], mandatory: false,
                 alias: "contact",
                 selection: makeDefaultSelection(),
             }]);
@@ -643,7 +643,7 @@ export const RemoveAlternativeValues: Story = {
             <SelectionJsonProbe
                 defaultSelection={{
                     rdfType: { names: ["firstType", "altType"] },
-                    dataProps: [{ names: ["firstProp", "altProp"], alias: "unionName" }],
+                    dataProps: [{ names: ["firstProp", "altProp"], mandatory: false, alias: "unionName" }],
                     objectProps: [],
                 }}
             />
@@ -664,7 +664,7 @@ export const RemoveAlternativeValues: Story = {
         await step("Validate selection", () => {
             expect(readSelectionJson(canvas)).toEqual({
                 rdfType: { names: ["firstType"] },
-                dataProps: [{ names: ["firstProp"], alias: "unionName" }],
+                dataProps: [{ names: ["firstProp"], mandatory: false, alias: "unionName" }],
                 objectProps: [],
             });
             expect(canvas.queryByRole("textbox", { name: "Union alias" })).toBeNull();
@@ -688,7 +688,7 @@ export const AlternativeValuesHaveContext: Story = {
             <SelectionJsonProbe
                 defaultSelection={{
                     rdfType: { names: ["firstType", ""] },
-                    dataProps: [{ names: ["firstProp", ""] }],
+                    dataProps: [{ names: ["firstProp", ""], mandatory: false }],
                     objectProps: [],
                 }}
                 suggestionsFetcher={suggestionsFetcher}
@@ -705,6 +705,52 @@ export const AlternativeValuesHaveContext: Story = {
         await step("Validate targets", () => {
             expect(targetLog).toContainEqual({ kind: "rdfType", valueIndex: 1 });
             expect(targetLog).toContainEqual({ kind: "dataProp", index: 0, valueIndex: 1 });
+        });
+    },
+};
+
+export const TogglePropOptionality: Story = {
+    args: {},
+    play: async ({ mount, userEvent, step }) => {
+        const user = userEvent.setup({});
+
+        const canvas = await mount(
+            <SelectionJsonProbe
+                defaultSelection={{
+                    rdfType: { names: [""] },
+                    dataProps: [{ names: ["dataProp"], mandatory: false }],
+                    objectProps: [{ names: ["objProp"], mandatory: false, selection: makeDefaultSelection() }],
+                }}
+            />
+        );
+
+        await step("Props are optional by default", () => {
+            expect(canvas.getAllByRole("button", { name: "Optional" })).toHaveLength(2);
+        });
+
+        await step("Make data prop mandatory", async () => {
+            await user.click(canvas.getAllByRole("button", { name: "Optional" })[0]!);
+        });
+
+        await step("Validate selection", () => {
+            expect(readSelectionJson(canvas).dataProps).toEqual([
+                { names: ["dataProp"], mandatory: true },
+            ]);
+            expect(readSelectionJson(canvas).objectProps[0]?.mandatory).toBe(false);
+        });
+
+        await step("Button shows the new state", () => {
+            expect(canvas.getByRole("button", { name: "Mandatory" })).not.toBeNull();
+        });
+
+        await step("Toggle back to optional", async () => {
+            await user.click(canvas.getByRole("button", { name: "Mandatory" }));
+        });
+
+        await step("Validate selection", () => {
+            expect(readSelectionJson(canvas).dataProps).toEqual([
+                { names: ["dataProp"], mandatory: false },
+            ]);
         });
     },
 };

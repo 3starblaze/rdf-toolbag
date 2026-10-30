@@ -139,6 +139,8 @@ function collectConstraints(
     varInfoMapping: HashMap.HashMap<readonly string[], VarInfo>,
     pathPrefix: string[],
     { rdfType, dataProps, objectProps }: ComplexPropertySelection,
+    /** Whether every object property on the path to this selection is mandatory. */
+    parentsMandatory: boolean,
 ): ConstraintPayload {
     function wrapOptional(constraint: string): string {
         return `OPTIONAL { ${constraint} }`;
@@ -151,10 +153,20 @@ function collectConstraints(
         );
     }
 
-    function propConstraint(thisVarName: string, prop: PropertySelection, varName: string): string {
-        return wrapOptional(unionOf(
+    /**
+     * Constraint for a prop. A prop is only required when it and all of its ancestors are
+     * mandatory, otherwise requiring it would also drop solutions where an optional ancestor is
+     * missing.
+     */
+    function propConstraint(
+        thisVarName: string,
+        prop: PropertySelection,
+        varName: string,
+    ): string {
+        const constraint = unionOf(
             valuesOf(prop.names).map((name) => `?${thisVarName} <${name}> ?${varName}`)
-        ));
+        );
+        return parentsMandatory && prop.mandatory ? `${constraint} .` : wrapOptional(constraint);
     }
 
     const thisVar = getByPath(pathPrefix);
@@ -173,6 +185,7 @@ function collectConstraints(
             varInfoMapping,
             [...pathPrefix, segment],
             prop.selection,
+            parentsMandatory && prop.mandatory,
         );
         return {
             constraints: [constraint, ...constraints],
@@ -254,7 +267,7 @@ export function formatQuery(selection: ComplexPropertySelection): {
 
     const {
         constraints,
-    } = collectConstraints(collectedVarNames, [], selection);
+    } = collectConstraints(collectedVarNames, [], selection, true);
 
     const varInfos = collectedVarNames.pipe(HashMap.toValues);
 

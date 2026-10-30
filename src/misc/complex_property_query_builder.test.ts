@@ -81,20 +81,20 @@ describe("formatQuery", () => {
     test("basic test", () => {
         const sampleSelection = {
             rdfType: { names: ["http://Person"] },
-            dataProps: [{ names: ["http://p0"] }, { names: ["http://p1"] }],
+            dataProps: [{ names: ["http://p0"], mandatory: false }, { names: ["http://p1"], mandatory: false }],
             objectProps: [
                 {
-                    names: ["http://relation"],
+                    names: ["http://relation"], mandatory: false,
                     selection: {
                         rdfType: { names: ["http://Item"] },
-                        dataProps: [{ names: ["http://p0"] }],
+                        dataProps: [{ names: ["http://p0"], mandatory: false }],
                         objectProps: [
                             {
-                                names: ["http://anotherRelation"],
+                                names: ["http://anotherRelation"], mandatory: false,
                                 selection: {
                                     rdfType: { names: ["http://anotherRelatedType"] },
                                     dataProps: [
-                                        { names: ["http://lastDataPropISwear"] }
+                                        { names: ["http://lastDataPropISwear"], mandatory: false }
                                     ],
                                     objectProps: [],
                                 },
@@ -133,24 +133,24 @@ describe("formatQuery", () => {
             rdfType: { names: ["http://data.nobelprize.org/terms/Laureate"] },
             "dataProps": [
                 {
-                    names: ["http://xmlns.com/foaf/0.1/name"]
+                    names: ["http://xmlns.com/foaf/0.1/name"], mandatory: false
                 },
                 {
-                    names: ["http://www.w3.org/2000/01/rdf-schema#label"]
+                    names: ["http://www.w3.org/2000/01/rdf-schema#label"], mandatory: false
                 },
                 {
-                    names: ["http://dbpedia.org/property/dateOfBirth"]
+                    names: ["http://dbpedia.org/property/dateOfBirth"], mandatory: false
                 },
                 {
-                    names: ["http://xmlns.com/foaf/0.1/birthday"]
+                    names: ["http://xmlns.com/foaf/0.1/birthday"], mandatory: false
                 },
                 {
-                    names: ["http://xmlns.com/foaf/0.1/givenName"]
+                    names: ["http://xmlns.com/foaf/0.1/givenName"], mandatory: false
                 }
             ],
             "objectProps": [
                 {
-                    names: ["http://dbpedia.org/ontology/birthPlace"],
+                    names: ["http://dbpedia.org/ontology/birthPlace"], mandatory: false,
                     "selection": {
                         rdfType: { names: [""] },
                         "dataProps": [],
@@ -158,7 +158,7 @@ describe("formatQuery", () => {
                     }
                 },
                 {
-                    names: ["http://www.w3.org/1999/02/22-rdf-syntax-ns#type"],
+                    names: ["http://www.w3.org/1999/02/22-rdf-syntax-ns#type"], mandatory: false,
                     "selection": {
                         rdfType: { names: [""] },
                         "dataProps": [],
@@ -166,7 +166,7 @@ describe("formatQuery", () => {
                     }
                 },
                 {
-                    names: ["http://dbpedia.org/ontology/deathPlace"],
+                    names: ["http://dbpedia.org/ontology/deathPlace"], mandatory: false,
                     "selection": {
                         rdfType: { names: [""] },
                         "dataProps": [],
@@ -203,10 +203,10 @@ describe("formatQuery", () => {
             rdfType: { names: ["http://ldf.fi/schema/yoma/ReferencedPerson"] },
             "dataProps": [
                 {
-                    names: ["http://www.w3.org/2004/02/skos/core#prefLabel"]
+                    names: ["http://www.w3.org/2004/02/skos/core#prefLabel"], mandatory: false
                 },
                 {
-                    names: ["http://www.w3.org/2008/05/skos-xl#prefLabel"]
+                    names: ["http://www.w3.org/2008/05/skos-xl#prefLabel"], mandatory: false
                 },
             ],
             "objectProps": []
@@ -227,13 +227,13 @@ describe("formatQuery", () => {
             rdfType: { names: ["http://ldf.fi/schema/yoma/ReferencedPerson"] },
             "dataProps": [
                 {
-                    names: ["http://www.w3.org/2004/02/skos/core#prefLabel"]
+                    names: ["http://www.w3.org/2004/02/skos/core#prefLabel"], mandatory: false
                 },
                 {
-                    names: ["http://www.w3.org/2008/05/skos-xl#prefLabel"]
+                    names: ["http://www.w3.org/2008/05/skos-xl#prefLabel"], mandatory: false
                 },
                 {
-                    names: ["http://www.w3.org/2004/02/skos/core#prefLabel123"]
+                    names: ["http://www.w3.org/2004/02/skos/core#prefLabel123"], mandatory: false
                 },
             ],
             "objectProps": [],
@@ -258,7 +258,7 @@ describe("formatQuery unions", () => {
             rdfType: { names: [""] },
             dataProps: [
                 {
-                    names: ["http://schema.org/name", "http://xmlns.com/foaf/0.1/name"],
+                    names: ["http://schema.org/name", "http://xmlns.com/foaf/0.1/name"], mandatory: false,
                     alias: "personName",
                 },
             ],
@@ -283,7 +283,7 @@ describe("formatQuery unions", () => {
             rdfType: { names: [""] },
             dataProps: [
                 {
-                    names: ["http://schema.org/name", "http://xmlns.com/foaf/0.1/name"],
+                    names: ["http://schema.org/name", "http://xmlns.com/foaf/0.1/name"], mandatory: false,
                 },
             ],
             objectProps: [],
@@ -306,9 +306,9 @@ describe("formatQuery unions", () => {
         const sampleSelection = {
             rdfType: { names: [""] },
             dataProps: [
-                { names: ["http://a/label"] },
+                { names: ["http://a/label"], mandatory: false },
                 {
-                    names: ["http://b/label", "http://c/label"],
+                    names: ["http://b/label", "http://c/label"], mandatory: false,
                     alias: "label",
                 },
             ],
@@ -345,7 +345,7 @@ describe("formatQuery unions", () => {
     test("empty values are ignored", () => {
         const sampleSelection = {
             rdfType: { names: ["", "http://Person"] },
-            dataProps: [{ names: ["", "http://p0"] }],
+            dataProps: [{ names: ["", "http://p0"], mandatory: false }],
             objectProps: [],
         } satisfies ComplexPropertySelection;
 
@@ -370,11 +370,11 @@ describe("formatQuery unions", () => {
             dataProps: [],
             objectProps: [
                 {
-                    names: ["http://knows", "http://friend"],
+                    names: ["http://knows", "http://friend"], mandatory: false,
                     alias: "contact",
                     selection: {
                         rdfType: { names: ["http://Person"] },
-                        dataProps: [{ names: ["http://name"] }],
+                        dataProps: [{ names: ["http://name"], mandatory: false }],
                         objectProps: [],
                     },
                 },
@@ -396,5 +396,136 @@ describe("formatQuery unions", () => {
         expect(compact(query)).toMatch("OPTIONAL { ?contact <http://name> ?contact__name }");
 
         makeCommonAssertions({ query, expectedVarInfos, varInfos });
+    });
+});
+
+describe("formatQuery mandatory props", () => {
+    test("props are optional by default", () => {
+        const sampleSelection = {
+            rdfType: { names: [""] },
+            dataProps: [{ names: ["http://p0"], mandatory: false }],
+            objectProps: [],
+        } satisfies ComplexPropertySelection;
+
+        const { query, varInfos } = formatQuery(sampleSelection);
+
+        expect(compact(query)).toMatch("OPTIONAL { ?this <http://p0> ?p0 }");
+
+        makeCommonAssertions({
+            query,
+            expectedVarInfos: [
+                { varName: "this", path: [] },
+                { varName: "p0", path: ["http://p0"] },
+            ],
+            varInfos,
+        });
+    });
+    test("mandatory data prop is not wrapped in OPTIONAL", () => {
+        const sampleSelection = {
+            rdfType: { names: [""] },
+            dataProps: [{ names: ["http://p0"], mandatory: true }],
+            objectProps: [],
+        } satisfies ComplexPropertySelection;
+
+        const { query, varInfos } = formatQuery(sampleSelection);
+
+        expect(compact(query)).toMatch("?this <http://p0> ?p0");
+        expect(compact(query)).not.toMatch("OPTIONAL");
+
+        makeCommonAssertions({
+            query,
+            expectedVarInfos: [
+                { varName: "this", path: [] },
+                { varName: "p0", path: ["http://p0"] },
+            ],
+            varInfos,
+        });
+    });
+    test("mandatory union data prop is not wrapped in OPTIONAL", () => {
+        const sampleSelection = {
+            rdfType: { names: [""] },
+            dataProps: [{
+                names: ["http://schema.org/name", "http://xmlns.com/foaf/0.1/name"],
+                alias: "personName",
+                mandatory: true,
+            }],
+            objectProps: [],
+        } satisfies ComplexPropertySelection;
+
+        const { query, varInfos } = formatQuery(sampleSelection);
+
+        expect(compact(query)).toMatch(
+            "{ ?this <http://schema.org/name> ?personName } UNION { ?this <http://xmlns.com/foaf/0.1/name> ?personName }"
+        );
+        expect(compact(query)).not.toMatch("OPTIONAL");
+
+        makeCommonAssertions({
+            query,
+            expectedVarInfos: [
+                { varName: "this", path: [] },
+                { varName: "personName", path: ["personName"] },
+            ],
+            varInfos,
+        });
+    });
+    test("mandatory object prop with mandatory child is not wrapped in OPTIONAL", () => {
+        const sampleSelection = {
+            rdfType: { names: [""] },
+            dataProps: [],
+            objectProps: [{
+                names: ["http://knows"],
+                mandatory: true,
+                selection: {
+                    rdfType: { names: [""] },
+                    dataProps: [{ names: ["http://name"], mandatory: true }],
+                    objectProps: [],
+                },
+            }],
+        } satisfies ComplexPropertySelection;
+
+        const { query, varInfos } = formatQuery(sampleSelection);
+
+        expect(compact(query)).toMatch("?this <http://knows> ?knows");
+        expect(compact(query)).toMatch("?knows <http://name> ?knows__name");
+        expect(compact(query)).not.toMatch("OPTIONAL");
+
+        makeCommonAssertions({
+            query,
+            expectedVarInfos: [
+                { varName: "this", path: [] },
+                { varName: "knows", path: ["http://knows"] },
+                { varName: "knows__name", path: ["http://knows", "http://name"] },
+            ],
+            varInfos,
+        });
+    });
+    test("mandatory child of optional object prop stays optional", () => {
+        const sampleSelection = {
+            rdfType: { names: [""] },
+            dataProps: [],
+            objectProps: [{
+                names: ["http://knows"], mandatory: false,
+                selection: {
+                    rdfType: { names: [""] },
+                    dataProps: [{ names: ["http://name"], mandatory: true }],
+                    objectProps: [],
+                },
+            }],
+        } satisfies ComplexPropertySelection;
+
+        const { query, varInfos } = formatQuery(sampleSelection);
+
+        expect(compact(query)).toMatch("OPTIONAL { ?this <http://knows> ?knows }");
+        expect(compact(query)).toMatch("OPTIONAL { ?knows <http://name> ?knows__name }");
+
+        makeCommonAssertions({
+            query,
+            expectedVarInfos: [
+                { varName: "this", path: [] },
+                { varName: "knows", path: ["http://knows"] },
+                { varName: "knows__name", path: ["http://knows", "http://name"] },
+            ],
+            varInfos,
+        });
     });
 });
