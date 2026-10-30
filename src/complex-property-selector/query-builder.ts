@@ -1,4 +1,4 @@
-import type { ComplexPropertySelection, PropertySelection } from "@/components/complex_property_selector";
+import type { ComplexPropertySelection, PropertySelection } from "./shared";
 import { reorderOptional } from "@/query-util";
 import { HashSet, Data, HashMap, Option } from "effect";
 

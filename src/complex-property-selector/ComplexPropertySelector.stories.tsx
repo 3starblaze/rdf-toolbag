@@ -1,12 +1,13 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import ComplexPropertySelector, { makeDefaultSelection, type ComplexPropertySelection, type SuggestionsFetcherContext } from './complex_property_selector';
+import ComplexPropertySelector from './ComplexPropertySelector';
+import { makeDefaultSelection, type ComplexPropertySelection, type SuggestionsFetcherContext } from './shared';
 import { expect, screen, userEvent } from 'storybook/test';
 import { useArgs } from 'storybook/preview-api';
 import { useState, type ComponentProps } from 'react';
 import type { Canvas } from 'storybook/internal/types';
 
 const meta = {
-  title: "Components/ComplexPropertySelector",
+  title: "complex-property-selector/ComplexPropertySelector",
   component: ComplexPropertySelector,
 } satisfies Meta<typeof ComplexPropertySelector>;
 

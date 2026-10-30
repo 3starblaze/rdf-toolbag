@@ -6,13 +6,14 @@ export {
     SyncPropertySelector,
 } from "@/components/property_selector";
 export {
-    default as ComplexPropertySelector,
+    ComplexPropertySelector,
     type ComplexPropertySelection,
     type SuggestionAncestor,
     type SuggestionsFetcher,
     type SuggestionsFetcherContext,
     type SuggestionTarget,
-} from "@/components/complex_property_selector";
+    formatQuery,
+} from "@/complex-property-selector";
 export { PortalContext } from "@/components/ui/portal_context";
 export {
     formatMultiCardinalTableAsSelectQuery,
@@ -25,9 +26,6 @@ export {
 export {
     MultiCardinalTableServer,
 } from "@/multicardinal-table/index";
-export {
-    formatQuery,
-} from "@/misc/complex_property_query_builder";
 export {
     rewriteQueryWithPrefixes,
     reorderOptional,

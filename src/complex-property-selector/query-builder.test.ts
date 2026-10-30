@@ -1,6 +1,6 @@
 import { expect, test, describe } from "vitest";
-import { formatQuery, sparqlVarRe, type VarInfo } from "./complex_property_query_builder";
-import type { ComplexPropertySelection } from "@/components/complex_property_selector";
+import { formatQuery, sparqlVarRe, type VarInfo } from "./query-builder";
+import type { ComplexPropertySelection } from "./shared";
 import { Parser } from "@traqula/parser-sparql-1-1";
 import { AstTransformer } from '@traqula/rules-sparql-1-1';
 
