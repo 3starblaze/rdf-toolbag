@@ -1,17 +1,11 @@
+import { useState } from "react";
 import { useControllableState } from "@radix-ui/react-use-controllable-state";
 import { SingleStringCombobox } from "./property_selector";
 import { ChevronDown } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
 import { cn } from "@/lib/utils";
-import { QueryClient, QueryClientProvider, skipToken, useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, skipToken, useQuery } from "@tanstack/react-query";
 import { DestroyItemButton, MultiItemAddButton, MultiItemRow, MultiItemSelectorBase, MultiItemSelectorList } from "./MultiItemList";
-import {
-    getFetchTargetValue,
-    getThisSelection,
-    type PropFetchTarget,
-    type SuggestionsFetcher,
-    type SuggestionsFetcherContext,
-} from "@/suggestions-fetcher-util";
 
 export interface ComplexPropertySelection {
     rdfType: string,
@@ -24,225 +18,109 @@ export interface ComplexPropertySelection {
     }[],
 }
 
+/** Item that suggestions are requested for. */
+export type SuggestionTarget =
+    | { kind: "rdfType" }
+    | { kind: "dataProp", index: number }
+    | { kind: "objectProp", index: number };
+
+/** Object property on the path from the root selection to the current selection. */
+export interface SuggestionAncestor {
+    /** Name of the object property. */
+    name: string,
+    /** Index of the object property within its parent's `objectProps`. */
+    index: number,
+    /** Selection that the object property points to. */
+    selection: ComplexPropertySelection,
+}
+
+export interface SuggestionsFetcherContext {
+    /** Whole selection tree. */
+    rootSelection: ComplexPropertySelection,
+    /** Selection that directly contains the target. */
+    selection: ComplexPropertySelection,
+    /** Object properties from the root to `selection`, outermost first. Empty at the root. */
+    ancestors: readonly SuggestionAncestor[],
+    /** Item that suggestions are requested for. */
+    target: SuggestionTarget,
+}
+
+export type SuggestionsFetcher = (
+    ctx: SuggestionsFetcherContext,
+) => Promise<{ value: string, label: string }[]>;
+
+/** Context fields shared by every suggestion request made from one selection level. */
+type SuggestionContextBase = Omit<SuggestionsFetcherContext, "target">;
 
 export function makeDefaultSelection(): ComplexPropertySelection {
     return { rdfType: "", dataProps: [], objectProps: [] };
 }
 
-function useSuggestionsQuery(
-    fetchFn: SuggestionsFetcher | null,
+function SuggestionCombobox({
+    value,
+    onValueChange,
+    suggestionsFetcher,
+    context,
+    placeholder,
+}: {
+    value: string,
+    onValueChange: (newValue: string) => void,
+    suggestionsFetcher: SuggestionsFetcher | undefined,
     context: SuggestionsFetcherContext,
-): UseQueryResult<{ label: string, value: string }[], Error> {
-    return useQuery({
-        queryKey: ["ComplexPropertySelector", "objectProp", context],
-        queryFn: fetchFn
-            ? (() => fetchFn(context))
+    placeholder?: string,
+}) {
+    const suggestionsQueryResult = useQuery({
+        queryKey: ["ComplexPropertySelector", context],
+        queryFn: suggestionsFetcher
+            ? (() => suggestionsFetcher(context))
             : skipToken,
     });
-}
-
-function PropCombobox({
-    suggestionsFetcher,
-    setName,
-    suggestionsFetcherContext,
-}: {
-    suggestionsFetcher: SuggestionsFetcher | null,
-    suggestionsFetcherContext: SuggestionsFetcherContext & { fetchTarget: PropFetchTarget },
-    setName: (newName: string) => void,
-}) {
-    const value = getFetchTargetValue(suggestionsFetcherContext).name;
-
-    const suggestionsQueryResult = useSuggestionsQuery(
-        suggestionsFetcher,
-        suggestionsFetcherContext,
-    );
 
     return (
         <SingleStringCombobox
             suggestionsQueryResult={suggestionsQueryResult}
             value={value}
-            onValueChange={setName}
+            onValueChange={onValueChange}
+            placeholder={placeholder}
         />
     );
 }
 
-function ObjectPropsSelector({
-    thisSelection,
-    suggestionsFetcher,
-    onValueChange,
-    partialSuggestionsFetcherContext,
-    /**
-     * @see ComplexPropertySelector
-     */
-    recursionDepth = 0,
-}: {
-    thisSelection: ComplexPropertySelection,
-    onValueChange: (newValue: ComplexPropertySelection["objectProps"]) => void,
-    suggestionsFetcher: SuggestionsFetcher | null,
-    rdfType: string,
-    defaultValue?: ComplexPropertySelection["objectProps"],
-    recursionDepth?: number,
-    partialSuggestionsFetcherContext: PartialSuggestionsFetcherContext,
-}) {
-    const value = thisSelection.objectProps;
-
-    const addItem = () => {
-        onValueChange([
-            ...value,
-            { name: "", selection: makeDefaultSelection() },
-        ])
-    }
-
-    return (
-        <div>
-            <p>Properties (object)</p>
-            <MultiItemSelectorBase>
-                <MultiItemSelectorList>
-                    {value.map((item, i) => (
-                        <Collapsible
-                            key={i}
-                            className="flex flex-col group gap-2"
-                        >
-                            <MultiItemRow>
-                                <PropCombobox
-                                    suggestionsFetcher={suggestionsFetcher}
-                                    suggestionsFetcherContext={{
-                                        ...partialSuggestionsFetcherContext,
-                                        fetchTarget: {
-                                            targetItem: "objectProp",
-                                            propIndex: i,
-                                        },
-                                    }}
-                                    setName={(newName) => onValueChange([
-                                        ...value.slice(0, i),
-                                        { ...item, name: newName },
-                                        ...value.slice(i+1)
-                                    ])}
-                                />
-                                <DestroyItemButton
-                                    onClick={() => onValueChange([
-                                        ...value.slice(0, i),
-                                        ...value.slice(i + 1),
-                                    ])}
-                                />
-                                <CollapsibleTrigger className="cursor-pointer">
-                                    <ChevronDown
-                                        className="size-4 group-data-[state=open]:rotate-180 transition-transform"
-                                    />
-                                </CollapsibleTrigger>
-                            </MultiItemRow>
-                            <CollapsibleContent className={cn(
-                                "text-gray-700 ml-4 p-2",
-                                (recursionDepth % 2 === 0) ? "bg-gray-100" : "bg-white",
-                            )}>
-                                <ComplexPropertySelectorBase
-                                    selection={value[i].selection}
-                                    onSelectionChange={(newSelection) => onValueChange([
-                                        ...value.slice(0, i),
-                                        { ...value[i], selection: newSelection },
-                                        ...value.slice(i + 1),
-                                    ])}
-                                    suggestionsFetcher={suggestionsFetcher ?? undefined}
-                                    recursionDepth={recursionDepth + 1}
-                                    partialSuggestionsFetcherContext={{
-                                        ...partialSuggestionsFetcherContext,
-                                        parentFetchTargets: [
-                                            ...partialSuggestionsFetcherContext.parentFetchTargets,
-                                            { targetItem: "objectProp", propIndex: i },
-                                        ],
-                                    }}
-                                />
-                            </CollapsibleContent>
-                        </Collapsible>
-                    ))}
-                </MultiItemSelectorList>
-                <MultiItemAddButton onClick={addItem}>
-                    Add object property
-                </MultiItemAddButton>
-            </MultiItemSelectorBase>
-        </div>
-    );
-}
-
-type PartialSuggestionsFetcherContext = Omit<SuggestionsFetcherContext, "fetchTarget">
-
-export interface ComplexPropertySelectorProps {
-    /** Selection to show. */
-    selection?: ComplexPropertySelection,
-    /** Callback invoked on selection change. */
-    onSelectionChange?: (selection: ComplexPropertySelection) => void,
-    /** Initial selection value for uncontrolled state. */
-    defaultSelection?: ComplexPropertySelection,
-    /** Fetch suggestions for rdfType and props. */
-    suggestionsFetcher?: SuggestionsFetcher,
-}
-
-function RdfTypeSelector({
-    onValueChange,
-    partialSuggestionsFetcherContext,
-    suggestionsFetcher,
-}: {
-    onValueChange: (val: string) => void,
-    suggestionsFetcher: SuggestionsFetcher | null,
-    partialSuggestionsFetcherContext: PartialSuggestionsFetcherContext,
-}) {
-    const ctx = {
-        ...partialSuggestionsFetcherContext,
-        fetchTarget: { targetItem: "rdfType" },
-    } satisfies SuggestionsFetcherContext;
-
-    const rdfTypeQuery = useSuggestionsQuery(suggestionsFetcher, ctx);
-
-    const value = getFetchTargetValue(ctx);
-
-    return (
-        <div>
-            <p>Type</p>
-            <SingleStringCombobox
-                suggestionsQueryResult={rdfTypeQuery}
-                value={value}
-                onValueChange={onValueChange}
-                placeholder="Enter type"
-            />
-        </div>
-    );
-}
-
 function DataPropsSelector({
-    thisSelection,
+    selection,
+    onSelectionChange,
     suggestionsFetcher,
-    setSelection,
-    partialSuggestionsFetcherContext,
-} : {
-    thisSelection: ComplexPropertySelection,
-    suggestionsFetcher: SuggestionsFetcher | null,
-    setSelection: (newValue: ComplexPropertySelection) => void,
-    partialSuggestionsFetcherContext: PartialSuggestionsFetcherContext,
+    contextBase,
+}: {
+    selection: ComplexPropertySelection,
+    onSelectionChange: (newSelection: ComplexPropertySelection) => void,
+    suggestionsFetcher: SuggestionsFetcher | undefined,
+    contextBase: SuggestionContextBase,
 }) {
     function addDataProp() {
-        setSelection({
-            ...thisSelection,
-            dataProps: [...thisSelection.dataProps, { name: "" }],
+        onSelectionChange({
+            ...selection,
+            dataProps: [...selection.dataProps, { name: "" }],
         })
     }
 
     function setDataPropName(newName: string, i: number) {
-        setSelection({
-            ...thisSelection,
+        onSelectionChange({
+            ...selection,
             dataProps: [
-                ...thisSelection.dataProps.slice(0, i),
-                { ...thisSelection.dataProps[i], name: newName },
-                ...thisSelection.dataProps.slice(i+1),
+                ...selection.dataProps.slice(0, i),
+                { ...selection.dataProps[i], name: newName },
+                ...selection.dataProps.slice(i+1),
             ],
         });
     }
 
     function deleteDataProp(i: number) {
-        setSelection({
-            ...thisSelection,
+        onSelectionChange({
+            ...selection,
             dataProps: [
-                ...thisSelection.dataProps.slice(0, i),
-                ...thisSelection.dataProps.slice(i+1),
+                ...selection.dataProps.slice(0, i),
+                ...selection.dataProps.slice(i+1),
             ],
         });
     }
@@ -252,18 +130,17 @@ function DataPropsSelector({
             <p>Properties (data)</p>
             <MultiItemSelectorBase>
                 <MultiItemSelectorList>
-                    {thisSelection.dataProps.map((_, i) => (
+                    {/* NOTE: Index keys are intentional. Item name may not be unique. */}
+                    {selection.dataProps.map((item, i) => (
                         <div
                             key={i}
                             className="flex gap-2"
                         >
-                            <PropCombobox
-                                suggestionsFetcherContext={{
-                                    ...partialSuggestionsFetcherContext,
-                                    fetchTarget: { targetItem: "dataProp", propIndex: i },
-                                }}
+                            <SuggestionCombobox
+                                value={item.name}
+                                onValueChange={(newName) => setDataPropName(newName, i)}
                                 suggestionsFetcher={suggestionsFetcher}
-                                setName={(newName) => setDataPropName(newName, i)}
+                                context={{ ...contextBase, target: { kind: "dataProp", index: i } }}
                             />
                             <DestroyItemButton
                                 onClick={() => deleteDataProp(i)}
@@ -279,48 +156,152 @@ function DataPropsSelector({
     );
 }
 
-function ComplexPropertySelectorBase({
+function ObjectPropsSelector({
+    selection,
     onSelectionChange,
     suggestionsFetcher,
-    partialSuggestionsFetcherContext,
+    contextBase,
     recursionDepth,
-}: ComplexPropertySelectorProps & {
-    onSelectionChange: (it: ComplexPropertySelection) => void,
-    /** Fragment of context that is used to build full context. */
-    partialSuggestionsFetcherContext: PartialSuggestionsFetcherContext,
+}: {
+    selection: ComplexPropertySelection,
+    onSelectionChange: (newSelection: ComplexPropertySelection) => void,
+    suggestionsFetcher: SuggestionsFetcher | undefined,
+    contextBase: SuggestionContextBase,
+    /**
+     * @see ComplexPropertySelector
+     */
+    recursionDepth: number,
+}) {
+    const objectProps = selection.objectProps;
+
+    function setObjectProps(newObjectProps: ComplexPropertySelection["objectProps"]) {
+        onSelectionChange({ ...selection, objectProps: newObjectProps });
+    }
+
+    return (
+        <div>
+            <p>Properties (object)</p>
+            <MultiItemSelectorBase>
+                <MultiItemSelectorList>
+                    {/* NOTE: Index keys are intentional. Names change while the user types, so they cannot identify a row. */}
+                    {objectProps.map((item, i) => (
+                        <Collapsible
+                            key={i}
+                            className="flex flex-col group gap-2"
+                        >
+                            <MultiItemRow>
+                                <SuggestionCombobox
+                                    value={item.name}
+                                    onValueChange={(newName) => setObjectProps([
+                                        ...objectProps.slice(0, i),
+                                        { ...item, name: newName },
+                                        ...objectProps.slice(i+1),
+                                    ])}
+                                    suggestionsFetcher={suggestionsFetcher}
+                                    context={{ ...contextBase, target: { kind: "objectProp", index: i } }}
+                                />
+                                <DestroyItemButton
+                                    onClick={() => setObjectProps([
+                                        ...objectProps.slice(0, i),
+                                        ...objectProps.slice(i + 1),
+                                    ])}
+                                />
+                                <CollapsibleTrigger className="cursor-pointer">
+                                    <ChevronDown
+                                        className="size-4 group-data-[state=open]:rotate-180 transition-transform"
+                                    />
+                                </CollapsibleTrigger>
+                            </MultiItemRow>
+                            <CollapsibleContent className={cn(
+                                "text-gray-700 ml-4 p-2",
+                                (recursionDepth % 2 === 0) ? "bg-gray-100" : "bg-white",
+                            )}>
+                                <ComplexPropertySelectorBase
+                                    selection={item.selection}
+                                    onSelectionChange={(newSelection) => setObjectProps([
+                                        ...objectProps.slice(0, i),
+                                        { ...item, selection: newSelection },
+                                        ...objectProps.slice(i + 1),
+                                    ])}
+                                    rootSelection={contextBase.rootSelection}
+                                    ancestors={[
+                                        ...contextBase.ancestors,
+                                        { name: item.name, index: i, selection: item.selection },
+                                    ]}
+                                    suggestionsFetcher={suggestionsFetcher}
+                                    recursionDepth={recursionDepth + 1}
+                                />
+                            </CollapsibleContent>
+                        </Collapsible>
+                    ))}
+                </MultiItemSelectorList>
+                <MultiItemAddButton onClick={() => setObjectProps([
+                    ...objectProps,
+                    { name: "", selection: makeDefaultSelection() },
+                ])}>
+                    Add object property
+                </MultiItemAddButton>
+            </MultiItemSelectorBase>
+        </div>
+    );
+}
+
+export interface ComplexPropertySelectorProps {
+    /** Selection to show. */
+    selection?: ComplexPropertySelection,
+    /** Callback invoked on selection change. */
+    onSelectionChange?: (selection: ComplexPropertySelection) => void,
+    /** Initial selection value for uncontrolled state. */
+    defaultSelection?: ComplexPropertySelection,
+    /** Fetch suggestions for rdfType and props. */
+    suggestionsFetcher?: SuggestionsFetcher,
+}
+
+function ComplexPropertySelectorBase({
+    selection,
+    onSelectionChange,
+    rootSelection,
+    ancestors,
+    suggestionsFetcher,
+    recursionDepth,
+}: {
+    /** Selection shown at this level. */
+    selection: ComplexPropertySelection,
+    onSelectionChange: (newSelection: ComplexPropertySelection) => void,
+    rootSelection: ComplexPropertySelection,
+    ancestors: readonly SuggestionAncestor[],
+    suggestionsFetcher: SuggestionsFetcher | undefined,
     /**
      * Recursion index that is used to apply style properly.
      */
     recursionDepth: number,
 }) {
-    const selection = getThisSelection(partialSuggestionsFetcherContext);
+    const contextBase: SuggestionContextBase = { rootSelection, selection, ancestors };
 
     return (
         <div className="flex flex-col gap-4">
-            <RdfTypeSelector
-                onValueChange={(rdfType) => onSelectionChange({
-                    ...selection,
-                    rdfType,
-                })}
-                suggestionsFetcher={suggestionsFetcher ?? null}
-                partialSuggestionsFetcherContext={partialSuggestionsFetcherContext}
-            />
+            <div>
+                <p>Type</p>
+                <SuggestionCombobox
+                    value={selection.rdfType}
+                    onValueChange={(rdfType) => onSelectionChange({ ...selection, rdfType })}
+                    suggestionsFetcher={suggestionsFetcher}
+                    context={{ ...contextBase, target: { kind: "rdfType" } }}
+                    placeholder="Enter type"
+                />
+            </div>
             <DataPropsSelector
-                suggestionsFetcher={suggestionsFetcher ?? null}
-                setSelection={onSelectionChange}
-                thisSelection={selection}
-                partialSuggestionsFetcherContext={partialSuggestionsFetcherContext}
+                selection={selection}
+                onSelectionChange={onSelectionChange}
+                suggestionsFetcher={suggestionsFetcher}
+                contextBase={contextBase}
             />
             <ObjectPropsSelector
-                partialSuggestionsFetcherContext={partialSuggestionsFetcherContext}
-                suggestionsFetcher={suggestionsFetcher ?? null}
-                thisSelection={selection}
-                onValueChange={(newValue) => onSelectionChange({
-                    ...selection,
-                    objectProps: newValue,
-                })}
+                selection={selection}
+                onSelectionChange={onSelectionChange}
+                suggestionsFetcher={suggestionsFetcher}
+                contextBase={contextBase}
                 recursionDepth={recursionDepth}
-                rdfType={selection.rdfType}
             />
         </div>
     );
@@ -330,13 +311,12 @@ export default function ComplexPropertySelector({
     defaultSelection,
     selection: controlledSelection,
     onSelectionChange,
-    ...props
+    suggestionsFetcher,
 }: ComplexPropertySelectorProps) {
     // NOTE: We are wrapping this component with its own queryClient so that this component can be
     // used without explicitly requiring end users to use tanstack query.
-    // NOTE: Client is provided in a separate component so that `useQuery` works as expected and
-    // that recursive property selector invokations don't make new clients.
-    const queryClient = new QueryClient();
+    // NOTE: The client is created once per instance so that its cache survives re-renders.
+    const [queryClient] = useState(() => new QueryClient());
 
     const [selection, setSelection] = useControllableState<ComplexPropertySelection>({
         prop: controlledSelection,
@@ -347,12 +327,11 @@ export default function ComplexPropertySelector({
     return (
         <QueryClientProvider client={queryClient}>
             <ComplexPropertySelectorBase
-                {...props}
+                selection={selection}
                 onSelectionChange={setSelection}
-                partialSuggestionsFetcherContext={{
-                    rootSelection: selection,
-                    parentFetchTargets: [],
-                }}
+                rootSelection={selection}
+                ancestors={[]}
+                suggestionsFetcher={suggestionsFetcher}
                 recursionDepth={0}
             />
         </QueryClientProvider>

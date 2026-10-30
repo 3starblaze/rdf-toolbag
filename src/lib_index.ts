@@ -7,6 +7,11 @@ export {
 } from "@/components/property_selector";
 export {
     default as ComplexPropertySelector,
+    type ComplexPropertySelection,
+    type SuggestionAncestor,
+    type SuggestionsFetcher,
+    type SuggestionsFetcherContext,
+    type SuggestionTarget,
 } from "@/components/complex_property_selector";
 export { PortalContext } from "@/components/ui/portal_context";
 export {
