@@ -333,14 +333,16 @@ export function useTable({
         !cellRequestsReady || cellsQuery.pendingCellRequests.length > loadingIncreasedCellRequests.length
     );
 
-    const cellRows = cellsToMulticardinalTable(cellsQuery.data, keys);
+    // NOTE: While the initial rest values are loading, nothing is shown from them, so the cells
+    // appear all at once when every request is finalized instead of as they arrive
+    const cellRows = restValuesLoading ? [] : cellsToMulticardinalTable(cellsQuery.data, keys);
 
     // NOTE: Every key is shown, even when its rest values have not arrived yet
     const data: Row[] = keys.map((idValues) => (
         cellRows.find((row) => valueEqual(row.idValues, idValues)) ?? { idValues, restValues: {} }
     ));
 
-    const restCols = getRestColumns({
+    const restCols = restValuesLoading ? [] : getRestColumns({
         queryToWrap,
         idVars,
         data,
