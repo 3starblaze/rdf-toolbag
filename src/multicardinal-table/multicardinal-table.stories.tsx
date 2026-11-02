@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { MultiCardinalTableServer } from './index';
 import { defaultColumn, type Props } from './shared';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { expect, waitFor } from 'storybook/test';
 import type { SparqlTableResult, RdfTerm } from '@/sparql_queries';
 import type { PaginationState } from '@tanstack/react-table';
@@ -270,6 +270,85 @@ export const WithPagination: Story = {
 
       expect(currentPageNumber).toHaveTextContent("2");
       // NOTE: Rows are remounted while the page is loading, so the element is looked up on every try
+      await waitFor(() => expect(canvas.getByText("B10")).toBeInTheDocument());
+      expect(canvas.queryByText("B0")).not.toBeInTheDocument();
+    });
+  },
+};
+
+// NOTE: Every query sent by `PageResettingTable`, to check which page the key queries ask for
+const sentQueries: string[] = [];
+
+const narrowBaseQuery = defaultBaseQuery.replace("?value2 ?valueConst WHERE", "?value2 WHERE");
+
+// NOTE: Changing the filter changes the query and its result, like changing a prop that affects it
+function PageResettingTable(props: Props) {
+  const [narrow, setNarrow] = useState(false);
+  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
+
+  const queryCallback = useMemo<QueryCallback>(() => {
+    const callback = datasetCallback(["key0", "key1"], narrow ? pagedGroups().slice(0, 12) : pagedGroups());
+    return async (args) => {
+      sentQueries.push(args.query);
+      return callback(args);
+    };
+  }, [narrow]);
+
+  return (
+    <>
+      <button onClick={() => setNarrow((it) => !it)}>Change filter</button>
+      <MultiCardinalTableServer
+        {...props}
+        baseQuery={narrow ? narrowBaseQuery : defaultBaseQuery}
+        queryCallback={queryCallback}
+        pagination={pagination}
+        onPaginationChange={setPagination}
+      />
+    </>
+  );
+}
+
+export const ResetsToFirstPageWhenQueryChanges: Story = {
+  args: {
+    ...defaultArgs,
+    idVars: ["key0", "key1"],
+    queryCallback: datasetCallback([], []),
+  },
+  render: (args) => <PageResettingTable {...args} />,
+  play: async ({ canvas, userEvent, canvasElement, step }) => {
+    const currentPageNumber = canvasElement.querySelector('[data-current-page]');
+    sentQueries.length = 0;
+
+    await waitForLoaded(canvas);
+
+    await step("Third page is shown", async () => {
+      await userEvent.click(canvas.getByText(">"));
+      await userEvent.click(canvas.getByText(">"));
+
+      expect(currentPageNumber).toHaveTextContent("3");
+      await waitFor(() => expect(canvas.getByText("B20")).toBeInTheDocument());
+    });
+
+    await step("Changing the query goes back to the first page before querying", async () => {
+      const sentBeforeChange = sentQueries.length;
+
+      await userEvent.click(canvas.getByRole("button", { name: "Change filter" }));
+
+      await waitFor(() => expect(canvas.getByText("B0")).toBeInTheDocument());
+      expect(currentPageNumber).toHaveTextContent("1");
+      expect(canvas.queryByText("B20")).not.toBeInTheDocument();
+
+      const keyQueriesAfterChange = sentQueries
+        .slice(sentBeforeChange)
+        .filter((query) => !query.includes(PROP_NAME_VAR));
+      expect(keyQueriesAfterChange.length).toBeGreaterThan(0);
+      keyQueriesAfterChange.forEach((query) => expect(query).toContain("OFFSET 0"));
+    });
+
+    await step("Pagination still works after the reset", async () => {
+      await userEvent.click(canvas.getByText(">"));
+
+      expect(currentPageNumber).toHaveTextContent("2");
       await waitFor(() => expect(canvas.getByText("B10")).toBeInTheDocument());
       expect(canvas.queryByText("B0")).not.toBeInTheDocument();
     });

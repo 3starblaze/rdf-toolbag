@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
 import { ColumnResizer } from "@/components/column_resizer";
 import { MulticardinalTableBody } from "./MulticardinalTableBody";
 import { TableFooter } from "./TableFooter";
-import { useTable } from "./hooks";
+import { usePaginationForQuery, useTable } from "./hooks";
 import { type Props, type Row } from "./shared";
 
 function MainHeader({
@@ -86,9 +86,16 @@ function MainComponent(props: Props): React.ReactNode {
         onChange: onPaginationChange,
     });
 
-    const { table, hasNextPage } = useTable({
+    const queryPagination = usePaginationForQuery({
+        baseQuery,
         idVars,
         pagination,
+        setPagination,
+    });
+
+    const { table, hasNextPage } = useTable({
+        idVars,
+        pagination: queryPagination,
         renderHeader,
         setPagination,
         queryCallback,
@@ -108,14 +115,14 @@ function MainComponent(props: Props): React.ReactNode {
                 style={tableStyle}
             >
                 <MainHeader
-                    {...{ table, baseQuery, idVars, queryCallback, pagination, rawRowLimit }}
+                    {...{ table, baseQuery, idVars, queryCallback, pagination: queryPagination, rawRowLimit }}
                 />
                 <MulticardinalTableBody
-                    {...{ table, baseQuery, idVars, queryCallback, pagination, rawRowLimit }}
+                    {...{ table, baseQuery, idVars, queryCallback, pagination: queryPagination, rawRowLimit }}
                 />
             </Table>
             <TableFooter
-                pagination={pagination}
+                pagination={queryPagination}
                 onPaginationChange={setPagination}
                 hasNextPage={hasNextPage}
             />

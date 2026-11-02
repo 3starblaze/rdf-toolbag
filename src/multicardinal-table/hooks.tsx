@@ -252,6 +252,40 @@ const restValuesPlaceholderColumn: ColumnDef<Row> = {
     cell: () => null,
 };
 
+/**
+ * Pagination to run the current query with. When `baseQuery` or `idVars` change, the table goes back
+ * to the first page before the new query runs, since the page of the old result may not exist in the
+ * new one. The pagination state is reset as well, so the first page stays selected afterwards.
+ *
+ * Other props, such as `queryCallback`, do not reset the page.
+ */
+export function usePaginationForQuery({
+  baseQuery,
+  idVars,
+  pagination,
+  setPagination,
+}: {
+  baseQuery: string,
+  idVars: string[],
+  pagination: PaginationState,
+  setPagination: OnChangeFn<PaginationState>,
+}): PaginationState {
+    const queryKey = JSON.stringify({ baseQuery, idVars });
+    const [appliedQueryKey, setAppliedQueryKey] = useState(queryKey);
+    const isQueryChanged = appliedQueryKey !== queryKey;
+
+    useEffect(() => {
+        if (!isQueryChanged) return;
+
+        setAppliedQueryKey(queryKey);
+        if (pagination.pageIndex !== 0) {
+            setPagination({ ...pagination, pageIndex: 0 });
+        }
+    }, [isQueryChanged, queryKey, pagination, setPagination]);
+
+    return isQueryChanged ? { ...pagination, pageIndex: 0 } : pagination;
+}
+
 export function useTable({
   idVars,
   pagination,
@@ -281,16 +315,19 @@ export function useTable({
     const hasNextPage = lookaheadKeys.length === lookaheadKeyLimit(pagination);
 
     const [cellRequests, setCellRequests] = useState<CellRequest[]>([]);
-    const [cellRequestsPagination, setCellRequestsPagination] = useState<PaginationState | null>(null);
+    // NOTE: Identifies the query, id vars and pagination the cell requests were made for
+    const cellRequestsSource = JSON.stringify({ queryToWrap, idVars, pagination });
+    const [madeCellRequestsSource, setMadeCellRequestsSource] = useState<string | null>(null);
+    const cellRequestsReady = madeCellRequestsSource === cellRequestsSource;
     // NOTE: Cell requests made by increasing a limit, so their spinner is shown in the cell itself
     const [increasedCellRequests, setIncreasedCellRequests] = useState<CellRequest[]>([]);
 
-    // NOTE: Change cell requests whenever pagination changes
+    // NOTE: Change cell requests whenever the query or pagination changes
     useEffect(() => {
         const limit = 5; // FIXME: fix initial limit
 
         if (!keyValuesQuery.data) return;
-        if (valueEqual(cellRequestsPagination, pagination)) return;
+        if (madeCellRequestsSource === cellRequestsSource) return;
 
         setCellRequests(
             initialCellRequests({
@@ -301,14 +338,15 @@ export function useTable({
             })
         );
         setIncreasedCellRequests([]);
-        setCellRequestsPagination(pagination);
-    }, [cellRequests, keyValuesQuery.data, pagination, cellRequestsPagination]);
+        setMadeCellRequestsSource(cellRequestsSource);
+    }, [cellRequestsSource, madeCellRequestsSource, keyValuesQuery.data, idVars, pagination.pageSize, queryToWrap]);
 
     const cellsQuery = useCells({
         baseQuery: queryToWrap,
         idVars,
         queryCallback,
-        cellRequests,
+        // NOTE: Requests made for an earlier query or page are not sent until the effect above replaces them
+        cellRequests: cellRequestsReady ? cellRequests : [],
     });
     const erroredCellRequests = cellsQuery.erroredCellRequests;
 
@@ -325,7 +363,6 @@ export function useTable({
     }
 
     // NOTE: Cell requests are only set in an effect, so right after keys arrive they are not ready yet
-    const cellRequestsReady = valueEqual(cellRequestsPagination, pagination);
     const loadingIncreasedCellRequests = cellsQuery.pendingCellRequests
         .filter((it) => increasedCellRequests.includes(it));
     // NOTE: Only the initial load of the rest values uses the placeholder column
