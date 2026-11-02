@@ -129,7 +129,13 @@ export function useCells(args: {
         });
     }
 
-    return { ...cellsQuery, retryCell };
+    // NOTE: Every failed cell is refetched through the same path as `retryCell`, so the batcher still
+    // groups their requests
+    function retryErroredCells() {
+        return Promise.all(cellsQuery.erroredCellRequests.map((cellRequest) => retryCell(cellRequest)));
+    }
+
+    return { ...cellsQuery, retryCell, retryErroredCells };
 }
 
 /**
@@ -419,5 +425,10 @@ export function useTable({
         columnResizeMode: "onChange",
     });
 
-    return { table, hasNextPage };
+    return {
+        table,
+        hasNextPage,
+        hasErroredCells: erroredCellRequests.length > 0,
+        retryErroredCells: cellsQuery.retryErroredCells,
+    };
 }

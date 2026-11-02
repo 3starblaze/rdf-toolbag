@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { ColumnResizer } from "@/components/column_resizer";
 import { MulticardinalTableBody } from "./MulticardinalTableBody";
 import { TableFooter } from "./TableFooter";
+import { Button } from "@/components/ui/button";
 import { usePaginationForQuery, useTable } from "./hooks";
 import { type Props, type Row } from "./shared";
 
@@ -93,7 +94,7 @@ function MainComponent(props: Props): React.ReactNode {
         setPagination,
     });
 
-    const { table, hasNextPage } = useTable({
+    const { table, hasNextPage, hasErroredCells, retryErroredCells } = useTable({
         idVars,
         pagination: queryPagination,
         renderHeader,
@@ -110,6 +111,13 @@ function MainComponent(props: Props): React.ReactNode {
 
     return (
         <div>
+            {hasErroredCells && (
+                <div className="flex justify-start pb-2">
+                    <Button variant="outline" onClick={() => retryErroredCells()}>
+                        Retry all
+                    </Button>
+                </div>
+            )}
             <Table
                 className="table-fixed"
                 style={tableStyle}

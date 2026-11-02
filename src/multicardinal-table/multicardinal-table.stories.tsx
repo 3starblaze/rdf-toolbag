@@ -781,3 +781,72 @@ export const RetryWorksAfterParentRerenders: Story = {
     });
   },
 };
+
+// NOTE: Every cell query fails while `active`, so every cell is errored until the story turns it off
+const failingCells = { active: true };
+
+const ALL_CELLS_GROUPS: Group[] = [
+  {
+    idValues: { "key0": lit("AA"), "key1": lit("BB") },
+    restValues: { "value0": [lit("zero one")], "value1": [lit("one one")] },
+  },
+  {
+    idValues: { "key0": lit("AA"), "key1": lit("CC") },
+    restValues: { "value0": [lit("zero two")], "value1": [lit("one two")] },
+  },
+];
+
+export const RetryAllRetriesEveryErroredCell: Story = {
+  args: {
+    ...defaultArgs,
+    idVars: ["key0", "key1"],
+    queryCallback: async (args) => {
+      if (args.query.includes(PROP_NAME_VAR) && failingCells.active) throw new Error("womp womp");
+      return datasetCallback(["key0", "key1"], ALL_CELLS_GROUPS)(args);
+    },
+  },
+  play: async ({ canvas, userEvent, step }) => {
+    failingCells.active = true;
+
+    await step("Failed cells show an error and a single Retry all button", async () => {
+      await waitForLoaded(canvas);
+
+      // NOTE: Every rest column of the base query is errored, including the ones without values
+      expect(await canvas.findAllByText("Could not get data")).toHaveLength(14);
+      expect(canvas.getAllByRole("button", { name: "Retry" })).toHaveLength(14);
+      expect(canvas.getAllByRole("button", { name: "Retry all" })).toHaveLength(1);
+    });
+
+    await step("Retry all refetches every failed cell", async () => {
+      failingCells.active = false;
+      await userEvent.click(canvas.getByRole("button", { name: "Retry all" }));
+
+      expect(await canvas.findByText("one two")).toBeInTheDocument();
+      expect(canvas.getByText("zero one")).toBeInTheDocument();
+      expect(canvas.getByText("zero two")).toBeInTheDocument();
+      expect(canvas.getByText("one one")).toBeInTheDocument();
+      expect(canvas.queryByText("Could not get data")).not.toBeInTheDocument();
+    });
+
+    await step("Retry all is hidden once no cell has failed", async () => {
+      expect(canvas.queryByRole("button", { name: "Retry all" })).not.toBeInTheDocument();
+      expect(canvas.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+    });
+  },
+};
+
+export const RetryAllIsHiddenWithoutCellErrors: Story = {
+  args: {
+    ...defaultArgs,
+    idVars: ["key0", "key1"],
+    queryCallback: datasetCallback(["key0", "key1"], ALL_CELLS_GROUPS),
+  },
+  play: async ({ canvas, step }) => {
+    await step("Cells are shown and Retry all is not", async () => {
+      expect(await canvas.findByText("one two")).toBeInTheDocument();
+      await waitForLoaded(canvas);
+
+      expect(canvas.queryByRole("button", { name: "Retry all" })).not.toBeInTheDocument();
+    });
+  },
+};
