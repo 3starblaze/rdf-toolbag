@@ -195,11 +195,27 @@ export function reorderOptional(query: string): string {
     pattern: {
       group: {
         transform: (op) => {
-          const targetSubtypes = ["bgp", "optional"];
+          // NOTE: A union whose branches consist only of BGPs is treated the same as a BGP.
+          const isBgpLike = (pattern: Pattern): boolean => {
+            if (pattern.type !== "pattern") return false;
+            if (pattern.subType === "bgp") return true;
+            if (pattern.subType === "union") {
+              return pattern.patterns.every((branch) =>
+                branch.type === "pattern" &&
+                branch.subType === "group" &&
+                branch.patterns.every((it) => it.type === "pattern" && it.subType === "bgp")
+              );
+            }
+            return false;
+          };
 
           const groupedPatterns = Map.groupBy(
             op.patterns,
-            ({ subType }) => targetSubtypes.includes(subType) ? subType : "rest"
+            (pattern) => {
+              if (isBgpLike(pattern)) return "bgp";
+              if (pattern.type === "pattern" && pattern.subType === "optional") return "optional";
+              return "rest";
+            }
           );
 
           const bgpPatterns = groupedPatterns.get("bgp") || [];

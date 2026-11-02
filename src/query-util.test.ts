@@ -221,6 +221,35 @@ LIMIT 100`;
 
     expect(newQuery).toEqual(expectedQuery);
   });
+
+  test("union with only BGP branches is moved above optionals", () => {
+    const query = `PREFIX cito: <http://purl.org/spar/cito/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+SELECT * WHERE {
+  OPTIONAL { ?this rdfs:label ?label . }
+  OPTIONAL { ?this cito:hasCitationCreationDate ?hasCitationCreationDate . }
+  OPTIONAL { ?this cito:hasCitationTimeSpan ?hasCitationTimeSpan . }
+  OPTIONAL { ?this rdf:type ?type . }
+  OPTIONAL { ?this cito:hasCitingEntity ?hasCitingEntity . }
+  {
+    ?this rdf:type cito:AuthorSelfCitation .
+  }
+  UNION {
+    ?this rdf:type cito:Citation .
+  }
+  UNION {
+    ?this rdf:type cito:JournalSelfCitation .
+  }
+}`;
+
+    const newQuery = reorderOptional(query);
+
+    const unionIndex = newQuery.indexOf("UNION");
+    const firstOptionalIndex = newQuery.indexOf("OPTIONAL");
+    expect(unionIndex).toBeGreaterThan(-1);
+    expect(firstOptionalIndex).toBeGreaterThan(unionIndex);
+  });
 });
 
 describe("dropUselessOptionals", () => {
