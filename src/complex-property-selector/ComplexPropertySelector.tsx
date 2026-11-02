@@ -6,7 +6,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../componen
 import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
 import { cn } from "@/lib/utils";
-import { QueryClient, QueryClientProvider, skipToken, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, QueryClient, QueryClientProvider, skipToken, useQuery } from "@tanstack/react-query";
 import { DestroyItemButton, MultiItemAddButton, MultiItemRow, MultiItemSelectorBase, MultiItemSelectorList } from "../components/MultiItemList";
 import { makeDefaultSelection, type ComplexPropertySelection, type ObjectPropSelection, type PropertySelection, type SuggestionAncestor, type SuggestionContextBase, type SuggestionsFetcher, type SuggestionsFetcherContext } from "./shared";
 
@@ -31,11 +31,15 @@ function SuggestionCombobox({
     context: SuggestionsFetcherContext,
     placeholder?: string,
 }) {
+    // NOTE: The context contains the whole selection tree, so any edit (e.g. toggling optionality)
+    // changes the query key. Without `keepPreviousData` the query would briefly have no data, and
+    // the combobox would fall back to showing raw values (URIs) until suggestions arrive again.
     const suggestionsQueryResult = useQuery({
         queryKey: ["ComplexPropertySelector", context],
         queryFn: suggestionsFetcher
             ? (() => suggestionsFetcher(context))
             : skipToken,
+        placeholderData: keepPreviousData,
     });
 
     return (

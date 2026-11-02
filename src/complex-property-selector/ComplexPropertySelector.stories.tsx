@@ -755,3 +755,45 @@ export const TogglePropOptionality: Story = {
         });
     },
 };
+
+export const ToggleOptionalityKeepsLabels: Story = {
+    args: {},
+    play: async ({ mount, userEvent, step }) => {
+        const user = userEvent.setup({});
+
+        // NOTE: The fetcher is deliberately slow so that the refetch triggered by toggling
+        // optionality is still pending right after the click.
+        const suggestionsFetcher: SuggestionsFetcher = async ({ target }) => {
+            await new Promise((resolve) => setTimeout(resolve, 300));
+            if (target.kind === "dataProp") return [{ label: "data_label", value: "data_value" }];
+            if (target.kind === "objectProp") return [{ label: "obj_label", value: "obj_value" }];
+            return [];
+        };
+
+        const canvas = await mount(
+            <SelectionJsonProbe
+                defaultSelection={{
+                    rdfType: { names: [""] },
+                    dataProps: [{ names: ["data_value"], mandatory: false }],
+                    objectProps: [{ names: ["obj_value"], mandatory: false, selection: makeDefaultSelection() }],
+                }}
+                suggestionsFetcher={suggestionsFetcher}
+            />
+        );
+
+        await step("Labels are shown once suggestions load", async () => {
+            expect(await canvas.findAllByDisplayValue("data_label")).not.toHaveLength(0);
+            expect(await canvas.findAllByDisplayValue("obj_label")).not.toHaveLength(0);
+        });
+
+        await step("Toggling optionality does not flicker back to raw values", async () => {
+            await user.click(canvas.getAllByRole("button", { name: "Optional" })[0]!);
+            // NOTE: Suggestions are still pending here, labels must not fall back to values.
+            const inputs = canvas.getAllByRole("combobox") as HTMLInputElement[];
+            expect(inputs.map((input) => input.value)).not.toContain("data_value");
+            expect(inputs.map((input) => input.value)).not.toContain("obj_value");
+            expect(inputs.map((input) => input.value)).toContain("data_label");
+            expect(inputs.map((input) => input.value)).toContain("obj_label");
+        });
+    },
+};
