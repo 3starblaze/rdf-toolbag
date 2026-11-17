@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Combobox, ComboboxContent, ComboboxList, ComboboxItem, ComboboxInput, ComboboxEmpty, ComboboxStatus } from "./ui/combobox";
 import {
     useControllableState
@@ -19,6 +19,8 @@ export function SingleStringCombobox({
     suggestionsQueryResult,
     placeholder,
     hiddenValueList,
+    ariaLabel,
+    startAddon,
 }: {
     value: string,
     onValueChange: (newValue: string) => void,
@@ -26,6 +28,10 @@ export function SingleStringCombobox({
     /** Which values should not be displayed in suggestions. */
     hiddenValueList?: string[],
     placeholder?: string,
+    /** Accessible name of the input. */
+    ariaLabel?: string,
+    /** Content shown at the start of the input, e.g. an `InputGroupAddon` with an icon. */
+    startAddon?: ReactNode,
 }) {
     const suggestions = suggestionsQueryResult.data?.filter(
         ({ value }) => !hiddenValueList || !hiddenValueList.includes(value)
@@ -67,7 +73,9 @@ export function SingleStringCombobox({
             <ComboboxInput
                 className="grow"
                 placeholder={placeholder}
+                aria-label={ariaLabel}
             >
+                {startAddon}
             </ComboboxInput>
             <ComboboxContent>
                 <ComboboxStatus>
