@@ -25,3 +25,4 @@ export {
     type RdfTypeConstraint,
 } from "./constraints";
 export { makeDefaultSelection } from "./util";
+export { formatQuery, type VarInfo } from "./query-builder";

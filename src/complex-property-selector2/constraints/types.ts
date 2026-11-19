@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import type { ComplexPropertySelection } from "../shared";
+import type { ComplexPropertySelection, ConstraintArg } from "../shared";
 import type { LabelOf } from "../util";
 
 /** Fields every constraint has. */
@@ -25,6 +25,23 @@ export interface ConstraintTextContext {
 }
 
 /**
+ * How a literal argument is written in the query. Subject and property arguments are always written
+ * as variables.
+ */
+export type LiteralTermKind = "iri" | "string";
+
+export interface ConstraintQueryContext {
+    /**
+     * SPARQL term of an argument: a variable for the subject or a property, an IRI or a string
+     * literal (see `literalAs`) for a literal.
+     *
+     * Returns `null` when the argument cannot be used yet, i.e. the literal is empty or the
+     * referenced property was removed or has no complete path.
+     */
+    term: (arg: ConstraintArg, literalAs: LiteralTermKind) => string | null,
+}
+
+/**
  * Everything the selector needs to know about one kind of constraint. Each kind lives in its own
  * folder under `constraints/` and is registered in `constraints/index.ts`.
  */
@@ -45,6 +62,11 @@ export interface ConstraintDefinition<C extends ConstraintBase> {
     describe: (constraint: C, ctx: ConstraintTextContext) => string,
     /** Short name of the constraint, e.g. for the breadcrumb. */
     shortName: (constraint: C, ctx: ConstraintTextContext) => string,
+    /**
+     * Query fragment of the constraint, placed in the WHERE clause. Returns `null` when the
+     * constraint is incomplete and should be left out of the query.
+     */
+    queryFragment: (constraint: C, ctx: ConstraintQueryContext) => string | null,
     /** Compact one-line view, shown in the constraint list of the main view. */
     MainView: ComponentType<ConstraintMainViewProps<C>>,
     /** View where the constraint is edited. */
