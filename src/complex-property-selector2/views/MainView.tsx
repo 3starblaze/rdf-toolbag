@@ -1,17 +1,10 @@
-import { Asterisk, Plus } from "lucide-react";
+import { Asterisk } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { constraintDefinitions, constraintSubTypes, definitionOf, type Constraint, type ConstraintSubType } from "../constraints";
 import { AddIconButton, RowButton, SectionHeader } from "../components/primitives";
 import { useSelectorContext } from "../selector-context";
-import type { SelectedProperty } from "../shared";
+import type { ConstraintNode, SelectedProperty } from "../shared";
 import { isPropertyUnset, propertyFullText, propertyShortText } from "../util";
+import { ConstraintsSection, type AddChoice } from "./ConstraintsSection";
 
 /** Lists the selected properties and constraints. Each opens its edit view when clicked. */
 export function MainView({
@@ -19,11 +12,13 @@ export function MainView({
     onAddConstraint,
     onOpenProperty,
     onOpenConstraint,
+    onMoveConstraint,
 }: {
     onAddProperty: () => void,
-    onAddConstraint: (subType: ConstraintSubType) => void,
+    onAddConstraint: (choice: AddChoice) => void,
     onOpenProperty: (id: string) => void,
-    onOpenConstraint: (id: string) => void,
+    onOpenConstraint: (node: ConstraintNode) => void,
+    onMoveConstraint: (id: string, parentId: string | null) => void,
 }) {
     const { selection } = useSelectorContext();
 
@@ -47,27 +42,19 @@ export function MainView({
                 </div>
             </section>
 
-            <section className="flex flex-col gap-2">
-                <SectionHeader title="Constraints">
-                    <AddConstraintMenu onAddConstraint={onAddConstraint} />
-                </SectionHeader>
-                {selection.constraints.length === 0 && (
-                    <p className="m-0 text-muted-foreground">No constraints yet.</p>
-                )}
-                <div className="flex flex-col gap-1">
-                    {selection.constraints.map((constraint) => (
-                        <ConstraintRow
-                            key={constraint.id}
-                            constraint={constraint}
-                            onOpen={() => onOpenConstraint(constraint.id)}
-                        />
-                    ))}
-                </div>
-            </section>
+            <ConstraintsSection
+                title="Constraints"
+                titleHint="Top-level constraints must all hold (AND)"
+                emptyText="No constraints yet."
+                nodes={selection.constraints}
+                containerId={null}
+                onAdd={onAddConstraint}
+                onOpen={onOpenConstraint}
+                onMove={onMoveConstraint}
+            />
         </div>
     );
 }
-
 function PropertyRow({ property, onOpen }: { property: SelectedProperty, onOpen: () => void }) {
     const { labelOf } = useSelectorContext();
     const unset = isPropertyUnset(property);
@@ -98,57 +85,5 @@ function PropertyRow({ property, onOpen }: { property: SelectedProperty, onOpen:
                 </span>
             )}
         </RowButton>
-    );
-}
-
-function ConstraintRow({ constraint, onOpen }: { constraint: Constraint, onOpen: () => void }) {
-    const { selection, labelOf } = useSelectorContext();
-    const definition = definitionOf(constraint);
-    const full = definition.describe(constraint, { selection, labelOf });
-
-    return (
-        <RowButton title={full} aria-label={`Edit constraint ${full}`} onClick={onOpen}>
-            <definition.MainView constraint={constraint} />
-        </RowButton>
-    );
-}
-
-function AddConstraintMenu({
-    onAddConstraint,
-}: {
-    onAddConstraint: (subType: ConstraintSubType) => void,
-}) {
-    return (
-        <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-                <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    className="size-7 cursor-pointer"
-                    aria-label="Add constraint"
-                    title="Add constraint"
-                >
-                    <Plus className="size-3.5" />
-                </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-75" aria-label="Constraint kinds">
-                {constraintSubTypes.map((subType) => {
-                    const definition = constraintDefinitions[subType];
-                    return (
-                        <DropdownMenuItem
-                            key={subType}
-                            className="cursor-pointer flex-col items-start gap-0.5"
-                            onSelect={() => onAddConstraint(subType)}
-                        >
-                            <span className="font-medium">{definition.label}</span>
-                            <span className="text-[13px] text-muted-foreground">
-                                {definition.description}
-                            </span>
-                        </DropdownMenuItem>
-                    );
-                })}
-            </DropdownMenuContent>
-        </DropdownMenu>
     );
 }

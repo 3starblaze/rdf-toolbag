@@ -6,8 +6,10 @@ import type { LabelOf } from "../util";
 export interface ConstraintBase {
     /** Unique key of the constraint kind, e.g. "rdfType". Used for serialization. */
     subType: string,
-    /** Identifier of this constraint. Unique within a selection. */
+    /** Identifier of this constraint. Unique among all constraints and groups of a selection. */
     id: string,
+    /** Whether the constraint is inverted (NOT). */
+    negated?: boolean,
 }
 
 export interface ConstraintMainViewProps<C extends ConstraintBase> {
@@ -63,10 +65,13 @@ export interface ConstraintDefinition<C extends ConstraintBase> {
     /** Short name of the constraint, e.g. for the breadcrumb. */
     shortName: (constraint: C, ctx: ConstraintTextContext) => string,
     /**
-     * Query fragment of the constraint, placed in the WHERE clause. Returns `null` when the
-     * constraint is incomplete and should be left out of the query.
+     * SPARQL expression of the constraint, e.g. `LANG(?label) = "en"`. Expressions of all
+     * constraints are combined with `&&`, `||` and `!` (following groups and negation) into one
+     * FILTER. Negation is applied by the query builder, so the expression should not include it.
+     *
+     * Returns `null` when the constraint is incomplete and should be left out of the query.
      */
-    queryFragment: (constraint: C, ctx: ConstraintQueryContext) => string | null,
+    expression: (constraint: C, ctx: ConstraintQueryContext) => string | null,
     /** Compact one-line view, shown in the constraint list of the main view. */
     MainView: ComponentType<ConstraintMainViewProps<C>>,
     /** View where the constraint is edited. */

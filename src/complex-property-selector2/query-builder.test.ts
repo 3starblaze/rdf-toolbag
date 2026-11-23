@@ -2,7 +2,7 @@ import { expect, test, describe } from "vitest";
 import { Parser } from "@traqula/parser-sparql-1-1";
 import { AstTransformer } from "@traqula/rules-sparql-1-1";
 import { formatQuery, sparqlVarRe, type VarInfo } from "./query-builder";
-import type { ComplexPropertySelection, SelectedProperty } from "./shared";
+import type { ComplexPropertySelection, ConstraintGroup, ConstraintNode, SelectedProperty } from "./shared";
 import type { Constraint } from "./constraints";
 
 /**
@@ -197,7 +197,8 @@ describe("formatQuery constraints", () => {
             constraints: [rdfType({ kind: "subject" }, { kind: "literal", value: "http://Person" })],
         });
 
-        expect(compacted).toContain(`?this ${rdfTypeIri} <http://Person>`);
+        expect(compacted).toContain(`EXISTS { ?this ${rdfTypeIri} <http://Person> }`);
+        expect(compacted).not.toContain("BOUND");
     });
 
     test("rdfType with properties as both arguments", () => {
@@ -209,6 +210,9 @@ describe("formatQuery constraints", () => {
         });
 
         expect(compacted).toContain(`?friend ${rdfTypeIri} ?friendType`);
+        // NOTE: Unbound variables would match anything inside EXISTS
+        expect(compacted).toContain("BOUND( ?friend )");
+        expect(compacted).toContain("BOUND( ?friendType )");
     });
 
     test("langEquals with property and literal", () => {
@@ -249,5 +253,96 @@ describe("formatQuery constraints", () => {
         });
 
         expect(compacted).toEqual("SELECT * WHERE { }");
+    });
+});
+
+describe("formatQuery constraint tree", () => {
+    const label = { kind: "property", propertyId: "p1" } as const;
+    const lit = (value: string) => ({ kind: "literal", value }) as const;
+    const lang = (id: string, value: string, negated = false): Constraint =>
+        ({ subType: "langEquals", id, negated, target: label, value: lit(value) });
+    const group = (
+        id: string,
+        operator: ConstraintGroup["operator"],
+        children: ConstraintNode[],
+        negated = false,
+    ): ConstraintGroup => ({ subType: "group", id, operator, negated, children });
+    const properties = [prop("p1", ["http://label"])];
+
+    const filterCount = (query: string) => query.match(/FILTER/g)?.length ?? 0;
+
+    test("top-level constraints are combined with && into one FILTER", () => {
+        const { query, compacted } = run({
+            properties,
+            constraints: [
+                lang("c1", "en"),
+                { subType: "rdfType", id: "c2", target: { kind: "subject" }, value: lit("http://T") },
+            ],
+        });
+
+        expect(filterCount(query)).toEqual(1);
+        expect(compacted).toMatch(/LANG\( \?label \) = "en" \) && .*EXISTS/);
+    });
+
+    test("OR group is combined with ||", () => {
+        const { query, compacted } = run({
+            properties,
+            constraints: [group("g1", "or", [lang("c1", "en"), lang("c2", "lv")])],
+        });
+
+        expect(filterCount(query)).toEqual(1);
+        expect(compacted).toContain('( LANG( ?label ) = "en" ) || ( LANG( ?label ) = "lv" )');
+    });
+
+    test("negated constraint is wrapped in !", () => {
+        const { compacted } = run({ properties, constraints: [lang("c1", "en", true)] });
+
+        expect(compacted).toContain('! ( LANG( ?label ) = "en" )');
+    });
+
+    test("negated group negates the whole group", () => {
+        const { compacted } = run({
+            properties,
+            constraints: [group("g1", "and", [lang("c1", "en"), lang("c2", "lv")], true)],
+        });
+
+        expect(compacted).toMatch(/! \( \( LANG\( \?label \) = "en" \) && \( LANG\( \?label \) = "lv" \) \)/);
+    });
+
+    test("nested groups keep their structure", () => {
+        const { compacted } = run({
+            properties,
+            constraints: [
+                group("g1", "or", [
+                    lang("c1", "en"),
+                    group("g2", "and", [lang("c2", "lv"), lang("c3", "de", true)]),
+                ]),
+            ],
+        });
+
+        expect(compacted).toMatch(
+            /\( LANG\( \?label \) = "en" \) \|\| \( \( LANG\( \?label \) = "lv" \) && ! \( LANG\( \?label \) = "de" \) \)/,
+        );
+    });
+
+    test("group with one complete constraint is that constraint", () => {
+        const { compacted } = run({
+            properties,
+            constraints: [group("g1", "or", [lang("c1", "en"), lang("c2", "")])],
+        });
+
+        expect(compacted).toContain('FILTER ( ( LANG( ?label ) = "en" ) )');
+    });
+
+    test("empty groups and groups of incomplete constraints are left out", () => {
+        const { compacted } = run({
+            properties,
+            constraints: [
+                group("g1", "and", [], true),
+                group("g2", "or", [lang("c1", ""), group("g3", "and", [])]),
+            ],
+        });
+
+        expect(compacted).not.toContain("FILTER");
     });
 });

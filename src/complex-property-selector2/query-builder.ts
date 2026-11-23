@@ -1,6 +1,7 @@
 import { reorderOptional } from "@/query-util";
 import { definitionOf, type ConstraintQueryContext } from "./constraints";
-import type { ComplexPropertySelection, ConstraintArg, SelectedProperty } from "./shared";
+import { isGroup } from "./constraint-tree";
+import type { ComplexPropertySelection, ConstraintArg, ConstraintNode, SelectedProperty } from "./shared";
 import { formatIri, formatStringLiteral, formatVariable } from "./sparql-terms";
 
 // NOTE: technically there are more items that only can appear after the first character (not
@@ -157,11 +158,41 @@ function propertyFragment(
 }
 
 /**
+ * Expression of a node of the constraint tree. Group children are combined with `&&` or `||`,
+ * negated nodes are wrapped in `!`. Returns `null` when nothing in the node is complete, e.g. an
+ * empty group.
+ */
+export function constraintExpression(node: ConstraintNode, ctx: ConstraintQueryContext): string | null {
+    const expression = isGroup(node)
+        ? combineExpressions(node.children, node.operator === "and" ? "&&" : "||", ctx)
+        : definitionOf(node).expression(node, ctx);
+    if (expression === null) return null;
+    return node.negated ? `!(${expression})` : expression;
+}
+
+function combineExpressions(
+    nodes: readonly ConstraintNode[],
+    operator: "&&" | "||",
+    ctx: ConstraintQueryContext,
+): string | null {
+    const expressions = nodes.flatMap((node) => {
+        const expression = constraintExpression(node, ctx);
+        return expression === null ? [] : [expression];
+    });
+    if (expressions.length === 0) return null;
+    if (expressions.length === 1) return expressions[0]!;
+    return expressions.map((it) => `(${it})`).join(` ${operator} `);
+}
+
+/**
  * Make a query that represents the passed selection.
  *
  * Every property with at least one complete path binds its own variable, which constraints refer
  * to. Incomplete properties and constraints that refer to them (or have an empty literal) are
  * left out.
+ *
+ * Constraints are combined into one FILTER: the top-level nodes with `&&`, groups with their
+ * operator.
  */
 export function formatQuery(selection: ComplexPropertySelection): {
     query: string,
@@ -200,13 +231,11 @@ export function formatQuery(selection: ComplexPropertySelection): {
         },
     };
 
+    const filter = combineExpressions(selection.constraints, "&&", ctx);
     const fragments = [
         ...properties.map(({ property, alternatives }) =>
             propertyFragment(alternatives, property.mandatory, varNameByPropertyId.get(property.id)!)),
-        ...selection.constraints.flatMap((constraint) => {
-            const fragment = definitionOf(constraint).queryFragment(constraint, ctx);
-            return fragment === null ? [] : [fragment];
-        }),
+        ...(filter === null ? [] : [`FILTER(${filter})`]),
     ];
 
     const indentation = "  ";

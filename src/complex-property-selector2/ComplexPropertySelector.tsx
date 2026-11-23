@@ -13,18 +13,26 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { definitionOf, type Constraint } from "./constraints";
+import { ancestorsOf, findNode, isGroup } from "./constraint-tree";
+import { constraintShortName, countConstraints, groupName, plural } from "./node-text";
 import { SelectorContext, type SelectorContextValue } from "./selector-context";
 import {
     addConstraint,
+    addGroup,
     addProperty,
     constraintsReferencing,
-    removeConstraint,
+    moveConstraintNode,
+    removeConstraintNode,
     removeProperty,
-    replaceConstraint,
+    replaceConstraintNode,
     replaceProperty,
+    ungroup,
 } from "./selection-ops";
 import type {
     ComplexPropertySelection,
+    ConstraintGroup,
+    ConstraintNode,
+    GroupOperator,
     SelectedProperty,
     SelectorLocation,
     Suggestion,
@@ -33,6 +41,13 @@ import type {
 import { findProperty, isPropertyUnset, makeDefaultSelection, propertyFullText, propertyShortText, stepLabels } from "./util";
 import { MainView } from "./views/MainView";
 import { PropertyEditView } from "./views/PropertyEditView";
+import type { AddChoice } from "./views/ConstraintsSection";
+import { ConstraintsSection } from "./views/ConstraintsSection";
+import { LocationEditor, NegationEditor, OperatorEditor } from "./views/NodeSettings";
+
+function locationOf(node: ConstraintNode): SelectorLocation {
+    return { kind: isGroup(node) ? "group" : "constraint", id: node.id };
+}
 
 export interface ComplexPropertySelectorProps {
     /** Selection to show. */
@@ -115,16 +130,32 @@ export default function ComplexPropertySelector({
 
     // NOTE: Fall back to the main view if the shown item is gone.
     const property = rawLocation?.kind === "property" ? findProperty(selection, rawLocation.id) : undefined;
-    const constraint = rawLocation?.kind === "constraint"
-        ? selection.constraints.find((c) => c.id === rawLocation.id)
+    const rawNode = rawLocation?.kind === "constraint" || rawLocation?.kind === "group"
+        ? findNode(selection.constraints, rawLocation.id)
         : undefined;
-    const location: SelectorLocation = (property || constraint) ? rawLocation : null;
+    const node = rawNode && (rawLocation?.kind === "group") === isGroup(rawNode) ? rawNode : undefined;
+    const location: SelectorLocation = (property || node) ? rawLocation : null;
 
     const textCtx = { selection, labelOf };
     const crumbs: Crumb[] = [{ label: "Selection", title: "Selection", location: null }];
     let title: string;
     let description: string;
     let body: ReactNode;
+
+    const openNode = (it: ConstraintNode) => setLocation(locationOf(it));
+    const moveNode = (id: string, parentId: string | null) =>
+        setSelection(moveConstraintNode(selection, id, parentId));
+    const addNode = (choice: AddChoice, parentId: string | null) => {
+        if (choice.kind === "constraint") {
+            const added = addConstraint(selection, choice.subType, parentId);
+            setSelection(added.selection);
+            setLocation(locationOf(added.constraint));
+        } else {
+            const added = addGroup(selection, choice.operator, parentId);
+            setSelection(added.selection);
+            setLocation(locationOf(added.group));
+        }
+    };
 
     if (property) {
         const unset = isPropertyUnset(property);
@@ -146,28 +177,72 @@ export default function ComplexPropertySelector({
                 }}
             />
         );
-    } else if (constraint) {
-        const definition = definitionOf(constraint);
-        crumbs.push({
-            label: definition.shortName(constraint, textCtx),
-            title: `${definition.label} constraint`,
-            location,
-        });
-        title = `${definition.label} constraint`;
-        description = definition.description;
-        body = (
-            <ConstraintBody
-                constraint={constraint}
-                onConstraintChange={(newConstraint) => setSelection(replaceConstraint(selection, newConstraint))}
-                onRemove={() => {
-                    setSelection(removeConstraint(selection, constraint.id));
-                    setLocation(null);
-                }}
-            />
-        );
+    } else if (node) {
+        const ancestors = ancestorsOf(selection.constraints, node.id);
+        const parent = ancestors[ancestors.length - 1];
+        const parentLocation: SelectorLocation = parent ? locationOf(parent) : null;
+        for (const group of ancestors) {
+            crumbs.push({
+                label: groupName(group, textCtx),
+                title: groupName(group, textCtx, true),
+                location: locationOf(group),
+            });
+        }
+
+        const nodeSettings = {
+            onNegatedChange: (negated: boolean) =>
+                setSelection(replaceConstraintNode(selection, { ...node, negated })),
+            onMove: (parentId: string | null) => moveNode(node.id, parentId),
+            onRemove: () => {
+                setSelection(removeConstraintNode(selection, node.id));
+                setLocation(parentLocation);
+            },
+        };
+
+        if (isGroup(node)) {
+            crumbs.push({ label: groupName(node, textCtx), title: groupName(node, textCtx, true), location });
+            title = groupName(node, textCtx);
+            description = (node.operator === "and"
+                ? "All constraints in this group must hold."
+                : "At least one constraint in this group must hold.")
+                + (node.negated ? " The result is then inverted." : "");
+            body = (
+                <GroupBody
+                    group={node}
+                    {...nodeSettings}
+                    onOperatorChange={(operator) =>
+                        setSelection(replaceConstraintNode(selection, { ...node, operator }))}
+                    onUngroup={() => {
+                        setSelection(ungroup(selection, node.id));
+                        setLocation(parentLocation);
+                    }}
+                    onAdd={(choice) => addNode(choice, node.id)}
+                    onOpen={openNode}
+                    onMoveChild={moveNode}
+                />
+            );
+        } else {
+            const definition = definitionOf(node);
+            crumbs.push({
+                label: constraintShortName(node, textCtx),
+                title: `${definition.label} constraint`,
+                location,
+            });
+            title = `${definition.label} constraint`;
+            description = definition.description;
+            body = (
+                <ConstraintBody
+                    constraint={node}
+                    {...nodeSettings}
+                    onConstraintChange={(newConstraint) =>
+                        setSelection(replaceConstraintNode(selection, newConstraint))}
+                />
+            );
+        }
     } else {
         title = "Selection";
-        description = "Properties to select and constraints on them. Select an item to edit it.";
+        description = "Properties to select and constraints on them. Select an item to edit it. "
+            + "Drag a constraint onto an AND/OR group to move it in.";
         body = (
             <MainView
                 onAddProperty={() => {
@@ -175,13 +250,10 @@ export default function ComplexPropertySelector({
                     setSelection(added.selection);
                     setLocation({ kind: "property", id: added.property.id });
                 }}
-                onAddConstraint={(subType) => {
-                    const added = addConstraint(selection, subType);
-                    setSelection(added.selection);
-                    setLocation({ kind: "constraint", id: added.constraint.id });
-                }}
+                onAddConstraint={(choice) => addNode(choice, null)}
                 onOpenProperty={(id) => setLocation({ kind: "property", id })}
-                onOpenConstraint={(id) => setLocation({ kind: "constraint", id })}
+                onOpenConstraint={openNode}
+                onMoveConstraint={moveNode}
             />
         );
     }
@@ -204,14 +276,27 @@ export default function ComplexPropertySelector({
     );
 }
 
+/** Crumbs to show: past five, the middle ones collapse into one "…" crumb. */
+function visibleCrumbs(crumbs: readonly Crumb[]): readonly Crumb[] {
+    const n = crumbs.length;
+    if (n <= 5) return crumbs;
+    const hidden = crumbs.slice(1, n - 3);
+    return [
+        crumbs[0]!,
+        { label: "…", title: `Hidden: ${hidden.map((it) => it.label).join(" › ")}`, location: hidden[hidden.length - 1]!.location },
+        ...crumbs.slice(n - 3),
+    ];
+}
+
 function SelectorHeader({
-    crumbs,
+    crumbs: allCrumbs,
     onNavigate,
 }: {
     crumbs: readonly Crumb[],
     onNavigate: (location: SelectorLocation) => void,
 }) {
-    const parent = crumbs[crumbs.length - 2];
+    const parent = allCrumbs[allCrumbs.length - 2];
+    const crumbs = visibleCrumbs(allCrumbs);
 
     return (
         <div className="flex items-center gap-2 rounded-t-[10px] border-b bg-neutral-50 px-3 py-2 dark:bg-neutral-900">
@@ -266,17 +351,23 @@ function RemoveFooter({
     label,
     note,
     onRemove,
+    children,
 }: {
     label: string,
     note?: string,
     onRemove: () => void,
+    /** Further actions next to the remove button. */
+    children?: ReactNode,
 }) {
     return (
         <div className="flex flex-col items-start gap-2 border-t pt-4">
-            <Button type="button" variant="destructive" className="cursor-pointer" onClick={onRemove}>
-                <Trash2 />
-                {label}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="destructive" className="cursor-pointer" onClick={onRemove}>
+                    <Trash2 />
+                    {label}
+                </Button>
+                {children}
+            </div>
             {note && <p className="m-0 text-muted-foreground">{note}</p>}
         </div>
     );
@@ -294,7 +385,7 @@ function PropertyBody({
     onRemove: () => void,
 }) {
     const note = referenceCount > 0
-        ? `Also removes ${referenceCount} constraint${referenceCount === 1 ? "" : "s"} that refer${referenceCount === 1 ? "s" : ""} to it.`
+        ? `Also removes ${plural(referenceCount, "constraint")} that refer${referenceCount === 1 ? "s" : ""} to it.`
         : undefined;
 
     return (
@@ -305,21 +396,91 @@ function PropertyBody({
     );
 }
 
+interface NodeSettingsProps {
+    onNegatedChange: (negated: boolean) => void,
+    /** Move the node into a group (`null` for the top level). */
+    onMove: (parentId: string | null) => void,
+    onRemove: () => void,
+}
+
 function ConstraintBody({
     constraint,
     onConstraintChange,
+    onNegatedChange,
+    onMove,
     onRemove,
-}: {
+}: NodeSettingsProps & {
     constraint: Constraint,
     onConstraintChange: (newConstraint: Constraint) => void,
-    onRemove: () => void,
 }) {
     const definition = definitionOf(constraint);
 
     return (
         <div className="flex flex-col gap-4">
             <definition.EditView constraint={constraint} onConstraintChange={onConstraintChange} />
+            <NegationEditor node={constraint} onNegatedChange={onNegatedChange} />
+            <LocationEditor node={constraint} onMove={onMove} />
             <RemoveFooter label="Remove constraint" onRemove={onRemove} />
+        </div>
+    );
+}
+
+function GroupBody({
+    group,
+    onNegatedChange,
+    onMove,
+    onRemove,
+    onOperatorChange,
+    onUngroup,
+    onAdd,
+    onOpen,
+    onMoveChild,
+}: NodeSettingsProps & {
+    group: ConstraintGroup,
+    onOperatorChange: (operator: GroupOperator) => void,
+    onUngroup: () => void,
+    onAdd: (choice: AddChoice) => void,
+    onOpen: (node: ConstraintNode) => void,
+    onMoveChild: (id: string, parentId: string | null) => void,
+}) {
+    const count = countConstraints(group.children);
+    // NOTE: Only an AND group that is not negated can be dissolved without changing the meaning.
+    const canUngroup = group.operator === "and" && !group.negated;
+
+    return (
+        <div className="flex flex-col gap-4">
+            <OperatorEditor operator={group.operator} onOperatorChange={onOperatorChange} />
+            <NegationEditor node={group} onNegatedChange={onNegatedChange} />
+            <LocationEditor node={group} onMove={onMove} />
+            <ConstraintsSection
+                title="Constraints in group"
+                titleHint={group.operator === "and"
+                    ? "All of these must hold (AND)"
+                    : "At least one of these must hold (OR)"}
+                emptyText="No constraints in this group yet."
+                nodes={group.children}
+                containerId={group.id}
+                onAdd={onAdd}
+                onOpen={onOpen}
+                onMove={onMoveChild}
+            />
+            <RemoveFooter
+                label="Remove group"
+                note={count > 0 ? `Also removes ${plural(count, "constraint")} inside it.` : undefined}
+                onRemove={onRemove}
+            >
+                {canUngroup && (
+                    <Button
+                        type="button"
+                        variant="outline"
+                        className="cursor-pointer"
+                        title="Move the constraints one level up and remove the group"
+                        onClick={onUngroup}
+                    >
+                        Ungroup
+                    </Button>
+                )}
+            </RemoveFooter>
         </div>
     );
 }

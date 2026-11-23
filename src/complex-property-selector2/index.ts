@@ -5,6 +5,9 @@ export {
 export type {
     ComplexPropertySelection,
     ConstraintArg,
+    ConstraintGroup,
+    ConstraintNode,
+    GroupOperator,
     LiteralArg,
     PropertyArg,
     SelectedProperty,
@@ -26,4 +29,4 @@ export {
     type RdfTypeConstraint,
 } from "./constraints";
 export { makeDefaultSelection } from "./util";
-export { formatQuery, type VarInfo } from "./query-builder";
+export { constraintExpression, formatQuery, type VarInfo } from "./query-builder";

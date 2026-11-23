@@ -2,7 +2,7 @@ import { binaryConstraintText, defaultBinaryArgs } from "../common/binary";
 import type { ConstraintDefinition } from "../types";
 import EditView from "./EditView";
 import MainView from "./MainView";
-import { langMatchesQueryFragment } from "./query";
+import { langMatchesExpression } from "./query";
 import { LANG_MATCHES_LABEL, LANG_MATCHES_OPERATOR, type LangMatchesConstraint } from "./types";
 
 export type { LangMatchesConstraint } from "./types";
@@ -16,7 +16,7 @@ export const langMatchesConstraint: ConstraintDefinition<LangMatchesConstraint> 
         label: LANG_MATCHES_LABEL,
         operator: LANG_MATCHES_OPERATOR,
     }),
-    queryFragment: langMatchesQueryFragment,
+    expression: langMatchesExpression,
     MainView,
     EditView,
 };

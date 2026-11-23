@@ -1,26 +1,47 @@
 import { constraintDefinitions, definitionOf, type Constraint, type ConstraintSubType } from "./constraints";
-import type { ComplexPropertySelection, SelectedProperty } from "./shared";
+import {
+    allConstraints,
+    allNodes,
+    insertNode,
+    isGroup,
+    mapTree,
+    moveNode,
+    removeNode,
+    replaceNode,
+    ungroupNode,
+} from "./constraint-tree";
+import type {
+    ComplexPropertySelection,
+    ConstraintGroup,
+    ConstraintNode,
+    GroupOperator,
+    SelectedProperty,
+} from "./shared";
 import { makeId } from "./util";
 
-/** Constraints that refer to the property. */
+function refersTo(constraint: Constraint, propertyId: string): boolean {
+    return definitionOf(constraint).referencedPropertyIds(constraint).includes(propertyId);
+}
+
+/** Constraints (anywhere in the tree) that refer to the property. */
 export function constraintsReferencing(
     selection: ComplexPropertySelection,
     propertyId: string,
 ): Constraint[] {
-    return selection.constraints.filter(
-        (constraint) => definitionOf(constraint).referencedPropertyIds(constraint).includes(propertyId),
-    );
+    return allConstraints(selection.constraints).filter((constraint) => refersTo(constraint, propertyId));
 }
 
-/** Remove the property together with every constraint that refers to it. */
+/** Remove the property together with every constraint that refers to it. Groups are kept. */
 export function removeProperty(
     selection: ComplexPropertySelection,
     propertyId: string,
 ): ComplexPropertySelection {
-    const referencing = new Set(constraintsReferencing(selection, propertyId));
     return {
         properties: selection.properties.filter((p) => p.id !== propertyId),
-        constraints: selection.constraints.filter((c) => !referencing.has(c)),
+        constraints: mapTree(
+            selection.constraints,
+            (node) => (!isGroup(node) && refersTo(node, propertyId) ? null : node),
+        ),
     };
 }
 
@@ -38,17 +59,41 @@ export function addProperty(
     };
 }
 
+function nodeIds(selection: ComplexPropertySelection): string[] {
+    return allNodes(selection.constraints).map((node) => node.id);
+}
+
+/** Add a constraint to the group (`null` for the top level). */
 export function addConstraint(
     selection: ComplexPropertySelection,
     subType: ConstraintSubType,
+    parentId: string | null = null,
 ): { selection: ComplexPropertySelection, constraint: Constraint } {
     const constraint = constraintDefinitions[subType].create({
-        id: makeId("c", selection.constraints.map((c) => c.id)),
+        id: makeId("c", nodeIds(selection)),
         selection,
     });
     return {
-        selection: { ...selection, constraints: [...selection.constraints, constraint] },
+        selection: { ...selection, constraints: insertNode(selection.constraints, constraint, parentId) },
         constraint,
+    };
+}
+
+/** Add an empty group to the group (`null` for the top level). */
+export function addGroup(
+    selection: ComplexPropertySelection,
+    operator: GroupOperator,
+    parentId: string | null = null,
+): { selection: ComplexPropertySelection, group: ConstraintGroup } {
+    const group: ConstraintGroup = {
+        subType: "group",
+        id: makeId("g", nodeIds(selection)),
+        operator,
+        children: [],
+    };
+    return {
+        selection: { ...selection, constraints: insertNode(selection.constraints, group, parentId) },
+        group,
     };
 }
 
@@ -62,19 +107,32 @@ export function replaceProperty(
     };
 }
 
-export function replaceConstraint(
+/** Replace the constraint or group with the same id. */
+export function replaceConstraintNode(
     selection: ComplexPropertySelection,
-    constraint: Constraint,
+    node: ConstraintNode,
 ): ComplexPropertySelection {
-    return {
-        ...selection,
-        constraints: selection.constraints.map((c) => (c.id === constraint.id ? constraint : c)),
-    };
+    return { ...selection, constraints: replaceNode(selection.constraints, node) };
 }
 
-export function removeConstraint(
+/** Remove the constraint or group (together with everything inside it). */
+export function removeConstraintNode(
     selection: ComplexPropertySelection,
-    constraintId: string,
+    id: string,
 ): ComplexPropertySelection {
-    return { ...selection, constraints: selection.constraints.filter((c) => c.id !== constraintId) };
+    return { ...selection, constraints: removeNode(selection.constraints, id) };
+}
+
+/** Move the constraint or group into the group (`null` for the top level). */
+export function moveConstraintNode(
+    selection: ComplexPropertySelection,
+    id: string,
+    parentId: string | null,
+): ComplexPropertySelection {
+    return { ...selection, constraints: moveNode(selection.constraints, id, parentId) };
+}
+
+/** Replace the group with its children. */
+export function ungroup(selection: ComplexPropertySelection, groupId: string): ComplexPropertySelection {
+    return { ...selection, constraints: ungroupNode(selection.constraints, groupId) };
 }

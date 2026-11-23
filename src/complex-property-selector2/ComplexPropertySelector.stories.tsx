@@ -64,9 +64,30 @@ const exampleSelection: ComplexPropertySelection = {
     ],
     constraints: [
         { subType: "rdfType", id: "c1", target: { kind: "subject" }, value: { kind: "literal", value: ex("Person") } },
-        { subType: "rdfType", id: "c2", target: { kind: "property", propertyId: "p4" }, value: { kind: "literal", value: ex("Person") } },
-        { subType: "rdfType", id: "c3", target: { kind: "property", propertyId: "p6" }, value: { kind: "literal", value: ex("Organization") } },
-        { subType: "langEquals", id: "c4", target: { kind: "property", propertyId: "p5" }, value: { kind: "literal", value: "en" } },
+        { subType: "rdfType", id: "c2", negated: true, target: { kind: "subject" }, value: { kind: "literal", value: ex("Organization") } },
+        {
+            subType: "group", id: "g1", operator: "or", children: [
+                { subType: "langEquals", id: "c3", target: { kind: "property", propertyId: "p1" }, value: { kind: "literal", value: "en" } },
+                { subType: "langEquals", id: "c4", target: { kind: "property", propertyId: "p1" }, value: { kind: "literal", value: "lv" } },
+            ],
+        },
+        {
+            subType: "group", id: "g2", operator: "or", children: [
+                {
+                    subType: "group", id: "g3", operator: "and", children: [
+                        { subType: "rdfType", id: "c5", target: { kind: "property", propertyId: "p4" }, value: { kind: "literal", value: ex("Person") } },
+                        {
+                            subType: "group", id: "g4", operator: "or", children: [
+                                { subType: "langMatches", id: "c6", target: { kind: "property", propertyId: "p5" }, value: { kind: "literal", value: "en" } },
+                                { subType: "langMatches", id: "c7", target: { kind: "property", propertyId: "p5" }, value: { kind: "literal", value: "lv" } },
+                            ],
+                        },
+                    ],
+                },
+                { subType: "rdfType", id: "c8", negated: true, target: { kind: "property", propertyId: "p6" }, value: { kind: "literal", value: ex("Organization") } },
+            ],
+        },
+        { subType: "group", id: "g5", operator: "and", negated: true, children: [] },
     ],
 };
 
@@ -95,7 +116,16 @@ export const PropertyEditView: Story = {
 export const ConstraintEditView: Story = {
     args: {
         defaultSelection: exampleSelection,
-        defaultLocation: { kind: "constraint", id: "c2" },
+        defaultLocation: { kind: "constraint", id: "c5" },
+        suggestionsFetcher: exampleSuggestions,
+        labelOf: exampleLabelOf,
+    },
+};
+
+export const GroupEditView: Story = {
+    args: {
+        defaultSelection: exampleSelection,
+        defaultLocation: { kind: "group", id: "g3" },
         suggestionsFetcher: exampleSuggestions,
         labelOf: exampleLabelOf,
     },
@@ -232,7 +262,7 @@ export const AddConstraint: Story = {
         );
 
         await step("Pick a constraint kind", async () => {
-            await user.click(canvas.getByRole("button", { name: "Add constraint" }));
+            await user.click(canvas.getByRole("button", { name: "Add constraint or group" }));
             await user.click(await screen.findByRole("menuitem", { name: /^LangEquals/ }));
             expect(canvas.getByRole("heading", { name: "LangEquals constraint" })).toBeInTheDocument();
         });
@@ -369,6 +399,141 @@ export const SuggestionTargets: Story = {
             await user.click(canvas.getByRole("button", { name: /^Edit constraint/ }));
             await user.click(canvas.getByRole("combobox", { name: "Expected type: literal value" }));
             expect(targets).toContainEqual({ kind: "constraintArg", constraintId: "c1", subType: "rdfType", arg: "value" });
+        });
+    },
+};
+
+export const GroupsAndNegation: Story = {
+    args: {},
+    play: async ({ mount, userEvent, step }) => {
+        const user = userEvent.setup({});
+        const canvas = await mount(
+            <SelectionJsonProbe
+                defaultSelection={{
+                    properties: [{ id: "p1", alternatives: [["label"]], mandatory: false }],
+                    constraints: [
+                        { subType: "langEquals", id: "c1", target: { kind: "property", propertyId: "p1" }, value: { kind: "literal", value: "en" } },
+                    ],
+                }}
+            />
+        );
+
+        await step("Add an OR group, which opens its edit view", async () => {
+            await user.click(canvas.getByRole("button", { name: "Add constraint or group" }));
+            await user.click(await screen.findByRole("menuitem", { name: /^OR group/ }));
+            expect(canvas.getByRole("heading", { name: "OR group" })).toBeInTheDocument();
+            expect(canvas.getByText("No constraints in this group yet.")).toBeInTheDocument();
+        });
+
+        await step("Negate the group", async () => {
+            await user.click(within(canvas.getByRole("group", { name: "Negation" })).getByRole("radio", { name: "NOT" }));
+            expect(canvas.getByRole("heading", { name: "NOT OR group" })).toBeInTheDocument();
+        });
+
+        await step("Add a constraint inside the group", async () => {
+            await user.click(canvas.getByRole("button", { name: "Add constraint or group" }));
+            await user.click(await screen.findByRole("menuitem", { name: /^LangMatches/ }));
+            expect(canvas.getByRole("button", { name: "NOT OR group" })).toBeInTheDocument();
+        });
+
+        await step("Move the top-level constraint into the group", async () => {
+            await user.click(canvas.getByRole("button", { name: "Selection" }));
+            await user.click(canvas.getByRole("button", { name: /^Edit constraint LangEquals/ }));
+            await user.click(canvas.getByRole("combobox", { name: "Group that contains this item" }));
+            await user.click(await screen.findByRole("option", { name: /^NOT OR group/ }));
+        });
+
+        await step("Validate selection", () => {
+            expect(readSelectionJson(canvas).constraints).toEqual([{
+                subType: "group",
+                id: "g1",
+                operator: "or",
+                negated: true,
+                children: [
+                    { subType: "langMatches", id: "c2", target: { kind: "property", propertyId: "p1" }, value: { kind: "literal", value: "" } },
+                    { subType: "langEquals", id: "c1", target: { kind: "property", propertyId: "p1" }, value: { kind: "literal", value: "en" } },
+                ],
+            }]);
+        });
+
+        await step("Main view shows the group and NOT labels", async () => {
+            await user.click(canvas.getByRole("button", { name: "Selection" }));
+            expect(canvas.getByRole("button", { name: "Edit negation" })).toBeInTheDocument();
+            expect(canvas.getByRole("button", { name: "Edit NOT OR group" })).toBeInTheDocument();
+        });
+    },
+};
+
+export const Ungroup: Story = {
+    args: {},
+    play: async ({ mount, userEvent, step }) => {
+        const user = userEvent.setup({});
+        const leaf = (id: string) => ({
+            subType: "rdfType" as const, id, target: { kind: "subject" as const }, value: { kind: "literal" as const, value: id },
+        });
+        const canvas = await mount(
+            <SelectionJsonProbe
+                defaultSelection={{
+                    properties: [],
+                    constraints: [
+                        leaf("c1"),
+                        { subType: "group", id: "g1", operator: "and", children: [leaf("c2"), leaf("c3")] },
+                        { subType: "group", id: "g2", operator: "or", children: [leaf("c4")] },
+                    ],
+                }}
+            />
+        );
+
+        await step("OR group cannot be ungrouped", async () => {
+            await user.click(canvas.getByRole("button", { name: "Edit OR group" }));
+            expect(canvas.getByText("Also removes 1 constraint inside it.")).toBeInTheDocument();
+            expect(canvas.queryByRole("button", { name: "Ungroup" })).toBeNull();
+        });
+
+        await step("Ungroup the AND group", async () => {
+            await user.click(canvas.getByRole("button", { name: "Selection" }));
+            await user.click(canvas.getByRole("button", { name: "Edit AND group" }));
+            await user.click(canvas.getByRole("button", { name: "Ungroup" }));
+            expect(canvas.getByRole("heading", { name: "Selection" })).toBeInTheDocument();
+            expect(readSelectionJson(canvas).constraints.map((it) => it.id)).toEqual(["c1", "c2", "c3", "g2"]);
+        });
+    },
+};
+
+export const RemovingNestedConstraint: Story = {
+    args: {},
+    play: async ({ mount, userEvent, step }) => {
+        const user = userEvent.setup({});
+        const canvas = await mount(
+            <SelectionJsonProbe
+                defaultSelection={{
+                    properties: [],
+                    constraints: [{
+                        subType: "group", id: "g1", operator: "and", children: [{
+                            subType: "group", id: "g2", operator: "or", children: [
+                                { subType: "rdfType", id: "c1", target: { kind: "subject" }, value: { kind: "literal", value: "T" } },
+                            ],
+                        }],
+                    }],
+                }}
+            />
+        );
+
+        await step("Breadcrumb lists the groups", async () => {
+            await user.click(canvas.getByRole("button", { name: /^Edit constraint Type/ }));
+            const nav = canvas.getByRole("navigation", { name: "breadcrumb" });
+            expect(within(nav).getByRole("button", { name: "AND group" })).toBeInTheDocument();
+            expect(within(nav).getByRole("button", { name: "OR group" })).toBeInTheDocument();
+        });
+
+        await step("Removing goes up to the containing group", async () => {
+            await user.click(canvas.getByRole("button", { name: "Remove constraint" }));
+            expect(canvas.getByRole("heading", { name: "OR group" })).toBeInTheDocument();
+            expect(readSelectionJson(canvas).constraints).toEqual([{
+                subType: "group", id: "g1", operator: "and", children: [
+                    { subType: "group", id: "g2", operator: "or", children: [] },
+                ],
+            }]);
         });
     },
 };

@@ -41,9 +41,29 @@ export interface LiteralArg {
 /** Argument of a constraint. Subject and property arguments are looked up when the query runs. */
 export type ConstraintArg = SubjectArg | PropertyArg | LiteralArg;
 
+export type GroupOperator = "and" | "or";
+
+/**
+ * Group of constraints combined with AND (all must hold) or OR (at least one must hold).
+ * Groups can be nested.
+ */
+export interface ConstraintGroup {
+    subType: "group",
+    /** Identifier of this group. Unique among all constraints and groups of a selection. */
+    id: string,
+    operator: GroupOperator,
+    /** Whether the result of the group is inverted (NOT). */
+    negated?: boolean,
+    children: ConstraintNode[],
+}
+
+/** Node of the constraint tree: a constraint or a group of further nodes. */
+export type ConstraintNode = Constraint | ConstraintGroup;
+
 export interface ComplexPropertySelection {
     properties: SelectedProperty[],
-    constraints: Constraint[],
+    /** Constraint tree. The top-level nodes are combined with AND. */
+    constraints: ConstraintNode[],
 }
 
 /** Item that suggestions are requested for. */
@@ -81,4 +101,5 @@ export type SuggestionsFetcher = (ctx: SuggestionsFetcherContext) => Promise<Sug
 export type SelectorLocation =
     | null
     | { kind: "property", id: string }
-    | { kind: "constraint", id: string };
+    | { kind: "constraint", id: string }
+    | { kind: "group", id: string };
