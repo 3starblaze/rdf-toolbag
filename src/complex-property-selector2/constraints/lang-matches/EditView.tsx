@@ -21,7 +21,7 @@ export default function LangMatchesEditView({
                 literalPlaceholder="Enter property or URI"
             />
             <ArgEditor
-                title="Expected language"
+                title="Expected language range"
                 arg={constraint.value}
                 onArgChange={(value) => onConstraintChange({ ...constraint, value })}
                 suggestionTarget={{
@@ -30,7 +30,7 @@ export default function LangMatchesEditView({
                     subType: constraint.subType,
                     arg: "value",
                 }}
-                literalPlaceholder="Enter language, e.g. en"
+                literalPlaceholder="Enter language range, e.g. en or *"
             />
         </>
     );

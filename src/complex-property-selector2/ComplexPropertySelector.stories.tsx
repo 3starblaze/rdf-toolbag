@@ -40,6 +40,7 @@ const exampleSuggestions: SuggestionsFetcher = async ({ target }) => {
     switch (target.subType) {
         case "rdfType":
             return ["Person", "Organization", "City"].map(iri);
+        case "langEquals":
         case "langMatches":
             return ["en", "lv", "de", "fr", "es", "ru"].map((lang) => ({ value: lang, label: lang }));
     }
@@ -65,7 +66,7 @@ const exampleSelection: ComplexPropertySelection = {
         { subType: "rdfType", id: "c1", target: { kind: "subject" }, value: { kind: "literal", value: ex("Person") } },
         { subType: "rdfType", id: "c2", target: { kind: "property", propertyId: "p4" }, value: { kind: "literal", value: ex("Person") } },
         { subType: "rdfType", id: "c3", target: { kind: "property", propertyId: "p6" }, value: { kind: "literal", value: ex("Organization") } },
-        { subType: "langMatches", id: "c4", target: { kind: "property", propertyId: "p5" }, value: { kind: "literal", value: "en" } },
+        { subType: "langEquals", id: "c4", target: { kind: "property", propertyId: "p5" }, value: { kind: "literal", value: "en" } },
     ],
 };
 
@@ -232,8 +233,8 @@ export const AddConstraint: Story = {
 
         await step("Pick a constraint kind", async () => {
             await user.click(canvas.getByRole("button", { name: "Add constraint" }));
-            await user.click(await screen.findByRole("menuitem", { name: /^LangMatches/ }));
-            expect(canvas.getByRole("heading", { name: "LangMatches constraint" })).toBeInTheDocument();
+            await user.click(await screen.findByRole("menuitem", { name: /^LangEquals/ }));
+            expect(canvas.getByRole("heading", { name: "LangEquals constraint" })).toBeInTheDocument();
         });
 
         await step("Pick the expected language", async () => {
@@ -243,7 +244,7 @@ export const AddConstraint: Story = {
 
         await step("Validate selection", () => {
             expect(readSelectionJson(canvas).constraints).toEqual([{
-                subType: "langMatches",
+                subType: "langEquals",
                 id: "c1",
                 target: { kind: "property", propertyId: "p1" },
                 value: { kind: "literal", value: "lv" },
@@ -252,7 +253,7 @@ export const AddConstraint: Story = {
 
         await step("Main view shows the compact constraint", async () => {
             await user.click(canvas.getByRole("button", { name: "Up one level" }));
-            expect(canvas.getByRole("button", { name: /^Edit constraint LangMatches: knows matches "lv"/ }))
+            expect(canvas.getByRole("button", { name: /^Edit constraint LangEquals: knows equals "lv"/ }))
                 .toBeInTheDocument();
         });
     },
@@ -310,7 +311,7 @@ export const RemovePropertyRemovesConstraints: Story = {
                     ],
                     constraints: [
                         { subType: "rdfType", id: "c1", target: { kind: "property", propertyId: "p1" }, value: { kind: "literal", value: "Person" } },
-                        { subType: "langMatches", id: "c2", target: { kind: "property", propertyId: "p2" }, value: { kind: "literal", value: "en" } },
+                        { subType: "langEquals", id: "c2", target: { kind: "property", propertyId: "p2" }, value: { kind: "literal", value: "en" } },
                     ],
                 }}
             />
@@ -330,7 +331,7 @@ export const RemovePropertyRemovesConstraints: Story = {
             await waitFor(() => expect(readSelectionJson(canvas)).toEqual({
                 properties: [{ id: "p2", alternatives: [["name"]], mandatory: false }],
                 constraints: [
-                    { subType: "langMatches", id: "c2", target: { kind: "property", propertyId: "p2" }, value: { kind: "literal", value: "en" } },
+                    { subType: "langEquals", id: "c2", target: { kind: "property", propertyId: "p2" }, value: { kind: "literal", value: "en" } },
                 ],
             }));
             expect(canvas.getByRole("heading", { name: "Selection" })).toBeInTheDocument();

@@ -186,8 +186,10 @@ describe("formatQuery properties", () => {
 describe("formatQuery constraints", () => {
     const rdfType = (target: Constraint["target"], value: Constraint["value"]): Constraint =>
         ({ subType: "rdfType", id: "c1", target, value });
+    const langEquals = (target: Constraint["target"], value: Constraint["value"]): Constraint =>
+        ({ subType: "langEquals", id: "c2", target, value });
     const langMatches = (target: Constraint["target"], value: Constraint["value"]): Constraint =>
-        ({ subType: "langMatches", id: "c2", target, value });
+        ({ subType: "langMatches", id: "c3", target, value });
 
     test("rdfType with subject and literal", () => {
         const { compacted } = run({
@@ -209,19 +211,28 @@ describe("formatQuery constraints", () => {
         expect(compacted).toContain(`?friend ${rdfTypeIri} ?friendType`);
     });
 
+    test("langEquals with property and literal", () => {
+        const { compacted } = run({
+            properties: [prop("p1", ["http://label"])],
+            constraints: [langEquals({ kind: "property", propertyId: "p1" }, { kind: "literal", value: "en" })],
+        });
+
+        expect(compacted).toContain('FILTER ( ( LANG( ?label ) = "en" ) )');
+    });
+
     test("langMatches with property and literal", () => {
         const { compacted } = run({
             properties: [prop("p1", ["http://label"])],
             constraints: [langMatches({ kind: "property", propertyId: "p1" }, { kind: "literal", value: "en" })],
         });
 
-        expect(compacted).toContain('FILTER ( ( LANG( ?label ) = "en" ) )');
+        expect(compacted).toContain('FILTER ( LANGMATCHES( LANG( ?label ) , "en" ) )');
     });
 
-    test("langMatches literal is escaped", () => {
+    test("langEquals literal is escaped", () => {
         const { query } = run({
             properties: [prop("p1", ["http://label"])],
-            constraints: [langMatches({ kind: "property", propertyId: "p1" }, { kind: "literal", value: 'e"n' })],
+            constraints: [langEquals({ kind: "property", propertyId: "p1" }, { kind: "literal", value: 'e"n' })],
         });
 
         expect(query).toContain('"e\\"n"');
@@ -232,7 +243,7 @@ describe("formatQuery constraints", () => {
             properties: [prop("p1", [""])],
             constraints: [
                 rdfType({ kind: "subject" }, { kind: "literal", value: "" }),
-                langMatches({ kind: "property", propertyId: "p1" }, { kind: "literal", value: "en" }),
+                langEquals({ kind: "property", propertyId: "p1" }, { kind: "literal", value: "en" }),
                 rdfType({ kind: "property", propertyId: "removed" }, { kind: "literal", value: "http://T" }),
             ],
         });

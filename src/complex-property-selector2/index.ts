@@ -21,6 +21,7 @@ export {
     type Constraint,
     type ConstraintDefinition,
     type ConstraintSubType,
+    type LangEqualsConstraint,
     type LangMatchesConstraint,
     type RdfTypeConstraint,
 } from "./constraints";

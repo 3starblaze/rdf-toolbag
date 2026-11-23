@@ -1,8 +1,10 @@
+import { langEqualsConstraint, type LangEqualsConstraint } from "./lang-equals";
 import { langMatchesConstraint, type LangMatchesConstraint } from "./lang-matches";
 import { rdfTypeConstraint, type RdfTypeConstraint } from "./rdf-type";
 import type { ConstraintDefinition } from "./types";
 
 export type { RdfTypeConstraint } from "./rdf-type";
+export type { LangEqualsConstraint } from "./lang-equals";
 export type { LangMatchesConstraint } from "./lang-matches";
 export type * from "./types";
 
@@ -12,7 +14,7 @@ export type * from "./types";
  * NOTE: To add a constraint kind, create a folder next to this file (see `rdf-type/`), add its type
  * to this union and its definition to `constraintDefinitions`.
  */
-export type Constraint = RdfTypeConstraint | LangMatchesConstraint;
+export type Constraint = RdfTypeConstraint | LangEqualsConstraint | LangMatchesConstraint;
 
 export type ConstraintSubType = Constraint["subType"];
 
@@ -22,11 +24,12 @@ type ConstraintDefinitions = {
 
 export const constraintDefinitions: ConstraintDefinitions = {
     rdfType: rdfTypeConstraint,
+    langEquals: langEqualsConstraint,
     langMatches: langMatchesConstraint,
 };
 
 /** Constraint kinds in the order they are offered to the user. */
-export const constraintSubTypes: readonly ConstraintSubType[] = ["rdfType", "langMatches"];
+export const constraintSubTypes: readonly ConstraintSubType[] = ["rdfType", "langEquals", "langMatches"];
 
 /**
  * Definition of the constraint's kind.

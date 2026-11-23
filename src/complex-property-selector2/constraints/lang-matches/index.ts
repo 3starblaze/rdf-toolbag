@@ -10,7 +10,7 @@ export type { LangMatchesConstraint } from "./types";
 export const langMatchesConstraint: ConstraintDefinition<LangMatchesConstraint> = {
     subType: "langMatches",
     label: LANG_MATCHES_LABEL,
-    description: "Language tag of the target item matches the expected language.",
+    description: "Language tag of the target item matches the expected language range.",
     create: ({ id, selection }) => ({ subType: "langMatches", id, ...defaultBinaryArgs(selection) }),
     ...binaryConstraintText<LangMatchesConstraint>({
         label: LANG_MATCHES_LABEL,
